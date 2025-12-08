@@ -1,0 +1,27 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // --- Existing Collections ---
+    match /users/{userId} { allow read, write: if true; }
+    match /courses/{courseId} { allow read, write: if true; }
+    match /lessons/{lessonId} { allow read, write: if true; }
+    match /progress/{progressId} { allow read, write: if true; }
+    match /questions/{questionId} { allow read, write: if true; }
+    match /quizResults/{resultId} { allow read, write: if true; }
+    match /enrollments/{enrollmentId} { allow read, write: if true; }
+    match /departments/{departmentId} { allow read, write: if true; }
+    match /salaryRecords/{recordId} { allow read, write: if true; }
+    match /companySettings/{settingId} { allow read, write: if true; }
+    match /attendanceRecords/{recordId} { allow read, write: if true; }
+    match /monthlySalaries/{salaryId} { allow read, write: if true; }
+    
+    // --- New Finance Collections ---
+    match /finance_accounts/{accountId} { allow read, write: if true; }
+    match /finance_transactions/{txId} { allow read, write: if true; }
+    match /finance_fixed_costs/{costId} { allow read, write: if true; }
+    match /finance_projects/{projId} { allow read, write: if true; }
+    match /finance_funds/{fundId} { allow read, write: if true; }
+    match /finance_revenues/{revenueId} { allow read, write: if true; }
+    match /finance_logs/{logId} { allow read, write: if true; }
+  }
+}
