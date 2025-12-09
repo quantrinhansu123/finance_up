@@ -589,7 +589,7 @@ export default function DashboardPage() {
             {/* Account Cards - Compact */}
             <div className="glass-card p-4 rounded-xl border border-white/5">
                 <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-sm font-bold">� Tài khouản</h3>
+                    <h3 className="text-sm font-bold">💳 Tài khoản</h3>
                     <Link href="/finance/accounts" className="text-xs text-[var(--muted)] hover:text-white">Quản lý →</Link>
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
@@ -709,7 +709,7 @@ export default function DashboardPage() {
 
                 {/* Income Breakdown */}
                 <div className="glass-card p-6 rounded-xl border border-white/5">
-                    <h3 className="text-lg font-bold mb-4">� TỷT lệ thu ({getPeriodLabel()})</h3>
+                    <h3 className="text-lg font-bold mb-4">💰 Tỷ lệ thu ({getPeriodLabel()})</h3>
                     <div className="h-48 mb-4">
                         <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
