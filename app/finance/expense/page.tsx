@@ -133,6 +133,19 @@ export default function ExpensePage() {
         return false;
     };
 
+    // Check if amount exceeds balance
+    const isOverBalance = useMemo(() => {
+        const numAmount = parseFloat(amount) || 0;
+        if (!selectedAccount || numAmount <= 0) return false;
+        return numAmount > selectedAccount.balance;
+    }, [amount, selectedAccount]);
+
+    const remainingBalance = useMemo(() => {
+        const numAmount = parseFloat(amount) || 0;
+        if (!selectedAccount) return 0;
+        return selectedAccount.balance - numAmount;
+    }, [amount, selectedAccount]);
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setSubmitting(true);
@@ -313,7 +326,9 @@ export default function ExpensePage() {
                                         type="number" 
                                         value={amount} 
                                         onChange={e => setAmount(e.target.value)}
-                                        className="w-full p-3 pr-16 bg-black/30 border border-white/10 rounded-xl text-white text-lg font-semibold focus:border-red-500/50 focus:outline-none"
+                                        className={`w-full p-3 pr-16 bg-black/30 border rounded-xl text-white text-lg font-semibold focus:outline-none transition-colors ${
+                                            isOverBalance ? "border-red-500 focus:border-red-500" : "border-white/10 focus:border-red-500/50"
+                                        }`}
                                         placeholder="0"
                                         required 
                                     />
@@ -321,9 +336,24 @@ export default function ExpensePage() {
                                         {selectedAccount?.currency}
                                     </span>
                                 </div>
-                                {requiresApproval() && (
+                                {isOverBalance && (
+                                    <div className="mt-2 p-3 bg-red-500/10 border border-red-500/30 rounded-xl">
+                                        <p className="flex items-center gap-2 text-sm text-red-400 font-medium">
+                                            <AlertCircle size={16} /> Vượt quá số dư tài khoản!
+                                        </p>
+                                        <p className="text-xs text-red-400/70 mt-1">
+                                            Số dư: {selectedAccount?.balance.toLocaleString()} {selectedAccount?.currency} • Thiếu: {Math.abs(remainingBalance).toLocaleString()} {selectedAccount?.currency}
+                                        </p>
+                                    </div>
+                                )}
+                                {!isOverBalance && requiresApproval() && (
                                     <p className="flex items-center gap-1 mt-1.5 text-xs text-yellow-400">
-                                        <AlertCircle size={12} /> Cần Admin duyệt
+                                        <AlertCircle size={12} /> Số tiền lớn - Cần Admin duyệt
+                                    </p>
+                                )}
+                                {!isOverBalance && amount && parseFloat(amount) > 0 && (
+                                    <p className="mt-1.5 text-xs text-white/40">
+                                        Số dư sau chi: <span className="text-green-400 font-medium">{remainingBalance.toLocaleString()} {selectedAccount?.currency}</span>
                                     </p>
                                 )}
                             </div>
