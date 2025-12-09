@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import {
     BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, AreaChart, Area
 } from "recharts";
-import { getTransactions, getAccounts, getRevenues } from "@/lib/finance";
-import { Transaction, Account, Currency, MonthlyRevenue, Fund } from "@/types/finance";
-import { canViewGlobalStats, getUserRole, Role } from "@/lib/permissions";
+import { getTransactions, getAccounts, getRevenues, getFixedCosts, getProjects } from "@/lib/finance";
+import { Transaction, Account, Currency, MonthlyRevenue, Fund, FixedCost, Project } from "@/types/finance";
+import { canViewGlobalStats, getUserRole, Role, getAccessibleProjects } from "@/lib/permissions";
 import { getExchangeRates, convertCurrency } from "@/lib/currency";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -22,23 +22,52 @@ const FUND_COLORS: Record<string, string> = {
     "Marketing": "#fb923c"
 };
 
-type ViewPeriod = "month" | "quarter" | "year";
+const CURRENCY_COLORS: Record<string, string> = {
+    "VND": "#ef4444",
+    "USD": "#3b82f6",
+    "KHR": "#22c55e",
+    "TRY": "#f59e0b"
+};
+
+type ViewPeriod = "day" | "month" | "quarter" | "year";
+
+// Category mapping for fixed costs
+const FIXED_COST_CATEGORIES = [
+    { key: "Lương nhân sự", label: "Lương nhân sự", icon: "👥" },
+    { key: "Thuê văn phòng", label: "Thuê văn phòng", icon: "🏢" },
+    { key: "Cước vận chuyển", label: "Cước vận chuyển", icon: "🚚" },
+    { key: "Marketing/Ads", label: "Marketing/Ads", icon: "📢" },
+    { key: "Vận hành", label: "Vận hành", icon: "⚙️" },
+    { key: "SIM", label: "SIM", icon: "📱" },
+    { key: "Thuế", label: "Thuế", icon: "📋" },
+    { key: "Khác", label: "Khác", icon: "📦" }
+];
 
 export default function DashboardPage() {
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [revenues, setRevenues] = useState<MonthlyRevenue[]>([]);
     const [funds, setFunds] = useState<Fund[]>([]);
     const [accounts, setAccounts] = useState<Account[]>([]);
+    const [fixedCosts, setFixedCosts] = useState<FixedCost[]>([]);
+    const [projects, setProjects] = useState<Project[]>([]);
     const [userRole, setUserRole] = useState<Role>("STAFF");
+    const [currentUser, setCurrentUser] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [viewPeriod, setViewPeriod] = useState<ViewPeriod>("month");
     const [rates, setRates] = useState<any>({});
+
+    // NEW: Filters
+    const [filterProject, setFilterProject] = useState<string>("");
+    const [filterCurrency, setFilterCurrency] = useState<Currency | "ALL">("ALL");
 
     // Summary Metrics
     const [totalBalance, setTotalBalance] = useState(0);
     const [periodIn, setPeriodIn] = useState(0);
     const [periodOut, setPeriodOut] = useState(0);
     const [pendingCount, setPendingCount] = useState(0);
+
+    // NEW: Balance by currency (không quy đổi)
+    const [balanceByCurrency, setBalanceByCurrency] = useState<Record<Currency, number>>({} as any);
 
     // Fund Expenses
     const [fundExpenses, setFundExpenses] = useState<Record<string, number>>({});
@@ -48,14 +77,22 @@ export default function DashboardPage() {
     const [dailyCategoryStats, setDailyCategoryStats] = useState<any[]>([]);
     
     // Project Stats
-    const [projects, setProjects] = useState<any[]>([]);
     const [projectStats, setProjectStats] = useState<Record<string, { in: number, out: number, budget: number }>>({});
+
+    // NEW: Fixed Cost Summary by Category
+    const [fixedCostSummary, setFixedCostSummary] = useState<Record<string, { amount: number, currency: Currency, count: number }>>({});
+
+    // NEW: Salary Report Data
+    const [salaryReport, setSalaryReport] = useState<any[]>([]);
 
     // Chart Data
     const [chartData, setChartData] = useState<any[]>([]);
     const [catData, setCatData] = useState<any[]>([]);
     const [categoryTrendData, setCategoryTrendData] = useState<any[]>([]);
     const [salaryRatios, setSalaryRatios] = useState<any[]>([]);
+
+    // NEW: Currency breakdown chart data
+    const [currencyBreakdown, setCurrencyBreakdown] = useState<any[]>([]);
 
     // Warnings
     const [highValueTxs, setHighValueTxs] = useState<Transaction[]>([]);
@@ -66,51 +103,68 @@ export default function DashboardPage() {
     const [dailySearchTerm, setDailySearchTerm] = useState("");
     const [showAllDays, setShowAllDays] = useState(false);
     const [showAllProjects, setShowAllProjects] = useState(false);
+    const [showFixedCostDetails, setShowFixedCostDetails] = useState(false);
+
+    // Get accessible projects based on user role
+    const accessibleProjects = useMemo(() => {
+        return getAccessibleProjects(currentUser, projects);
+    }, [currentUser, projects]);
 
     useEffect(() => {
         const u = localStorage.getItem("user") || sessionStorage.getItem("user");
         if (u) {
             const parsedUser = JSON.parse(u);
             const computedRole = getUserRole(parsedUser);
-            console.log("📊 Dashboard - User Role:", computedRole);
             setUserRole(computedRole);
+            setCurrentUser(parsedUser);
         }
 
         const loadData = async () => {
             setLoading(true);
             try {
-                const [txs, accs, exchangeRates, revsData, fundsData, projectsData] = await Promise.all([
+                const [txs, accs, exchangeRates, revsData, fundsData, projectsData, fixedCostsData] = await Promise.all([
                     getTransactions(),
                     getAccounts(),
                     getExchangeRates(),
                     getRevenues(),
                     getDocs(collection(db, "finance_funds")).then(s => s.docs.map(d => ({ id: d.id, ...d.data() } as Fund))),
-                    getDocs(collection(db, "finance_projects")).then(s => s.docs.map(d => ({ id: d.id, ...d.data() })))
+                    getProjects(),
+                    getFixedCosts()
                 ]);
-
-                console.log("DEBUG: Accounts fetched:", accs);
-                console.log("DEBUG: Exchange Rates:", exchangeRates);
 
                 setTransactions(txs);
                 setRevenues(revsData);
                 setFunds(fundsData);
                 setAccounts(accs);
                 setProjects(projectsData);
+                setFixedCosts(fixedCostsData);
                 setRates(exchangeRates);
 
-                // 1. Calculate Total Balance (converted to USD)
-                let balance = 0;
+                // Calculate balance by currency (không quy đổi)
+                const byCurrency: Record<Currency, number> = { VND: 0, USD: 0, KHR: 0, TRY: 0 };
+                let totalUSD = 0;
                 accs.forEach(acc => {
-                    const converted = convertCurrency(acc.balance, acc.currency, "USD", exchangeRates);
-                    console.log(`DEBUG: Account ${acc.name} (${acc.currency}): ${acc.balance} -> ${converted} USD`);
-                    balance += converted;
+                    byCurrency[acc.currency] = (byCurrency[acc.currency] || 0) + acc.balance;
+                    totalUSD += convertCurrency(acc.balance, acc.currency, "USD", exchangeRates);
                 });
-                console.log("DEBUG: Final Total Balance:", balance);
+                setBalanceByCurrency(byCurrency);
+                setTotalBalance(totalUSD);
 
-                setTotalBalance(balance);
+                // Calculate fixed cost summary by category
+                const fcSummary: Record<string, { amount: number, currency: Currency, count: number }> = {};
+                fixedCostsData.filter(fc => fc.status === "ON").forEach(fc => {
+                    const cat = fc.category || "Khác";
+                    if (!fcSummary[cat]) {
+                        fcSummary[cat] = { amount: 0, currency: fc.currency, count: 0 };
+                    }
+                    // Convert to same currency for summary (use first currency found)
+                    const converted = convertCurrency(fc.amount, fc.currency, fcSummary[cat].currency, exchangeRates);
+                    fcSummary[cat].amount += converted;
+                    fcSummary[cat].count++;
+                });
+                setFixedCostSummary(fcSummary);
 
-                // Store for recalculation
-                calculateMetrics(txs, exchangeRates, viewPeriod, revsData, fundsData, projectsData);
+                calculateMetrics(txs, exchangeRates, viewPeriod, revsData, fundsData, projectsData, "", "ALL");
 
             } catch (e) {
                 console.error(e);
@@ -122,14 +176,23 @@ export default function DashboardPage() {
         loadData();
     }, []);
 
-    // Recalculate when period changes
+    // Recalculate when period or filters change
     useEffect(() => {
         if (transactions.length > 0) {
-            calculateMetrics(transactions, rates, viewPeriod, revenues, funds, projects);
+            calculateMetrics(transactions, rates, viewPeriod, revenues, funds, projects, filterProject, filterCurrency);
         }
-    }, [viewPeriod]);
+    }, [viewPeriod, filterProject, filterCurrency]);
 
-    const calculateMetrics = (txs: Transaction[], exchangeRates: any, period: ViewPeriod, revs: MonthlyRevenue[], fundsData: Fund[], projectsData: any[]) => {
+    const calculateMetrics = (
+        txs: Transaction[], 
+        exchangeRates: any, 
+        period: ViewPeriod, 
+        revs: MonthlyRevenue[], 
+        fundsData: Fund[], 
+        projectsData: Project[],
+        projectFilter: string,
+        currencyFilter: Currency | "ALL"
+    ) => {
         const now = new Date();
         let pIn = 0;
         let pOut = 0;
@@ -140,21 +203,21 @@ export default function DashboardPage() {
         const highValue: Transaction[] = [];
         const pendingList: Transaction[] = [];
         
-        // Category totals (all time for current period)
         const catTotals: Record<string, { in: number, out: number }> = {};
-        
-        // Daily category stats (last 30 days)
         const dailyStats: Record<string, Record<string, { in: number, out: number }>> = {};
-        
-        // Project stats
         const projStats: Record<string, { in: number, out: number, budget: number }> = {};
 
-        // Initialize fund stats with fund names
+        // Currency breakdown
+        const currencyIn: Record<string, number> = { VND: 0, USD: 0, KHR: 0, TRY: 0 };
+        const currencyOut: Record<string, number> = { VND: 0, USD: 0, KHR: 0, TRY: 0 };
+
+        // Salary report data
+        const salaryData: any[] = [];
+
         fundsData.forEach(f => {
             fundStats[f.name] = 0;
         });
         
-        // Initialize project stats
         projectsData.forEach(p => {
             projStats[p.id] = { 
                 in: 0, 
@@ -163,28 +226,39 @@ export default function DashboardPage() {
             };
         });
 
-        txs.forEach(tx => {
+        // Filter transactions
+        let filteredTxs = txs;
+        if (projectFilter) {
+            filteredTxs = filteredTxs.filter(tx => tx.projectId === projectFilter);
+        }
+        if (currencyFilter !== "ALL") {
+            filteredTxs = filteredTxs.filter(tx => tx.currency === currencyFilter);
+        }
+
+        filteredTxs.forEach(tx => {
             const d = new Date(tx.date);
-            const amountUSD = convertCurrency(tx.amount, tx.currency, "USD", exchangeRates);
-            const dateKey = d.toISOString().split('T')[0]; // YYYY-MM-DD
+            const amountUSD = currencyFilter === "ALL" 
+                ? convertCurrency(tx.amount, tx.currency, "USD", exchangeRates)
+                : tx.amount; // Keep original if filtering by currency
+            const dateKey = d.toISOString().split('T')[0];
             const cat = tx.category || "Khác";
 
-            // Pending Count
             if (tx.status === "PENDING") {
                 pending++;
                 pendingList.push(tx);
             }
 
-            // Check high value (>5M VND or >100 USD)
             const isHighValue = (tx.currency === "VND" && tx.amount > 5000000) ||
                 ((tx.currency === "USD" || tx.currency === "KHR") && tx.amount > 100);
             if (isHighValue && tx.type === "OUT") {
                 highValue.push(tx);
             }
 
-            // Period Check
+            // Period Check - NEW: Added "day" option
             let inPeriod = false;
-            if (period === "month") {
+            if (period === "day") {
+                inPeriod = d.toDateString() === now.toDateString();
+            } else if (period === "month") {
                 inPeriod = d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
             } else if (period === "quarter") {
                 const currentQ = Math.floor(now.getMonth() / 3);
@@ -194,26 +268,42 @@ export default function DashboardPage() {
                 inPeriod = d.getFullYear() === now.getFullYear();
             }
 
-            // Only process APPROVED transactions
             if (tx.status === "APPROVED") {
-                // Period In/Out
+                // Currency breakdown (original amounts)
+                if (inPeriod) {
+                    if (tx.type === "IN") {
+                        currencyIn[tx.currency] = (currencyIn[tx.currency] || 0) + tx.amount;
+                    } else {
+                        currencyOut[tx.currency] = (currencyOut[tx.currency] || 0) + tx.amount;
+                    }
+                }
+
                 if (inPeriod) {
                     if (tx.type === "IN") pIn += amountUSD;
                     else pOut += amountUSD;
                     
-                    // Category totals for current period
                     if (!catTotals[cat]) catTotals[cat] = { in: 0, out: 0 };
                     if (tx.type === "IN") catTotals[cat].in += amountUSD;
                     else catTotals[cat].out += amountUSD;
                     
-                    // Project stats
                     if (tx.projectId && projStats[tx.projectId]) {
                         if (tx.type === "IN") projStats[tx.projectId].in += amountUSD;
                         else projStats[tx.projectId].out += amountUSD;
                     }
+
+                    // Collect salary transactions for report
+                    if (cat.toLowerCase().includes("lương") || cat.toLowerCase().includes("salary")) {
+                        salaryData.push({
+                            date: tx.date,
+                            amount: tx.amount,
+                            currency: tx.currency,
+                            description: tx.description,
+                            status: tx.status,
+                            createdBy: tx.createdBy
+                        });
+                    }
                 }
                 
-                // Daily/Period stats for trend chart
                 if (inPeriod) {
                     if (!dailyStats[dateKey]) dailyStats[dateKey] = {};
                     if (!dailyStats[dateKey][cat]) dailyStats[dateKey][cat] = { in: 0, out: 0 };
@@ -222,28 +312,18 @@ export default function DashboardPage() {
                 }
             }
 
-            // Chart Data (Last 6 Months)
             if (tx.status === "APPROVED") {
                 const monthKey = `${d.getMonth() + 1}/${d.getFullYear()}`;
                 if (!monthlyStats[monthKey]) monthlyStats[monthKey] = { in: 0, out: 0 };
                 if (tx.type === "IN") monthlyStats[monthKey].in += amountUSD;
                 else monthlyStats[monthKey].out += amountUSD;
 
-                // Category Stats (For Pie - current period)
                 if (tx.type === "OUT" && inPeriod) {
-                    const cat = tx.category || "Khác";
                     catStats[cat] = (catStats[cat] || 0) + amountUSD;
 
-                    // Fund Stats - match by fundId or by category name
                     const fund = fundsData.find(f => f.id === tx.fundId);
                     if (fund) {
                         fundStats[fund.name] = (fundStats[fund.name] || 0) + amountUSD;
-                    } else {
-                        // Try matching by category name to fund name
-                        const matchedFund = fundsData.find(f => f.name.toLowerCase().includes(cat.toLowerCase()) || cat.toLowerCase().includes(f.name.toLowerCase()));
-                        if (matchedFund) {
-                            fundStats[matchedFund.name] = (fundStats[matchedFund.name] || 0) + amountUSD;
-                        }
                     }
                 }
             }
@@ -257,14 +337,25 @@ export default function DashboardPage() {
         setPendingTxs(pendingList.slice(0, 5));
         setCategoryTotals(catTotals);
         setProjectStats(projStats);
+        setSalaryReport(salaryData.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
         
-        // Format daily stats for table
+        // Currency breakdown for chart
+        const currencies: Currency[] = ["VND", "USD", "KHR", "TRY"];
+        const currencyData = currencies
+            .filter(c => currencyIn[c] > 0 || currencyOut[c] > 0)
+            .map(c => ({
+                currency: c,
+                in: currencyIn[c],
+                out: currencyOut[c],
+                net: currencyIn[c] - currencyOut[c]
+            }));
+        setCurrencyBreakdown(currencyData);
+
         const dailyArray = Object.entries(dailyStats)
-            .sort((a, b) => b[0].localeCompare(a[0])) // Sort by date desc
-            .slice(0, 30); // Last 30 days
+            .sort((a, b) => b[0].localeCompare(a[0]))
+            .slice(0, 30);
         setDailyCategoryStats(dailyArray);
 
-        // Format Chart Data
         const cData = Object.entries(monthlyStats).map(([key, val]) => ({
             name: key,
             income: val.in,
@@ -276,34 +367,30 @@ export default function DashboardPage() {
         }).slice(-6);
         setChartData(cData);
 
-        // Format Pie Data
         const pData = Object.entries(catStats)
             .map(([name, value]) => ({ name, value }))
             .sort((a, b) => b.value - a.value)
             .slice(0, 5);
         setCatData(pData);
 
-        // Format Category Trend Data (based on period)
-        // Get top 5 categories by total expense
+        // Category trend
         const topCategories = Object.entries(catStats)
             .sort((a, b) => b[1] - a[1])
             .slice(0, 5)
             .map(([cat]) => cat);
 
-        // Build trend data based on period
         const trendData: Record<string, any> = {};
         Object.entries(dailyStats).forEach(([date, cats]) => {
             let dateLabel = "";
             const d = new Date(date);
             
-            if (period === "month") {
-                // Show day of month
+            if (period === "day") {
+                dateLabel = d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+            } else if (period === "month") {
                 dateLabel = d.toLocaleDateString('vi-VN', { day: 'numeric', month: 'short' });
             } else if (period === "quarter") {
-                // Show week number or date
                 dateLabel = d.toLocaleDateString('vi-VN', { day: 'numeric', month: 'short' });
             } else {
-                // Show month for year view
                 dateLabel = d.toLocaleDateString('vi-VN', { month: 'short', year: '2-digit' });
             }
             
@@ -316,12 +403,12 @@ export default function DashboardPage() {
         });
 
         const trendArray = Object.entries(trendData)
-            .sort((a, b) => a[0].localeCompare(b[0])) // Sort by date asc
+            .sort((a, b) => a[0].localeCompare(b[0]))
             .map(([, data]) => data);
         
         setCategoryTrendData(trendArray);
 
-        // Calculate Salary Ratios
+        // Salary Ratios
         const currentMonthRev = revs.find(r => {
             const m = parseInt(r.month);
             const y = parseInt(r.year);
@@ -330,10 +417,9 @@ export default function DashboardPage() {
 
         if (currentMonthRev && currentMonthRev.amount > 0) {
             const revUSD = convertCurrency(currentMonthRev.amount, currentMonthRev.currency, "USD", exchangeRates);
-
-            // Calculate salary by category for current period
             const salaryByType: Record<string, number> = { "Marketing": 0, "Sale": 0, "Vận hành": 0 };
-            txs.forEach(tx => {
+            
+            filteredTxs.forEach(tx => {
                 const d = new Date(tx.date);
                 const inPeriod = d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
                 if (tx.status === "APPROVED" && tx.type === "OUT" && inPeriod) {
@@ -361,12 +447,16 @@ export default function DashboardPage() {
         }
     };
 
-    const formatCurrency = (val: number) => {
+    const formatCurrency = (val: number, currency?: string) => {
+        if (currency && currency !== "USD") {
+            return new Intl.NumberFormat('vi-VN').format(val) + " " + currency;
+        }
         return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(val);
     };
 
     const getPeriodLabel = () => {
         switch (viewPeriod) {
+            case "day": return "Hôm nay";
             case "month": return "Tháng này";
             case "quarter": return "Quý này";
             case "year": return "Năm này";
@@ -375,7 +465,6 @@ export default function DashboardPage() {
 
     if (loading) return <div className="p-8 text-[var(--muted)]">Loading Dashboard...</div>;
 
-    // Staff View (Limited)
     if (!canViewGlobalStats(userRole)) {
         return (
             <div className="space-y-8">
@@ -393,27 +482,58 @@ export default function DashboardPage() {
 
     return (
         <div className="space-y-8">
-            {/* Header with Period Selector */}
+            {/* Header with Period Selector and Filters */}
             <div className="flex items-center justify-between flex-wrap gap-4">
                 <div>
                     <h1 className="text-3xl font-bold text-white">Tổng quan Tài chính</h1>
-                    <p className="text-[var(--muted)]">Dữ liệu thời gian thực (Quy đổi USD)</p>
+                    <p className="text-[var(--muted)]">
+                        Dữ liệu thời gian thực 
+                        {filterCurrency === "ALL" ? " (Quy đổi USD)" : ` (${filterCurrency})`}
+                        {filterProject && ` • ${projects.find(p => p.id === filterProject)?.name}`}
+                    </p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                    {/* Period Selector */}
                     <div className="flex bg-white/5 rounded-xl p-1">
-                        {(["month", "quarter", "year"] as ViewPeriod[]).map(p => (
+                        {(["day", "month", "quarter", "year"] as ViewPeriod[]).map(p => (
                             <button
                                 key={p}
                                 onClick={() => setViewPeriod(p)}
-                                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${viewPeriod === p
+                                className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${viewPeriod === p
                                     ? "bg-gradient-to-r from-[#FF5E62] to-[#FF9966] text-white shadow-lg"
                                     : "text-[var(--muted)] hover:text-white"
-                                    }`}
+                                }`}
                             >
-                                {p === "month" ? "Tháng" : p === "quarter" ? "Quý" : "Năm"}
+                                {p === "day" ? "Ngày" : p === "month" ? "Tháng" : p === "quarter" ? "Quý" : "Năm"}
                             </button>
                         ))}
                     </div>
+                    
+                    {/* Project Filter */}
+                    <select
+                        value={filterProject}
+                        onChange={(e) => setFilterProject(e.target.value)}
+                        className="glass-input px-3 py-2 rounded-lg text-sm"
+                    >
+                        <option value="">Tất cả dự án</option>
+                        {accessibleProjects.map(p => (
+                            <option key={p.id} value={p.id}>{p.name}</option>
+                        ))}
+                    </select>
+
+                    {/* Currency Filter */}
+                    <select
+                        value={filterCurrency}
+                        onChange={(e) => setFilterCurrency(e.target.value as Currency | "ALL")}
+                        className="glass-input px-3 py-2 rounded-lg text-sm"
+                    >
+                        <option value="ALL">Tất cả tiền tệ</option>
+                        <option value="VND">🇻🇳 VND</option>
+                        <option value="USD">🇺🇸 USD</option>
+                        <option value="KHR">🇰🇭 KHR</option>
+                        <option value="TRY">🇹🇷 TRY (Lira)</option>
+                    </select>
+
                     <Link href="/finance/transactions" className="glass-button px-4 py-2 rounded-lg text-sm">
                         Xem giao dịch →
                     </Link>
@@ -433,12 +553,16 @@ export default function DashboardPage() {
 
                 <div className="glass-card p-6 rounded-xl border border-white/5">
                     <p className="text-[var(--muted)] text-sm font-medium uppercase">Tiền vào ({getPeriodLabel()})</p>
-                    <h3 className="text-3xl font-bold text-green-400 mt-1">+{formatCurrency(periodIn)}</h3>
+                    <h3 className="text-3xl font-bold text-green-400 mt-1">
+                        +{filterCurrency === "ALL" ? formatCurrency(periodIn) : formatCurrency(periodIn, filterCurrency)}
+                    </h3>
                 </div>
 
                 <div className="glass-card p-6 rounded-xl border border-white/5">
                     <p className="text-[var(--muted)] text-sm font-medium uppercase">Tiền ra ({getPeriodLabel()})</p>
-                    <h3 className="text-3xl font-bold text-red-400 mt-1">-{formatCurrency(periodOut)}</h3>
+                    <h3 className="text-3xl font-bold text-red-400 mt-1">
+                        -{filterCurrency === "ALL" ? formatCurrency(periodOut) : formatCurrency(periodOut, filterCurrency)}
+                    </h3>
                 </div>
 
                 <Link href="/finance/approvals" className="glass-card p-6 rounded-xl hover:bg-white/5 transition-colors cursor-pointer border-l-4 border-yellow-500 shadow-lg shadow-yellow-900/10">
@@ -448,6 +572,214 @@ export default function DashboardPage() {
                 </Link>
             </div>
 
+            {/* NEW: Balance by Currency - Tách riêng từng loại tiền */}
+            <div className="glass-card p-6 rounded-xl border border-white/5">
+                <h3 className="text-lg font-bold mb-4">💵 Số dư theo Loại tiền (Không quy đổi)</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {Object.entries(balanceByCurrency)
+                        .filter(([_, balance]) => balance > 0)
+                        .map(([currency, balance]) => (
+                            <div 
+                                key={currency} 
+                                className={`p-4 rounded-xl border-2 ${filterCurrency === currency ? 'border-white/40' : 'border-white/10'} bg-white/5 cursor-pointer hover:bg-white/10 transition-all`}
+                                onClick={() => setFilterCurrency(filterCurrency === currency ? "ALL" : currency as Currency)}
+                            >
+                                <div className="flex items-center gap-2 mb-2">
+                                    <div 
+                                        className="w-3 h-3 rounded-full"
+                                        style={{ backgroundColor: CURRENCY_COLORS[currency] || "#888" }}
+                                    />
+                                    <span className="text-sm font-medium text-[var(--muted)]">{currency}</span>
+                                </div>
+                                <div className="text-2xl font-bold text-white">
+                                    {new Intl.NumberFormat('vi-VN').format(balance)}
+                                </div>
+                                {filterCurrency === currency && (
+                                    <div className="text-xs text-blue-400 mt-1">Đang lọc</div>
+                                )}
+                            </div>
+                        ))}
+                </div>
+            </div>
+
+            {/* NEW: Currency Breakdown Chart */}
+            {currencyBreakdown.length > 0 && (
+                <div className="glass-card p-6 rounded-xl border border-white/5">
+                    <h3 className="text-lg font-bold mb-4">📊 Thu Chi theo Loại tiền ({getPeriodLabel()})</h3>
+                    <div className="h-64">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={currencyBreakdown}>
+                                <XAxis dataKey="currency" stroke="#525252" />
+                                <YAxis stroke="#525252" />
+                                <Tooltip
+                                    contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: '8px' }}
+                                    formatter={(value: number, name: string) => [
+                                        new Intl.NumberFormat('vi-VN').format(value),
+                                        name === "in" ? "Thu" : name === "out" ? "Chi" : "Ròng"
+                                    ]}
+                                />
+                                <Legend formatter={(value) => value === "in" ? "Thu" : value === "out" ? "Chi" : "Ròng"} />
+                                <Bar dataKey="in" name="in" fill="#4ade80" radius={[4, 4, 0, 0]} />
+                                <Bar dataKey="out" name="out" fill="#f87171" radius={[4, 4, 0, 0]} />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+            )}
+
+            {/* NEW: Fixed Cost Summary - Tổng hợp chi phí cố định */}
+            <div className="glass-card p-6 rounded-xl border border-white/5">
+                <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-bold">📋 Tổng hợp Chi phí Cố định Hàng tháng</h3>
+                    <button
+                        onClick={() => setShowFixedCostDetails(!showFixedCostDetails)}
+                        className="text-sm text-blue-400 hover:text-blue-300"
+                    >
+                        {showFixedCostDetails ? "Thu gọn" : "Chi tiết"}
+                    </button>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {FIXED_COST_CATEGORIES.map(cat => {
+                        const data = fixedCostSummary[cat.key];
+                        const hasData = data && data.amount > 0;
+                        return (
+                            <div key={cat.key} className={`p-4 rounded-xl border border-white/10 ${hasData ? 'bg-white/5' : 'bg-white/2 opacity-50'}`}>
+                                <div className="flex items-center gap-2 mb-2">
+                                    <span className="text-xl">{cat.icon}</span>
+                                    <span className="text-sm text-[var(--muted)]">{cat.label}</span>
+                                </div>
+                                {hasData ? (
+                                    <>
+                                        <div className="text-xl font-bold text-white">
+                                            {new Intl.NumberFormat('vi-VN').format(data.amount)} {data.currency}
+                                        </div>
+                                        <div className="text-xs text-[var(--muted)] mt-1">
+                                            {data.count} khoản
+                                        </div>
+                                    </>
+                                ) : (
+                                    <div className="text-sm text-[var(--muted)]">Chưa có</div>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+                
+                {/* Fixed Cost Details Table */}
+                {showFixedCostDetails && fixedCosts.length > 0 && (
+                    <div className="mt-6 overflow-x-auto">
+                        <table className="w-full text-left text-sm">
+                            <thead className="bg-[#1a1a1a] text-[var(--muted)] text-xs uppercase">
+                                <tr>
+                                    <th className="p-3 border-b border-white/10">Tên</th>
+                                    <th className="p-3 border-b border-white/10">Hạng mục</th>
+                                    <th className="p-3 border-b border-white/10 text-right">Số tiền</th>
+                                    <th className="p-3 border-b border-white/10">Chu kỳ</th>
+                                    <th className="p-3 border-b border-white/10">Trạng thái</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-white/5">
+                                {fixedCosts.map(fc => (
+                                    <tr key={fc.id} className="hover:bg-white/5">
+                                        <td className="p-3 font-medium text-white">{fc.name}</td>
+                                        <td className="p-3 text-[var(--muted)]">{fc.category || "Khác"}</td>
+                                        <td className="p-3 text-right font-bold text-white">
+                                            {new Intl.NumberFormat('vi-VN').format(fc.amount)} {fc.currency}
+                                        </td>
+                                        <td className="p-3 text-[var(--muted)]">
+                                            {fc.cycle === "MONTHLY" ? "Hàng tháng" : fc.cycle === "QUARTERLY" ? "Hàng quý" : "Hàng năm"}
+                                        </td>
+                                        <td className="p-3">
+                                            <span className={`px-2 py-1 rounded text-xs ${fc.status === "ON" ? "bg-green-500/20 text-green-400" : "bg-red-500/20 text-red-400"}`}>
+                                                {fc.status === "ON" ? "Hoạt động" : "Tạm dừng"}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                        <div className="mt-4 p-4 bg-white/5 rounded-lg">
+                            <div className="text-lg font-bold text-white">
+                                Tổng chi phí cố định: {formatCurrency(
+                                    fixedCosts
+                                        .filter(fc => fc.status === "ON")
+                                        .reduce((sum, fc) => sum + convertCurrency(fc.amount, fc.currency, "USD", rates), 0)
+                                )}
+                                <span className="text-sm text-[var(--muted)] ml-2">/tháng (quy đổi USD)</span>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* NEW: Salary Report - Báo cáo lương chi tiết */}
+            {salaryReport.length > 0 && (
+                <div className="glass-card p-6 rounded-xl border border-white/5">
+                    <h3 className="text-lg font-bold mb-4">💰 Báo cáo Chi Lương ({getPeriodLabel()})</h3>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left text-sm">
+                            <thead className="bg-[#1a1a1a] text-[var(--muted)] text-xs uppercase">
+                                <tr>
+                                    <th className="p-3 border-b border-white/10">Ngày thanh toán</th>
+                                    <th className="p-3 border-b border-white/10 text-right">Số tiền</th>
+                                    <th className="p-3 border-b border-white/10">Tiền tệ</th>
+                                    <th className="p-3 border-b border-white/10">Mô tả</th>
+                                    <th className="p-3 border-b border-white/10">Người tạo</th>
+                                    <th className="p-3 border-b border-white/10">Trạng thái</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-white/5">
+                                {salaryReport.slice(0, 10).map((item, idx) => (
+                                    <tr key={idx} className="hover:bg-white/5">
+                                        <td className="p-3 font-medium text-white">
+                                            {new Date(item.date).toLocaleDateString('vi-VN', { 
+                                                day: '2-digit', 
+                                                month: '2-digit', 
+                                                year: 'numeric',
+                                                hour: '2-digit',
+                                                minute: '2-digit'
+                                            })}
+                                        </td>
+                                        <td className="p-3 text-right font-bold text-red-400">
+                                            {new Intl.NumberFormat('vi-VN').format(item.amount)}
+                                        </td>
+                                        <td className="p-3">
+                                            <span className="px-2 py-1 rounded text-xs" style={{ backgroundColor: CURRENCY_COLORS[item.currency] + '30', color: CURRENCY_COLORS[item.currency] }}>
+                                                {item.currency}
+                                            </span>
+                                        </td>
+                                        <td className="p-3 text-[var(--muted)] max-w-[200px] truncate">
+                                            {item.description || "-"}
+                                        </td>
+                                        <td className="p-3 text-[var(--muted)]">{item.createdBy}</td>
+                                        <td className="p-3">
+                                            <span className={`px-2 py-1 rounded text-xs ${
+                                                item.status === "APPROVED" ? "bg-green-500/20 text-green-400" : 
+                                                item.status === "PENDING" ? "bg-yellow-500/20 text-yellow-400" : 
+                                                "bg-red-500/20 text-red-400"
+                                            }`}>
+                                                {item.status === "APPROVED" ? "Đã duyệt" : item.status === "PENDING" ? "Chờ duyệt" : "Từ chối"}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div className="mt-4 flex items-center justify-between p-4 bg-white/5 rounded-lg">
+                        <div>
+                            <span className="text-[var(--muted)]">Tổng chi lương kỳ này:</span>
+                            <span className="ml-2 text-xl font-bold text-red-400">
+                                {formatCurrency(salaryReport.reduce((sum, item) => sum + convertCurrency(item.amount, item.currency, "USD", rates), 0))}
+                            </span>
+                        </div>
+                        <div className="text-sm text-[var(--muted)]">
+                            {salaryReport.length} giao dịch
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Account Cards - Compact */}
             <div className="glass-card p-4 rounded-xl border border-white/5">
                 <div className="flex items-center justify-between mb-3">
@@ -455,58 +787,65 @@ export default function DashboardPage() {
                     <Link href="/finance/accounts" className="text-xs text-[var(--muted)] hover:text-white">Quản lý →</Link>
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-                    {accounts.map(acc => {
-                        const sameCurrencyAccounts = accounts.filter(a => a.currency === acc.currency);
-                        const maxBalance = Math.max(...sameCurrencyAccounts.map(a => a.balance), acc.balance * 1.5);
-                        const accountTxs = transactions.filter(tx => tx.accountId === acc.id && tx.status === "APPROVED");
-                        const now = new Date();
-                        let periodIn = 0, periodOut = 0, lastMonthBalance = acc.openingBalance || 0;
+                    {accounts
+                        .filter(acc => !filterCurrency || filterCurrency === "ALL" || acc.currency === filterCurrency)
+                        .filter(acc => !filterProject || !acc.projectId || acc.projectId === filterProject)
+                        .map(acc => {
+                            const sameCurrencyAccounts = accounts.filter(a => a.currency === acc.currency);
+                            const maxBalance = Math.max(...sameCurrencyAccounts.map(a => a.balance), acc.balance * 1.5);
+                            const accountTxs = transactions.filter(tx => tx.accountId === acc.id && tx.status === "APPROVED");
+                            const now = new Date();
+                            let periodIn = 0, periodOut = 0, lastMonthBalance = acc.openingBalance || 0;
 
-                        accountTxs.forEach(tx => {
-                            const d = new Date(tx.date);
-                            const isThisMonth = d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-                            if (isThisMonth) {
-                                if (tx.type === "IN") periodIn += tx.amount;
-                                else periodOut += tx.amount;
-                            }
-                            if (d < new Date(now.getFullYear(), now.getMonth(), 1)) {
-                                if (tx.type === "IN") lastMonthBalance += tx.amount;
-                                else lastMonthBalance -= tx.amount;
-                            }
-                        });
+                            accountTxs.forEach(tx => {
+                                const d = new Date(tx.date);
+                                const isThisMonth = d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+                                if (isThisMonth) {
+                                    if (tx.type === "IN") periodIn += tx.amount;
+                                    else periodOut += tx.amount;
+                                }
+                                if (d < new Date(now.getFullYear(), now.getMonth(), 1)) {
+                                    if (tx.type === "IN") lastMonthBalance += tx.amount;
+                                    else lastMonthBalance -= tx.amount;
+                                }
+                            });
 
-                        const netChange = periodIn - periodOut;
-                        const changePercent = lastMonthBalance > 0 ? ((acc.balance - lastMonthBalance) / lastMonthBalance * 100).toFixed(1) : "0.0";
-                        const trend = netChange >= 0 ? "up" : "down";
-                        const progressPercent = maxBalance > 0 ? Math.min((acc.balance / maxBalance) * 100, 100) : 0;
-                        const progressColor = acc.currency === "USD" ? "bg-blue-500" : acc.currency === "VND" ? "bg-rose-500" : "bg-emerald-500";
+                            const netChange = periodIn - periodOut;
+                            const changePercent = lastMonthBalance > 0 ? ((acc.balance - lastMonthBalance) / lastMonthBalance * 100).toFixed(1) : "0.0";
+                            const trend = netChange >= 0 ? "up" : "down";
+                            const progressPercent = maxBalance > 0 ? Math.min((acc.balance / maxBalance) * 100, 100) : 0;
+                            const progressColor = CURRENCY_COLORS[acc.currency] || "bg-gray-500";
 
-                        return (
-                            <div key={acc.id} className="relative bg-white/5 rounded-lg p-3 border border-white/10 hover:border-white/20 transition-all">
-                                {acc.isLocked && (
-                                    <svg className="absolute top-1.5 right-1.5 w-3 h-3 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
-                                        <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
-                                    </svg>
-                                )}
-                                <div className="text-[10px] text-[var(--muted)] truncate mb-1">{acc.name}</div>
-                                <div className="text-base font-bold text-white leading-tight">
-                                    {acc.balance.toLocaleString()} <span className="text-[10px] text-[var(--muted)]">{acc.currency}</span>
+                            return (
+                                <div key={acc.id} className="relative bg-white/5 rounded-lg p-3 border border-white/10 hover:border-white/20 transition-all">
+                                    {acc.isLocked && (
+                                        <svg className="absolute top-1.5 right-1.5 w-3 h-3 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                                        </svg>
+                                    )}
+                                    {acc.restrictCurrency && (
+                                        <svg className="absolute top-1.5 right-5 w-3 h-3 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
+                                            <title>Chỉ chi tiền cùng loại</title>
+                                            <path d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" />
+                                        </svg>
+                                    )}
+                                    <div className="text-[10px] text-[var(--muted)] truncate mb-1">{acc.name}</div>
+                                    <div className="text-base font-bold text-white leading-tight">
+                                        {acc.balance.toLocaleString()} <span className="text-[10px]" style={{ color: CURRENCY_COLORS[acc.currency] }}>{acc.currency}</span>
+                                    </div>
+                                    <div className="h-1 bg-white/10 rounded-full overflow-hidden my-2">
+                                        <div className="h-full transition-all" style={{ width: `${progressPercent}%`, backgroundColor: CURRENCY_COLORS[acc.currency] }} />
+                                    </div>
+                                    <div className="flex items-center justify-between text-[10px]">
+                                        <span className={trend === "up" ? "text-green-400" : "text-red-400"}>
+                                            {trend === "up" ? "↑" : "↓"} {changePercent}%
+                                        </span>
+                                        <span className="text-green-400">+{(periodIn/1000).toFixed(0)}k</span>
+                                        <span className="text-red-400">-{(periodOut/1000).toFixed(0)}k</span>
+                                    </div>
                                 </div>
-                                {/* Progress Bar */}
-                                <div className="h-1 bg-white/10 rounded-full overflow-hidden my-2">
-                                    <div className={`h-full ${progressColor} transition-all`} style={{ width: `${progressPercent}%` }} />
-                                </div>
-                                {/* Change + Mini Stats */}
-                                <div className="flex items-center justify-between text-[10px]">
-                                    <span className={trend === "up" ? "text-green-400" : "text-red-400"}>
-                                        {trend === "up" ? "↑" : "↓"} {changePercent}%
-                                    </span>
-                                    <span className="text-green-400">+{(periodIn/1000).toFixed(0)}k</span>
-                                    <span className="text-red-400">-{(periodOut/1000).toFixed(0)}k</span>
-                                </div>
-                            </div>
-                        );
-                    })}
+                            );
+                        })}
                     {accounts.length === 0 && (
                         <div className="col-span-full text-center text-[var(--muted)] py-2 text-xs">Chưa có tài khoản</div>
                     )}
@@ -525,7 +864,7 @@ export default function DashboardPage() {
                                 <YAxis stroke="#525252" />
                                 <Tooltip
                                     contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: '8px' }}
-                                    formatter={(value: number) => formatCurrency(value)}
+                                    formatter={(value: number) => filterCurrency === "ALL" ? formatCurrency(value) : formatCurrency(value, filterCurrency)}
                                 />
                                 <Legend />
                                 <Bar dataKey="income" name="Thu" fill="#4ade80" radius={[4, 4, 0, 0]} />
@@ -554,7 +893,7 @@ export default function DashboardPage() {
                                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                     ))}
                                 </Pie>
-                                <Tooltip formatter={(value: number) => formatCurrency(value)} />
+                                <Tooltip formatter={(value: number) => filterCurrency === "ALL" ? formatCurrency(value) : formatCurrency(value, filterCurrency)} />
                                 <Legend />
                             </PieChart>
                         </ResponsiveContainer>
@@ -589,7 +928,7 @@ export default function DashboardPage() {
                             <YAxis stroke="#525252" />
                             <Tooltip
                                 contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: '8px' }}
-                                formatter={(value: number) => formatCurrency(value)}
+                                formatter={(value: number) => filterCurrency === "ALL" ? formatCurrency(value) : formatCurrency(value, filterCurrency)}
                             />
                             <Legend />
                             {catData.slice(0, 5).map((cat, index) => (
@@ -622,7 +961,9 @@ export default function DashboardPage() {
                                 />
                                 <span className="text-sm text-[var(--muted)]">{name}</span>
                             </div>
-                            <div className="text-xl font-bold text-white">{formatCurrency(amount)}</div>
+                            <div className="text-xl font-bold text-white">
+                                {filterCurrency === "ALL" ? formatCurrency(amount) : formatCurrency(amount, filterCurrency)}
+                            </div>
                             {periodOut > 0 && (
                                 <div className="text-xs text-[var(--muted)] mt-1">
                                     {((amount / periodOut) * 100).toFixed(1)}% tổng chi
@@ -665,6 +1006,7 @@ export default function DashboardPage() {
                         </thead>
                         <tbody className="divide-y divide-white/5">
                             {projects
+                                .filter(p => !filterProject || p.id === filterProject)
                                 .filter(p => projectStats[p.id] && (projectStats[p.id].in > 0 || projectStats[p.id].out > 0))
                                 .sort((a, b) => (projectStats[b.id]?.out || 0) - (projectStats[a.id]?.out || 0))
                                 .slice(0, showAllProjects ? undefined : 5)
@@ -685,16 +1027,16 @@ export default function DashboardPage() {
                                                 )}
                                             </td>
                                             <td className="p-4 text-right text-[var(--muted)]">
-                                                {stats.budget > 0 ? formatCurrency(stats.budget) : "-"}
+                                                {stats.budget > 0 ? (filterCurrency === "ALL" ? formatCurrency(stats.budget) : formatCurrency(stats.budget, filterCurrency)) : "-"}
                                             </td>
                                             <td className="p-4 text-right font-bold text-green-400">
-                                                {stats.in > 0 ? formatCurrency(stats.in) : "-"}
+                                                {stats.in > 0 ? (filterCurrency === "ALL" ? formatCurrency(stats.in) : formatCurrency(stats.in, filterCurrency)) : "-"}
                                             </td>
                                             <td className="p-4 text-right font-bold text-red-400">
-                                                {stats.out > 0 ? formatCurrency(stats.out) : "-"}
+                                                {stats.out > 0 ? (filterCurrency === "ALL" ? formatCurrency(stats.out) : formatCurrency(stats.out, filterCurrency)) : "-"}
                                             </td>
                                             <td className={`p-4 text-right font-bold ${remaining >= 0 ? "text-green-400" : "text-red-400"}`}>
-                                                {stats.budget > 0 ? formatCurrency(remaining) : "-"}
+                                                {stats.budget > 0 ? (filterCurrency === "ALL" ? formatCurrency(remaining) : formatCurrency(remaining, filterCurrency)) : "-"}
                                             </td>
                                             <td className="p-4 text-right">
                                                 {stats.budget > 0 ? (
@@ -725,81 +1067,6 @@ export default function DashboardPage() {
                     </table>
                 </div>
             </div>
-
-            {/* Project Budget vs Expense Chart */}
-            {projects.filter(p => projectStats[p.id] && (projectStats[p.id].in > 0 || projectStats[p.id].out > 0)).length > 0 && (
-                <div className="glass-card p-6 rounded-xl border border-white/5">
-                    <h3 className="text-lg font-bold mb-6">Ngân sách vs Chi tiêu theo Dự án ({getPeriodLabel()})</h3>
-                    
-                    {/* Bar Chart */}
-                    <div className="h-80">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart 
-                                data={projects
-                                    .filter(p => projectStats[p.id] && (projectStats[p.id].in > 0 || projectStats[p.id].out > 0))
-                                    .sort((a, b) => (projectStats[b.id]?.out || 0) - (projectStats[a.id]?.out || 0))
-                                    .slice(0, 8)
-                                    .map(p => ({
-                                        name: p.name.length > 15 ? p.name.substring(0, 15) + '...' : p.name,
-                                        'Ngân sách': projectStats[p.id].budget,
-                                        'Chi tiêu': projectStats[p.id].out,
-                                        'Còn lại': Math.max(0, projectStats[p.id].budget - projectStats[p.id].out)
-                                    }))}
-                            >
-                                <XAxis 
-                                    dataKey="name" 
-                                    stroke="#525252" 
-                                    tick={{ fontSize: 11 }}
-                                    angle={-20}
-                                    textAnchor="end"
-                                    height={60}
-                                />
-                                <YAxis stroke="#525252" />
-                                <Tooltip
-                                    contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: '8px' }}
-                                    formatter={(value: number) => formatCurrency(value)}
-                                />
-                                <Legend />
-                                <Bar dataKey="Ngân sách" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                                <Bar dataKey="Chi tiêu" fill="#ef4444" radius={[4, 4, 0, 0]} />
-                                <Bar dataKey="Còn lại" fill="#22c55e" radius={[4, 4, 0, 0]} />
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </div>
-                    
-                    {/* Summary Cards */}
-                    <div className="mt-6 grid grid-cols-1 md:grid-cols-4 gap-4">
-                        <div className="bg-white/5 rounded-lg p-4 border border-white/10">
-                            <div className="text-xs text-[var(--muted)] mb-1">Tổng Ngân sách</div>
-                            <div className="text-xl font-bold text-blue-400">
-                                {formatCurrency(Object.values(projectStats).reduce((sum, s) => sum + s.budget, 0))}
-                            </div>
-                        </div>
-                        <div className="bg-white/5 rounded-lg p-4 border border-white/10">
-                            <div className="text-xs text-[var(--muted)] mb-1">Tổng Chi</div>
-                            <div className="text-xl font-bold text-red-400">
-                                {formatCurrency(Object.values(projectStats).reduce((sum, s) => sum + s.out, 0))}
-                            </div>
-                        </div>
-                        <div className="bg-white/5 rounded-lg p-4 border border-white/10">
-                            <div className="text-xs text-[var(--muted)] mb-1">Còn lại</div>
-                            <div className="text-xl font-bold text-green-400">
-                                {formatCurrency(Object.values(projectStats).reduce((sum, s) => sum + (s.budget - s.out), 0))}
-                            </div>
-                        </div>
-                        <div className="bg-white/5 rounded-lg p-4 border border-white/10">
-                            <div className="text-xs text-[var(--muted)] mb-1">% Sử dụng TB</div>
-                            <div className="text-xl font-bold text-white">
-                                {(() => {
-                                    const totalBudget = Object.values(projectStats).reduce((sum, s) => sum + s.budget, 0);
-                                    const totalOut = Object.values(projectStats).reduce((sum, s) => sum + s.out, 0);
-                                    return totalBudget > 0 ? ((totalOut / totalBudget) * 100).toFixed(1) : "0";
-                                })()}%
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
 
             {/* Daily Category Stats - Accordion Style */}
             <div className="glass-card p-6 rounded-xl border border-white/5">
@@ -861,19 +1128,19 @@ export default function DashboardPage() {
                                             <div className="text-right">
                                                 <div className="text-xs text-[var(--muted)]">Thu</div>
                                                 <div className="text-sm font-bold text-green-400">
-                                                    {dailyIn > 0 ? formatCurrency(dailyIn) : "-"}
+                                                    {dailyIn > 0 ? (filterCurrency === "ALL" ? formatCurrency(dailyIn) : formatCurrency(dailyIn, filterCurrency)) : "-"}
                                                 </div>
                                             </div>
                                             <div className="text-right">
                                                 <div className="text-xs text-[var(--muted)]">Chi</div>
                                                 <div className="text-sm font-bold text-red-400">
-                                                    {dailyOut > 0 ? formatCurrency(dailyOut) : "-"}
+                                                    {dailyOut > 0 ? (filterCurrency === "ALL" ? formatCurrency(dailyOut) : formatCurrency(dailyOut, filterCurrency)) : "-"}
                                                 </div>
                                             </div>
                                             <div className="text-right min-w-[100px]">
                                                 <div className="text-xs text-[var(--muted)]">Biến động</div>
                                                 <div className={`text-sm font-bold ${dailyDiff >= 0 ? "text-green-400" : "text-red-400"}`}>
-                                                    {dailyDiff >= 0 ? "↑" : "↓"} {formatCurrency(Math.abs(dailyDiff))}
+                                                    {dailyDiff >= 0 ? "↑" : "↓"} {filterCurrency === "ALL" ? formatCurrency(Math.abs(dailyDiff)) : formatCurrency(Math.abs(dailyDiff), filterCurrency)}
                                                 </div>
                                             </div>
                                         </div>
@@ -895,16 +1162,16 @@ export default function DashboardPage() {
                                                         <div className="flex items-center gap-3">
                                                             {data.in > 0 && (
                                                                 <span className="text-xs text-green-400">
-                                                                    +{formatCurrency(data.in)}
+                                                                    +{filterCurrency === "ALL" ? formatCurrency(data.in) : formatCurrency(data.in, filterCurrency)}
                                                                 </span>
                                                             )}
                                                             {data.out > 0 && (
                                                                 <span className="text-xs text-red-400">
-                                                                    -{formatCurrency(data.out)}
+                                                                    -{filterCurrency === "ALL" ? formatCurrency(data.out) : formatCurrency(data.out, filterCurrency)}
                                                                 </span>
                                                             )}
                                                             <span className={`text-xs font-bold min-w-[80px] text-right ${catDiff >= 0 ? "text-green-400" : "text-red-400"}`}>
-                                                                {catDiff >= 0 ? "↑" : "↓"} {formatCurrency(Math.abs(catDiff))}
+                                                                {catDiff >= 0 ? "↑" : "↓"} {filterCurrency === "ALL" ? formatCurrency(Math.abs(catDiff)) : formatCurrency(Math.abs(catDiff), filterCurrency)}
                                                             </span>
                                                         </div>
                                                     </div>
@@ -918,18 +1185,6 @@ export default function DashboardPage() {
                     {dailyCategoryStats.length === 0 && (
                         <div className="text-center text-[var(--muted)] py-8">
                             Chưa có dữ liệu
-                        </div>
-                    )}
-                    {dailyCategoryStats.length > 0 && 
-                     dailyCategoryStats.filter(([date, categories]) => {
-                        if (!dailySearchTerm) return true;
-                        const searchLower = dailySearchTerm.toLowerCase();
-                        return Object.keys(categories).some(cat => 
-                            cat.toLowerCase().includes(searchLower)
-                        );
-                    }).length === 0 && (
-                        <div className="text-center text-[var(--muted)] py-8">
-                            Không tìm thấy hạng mục "{dailySearchTerm}"
                         </div>
                     )}
                 </div>
@@ -1032,30 +1287,45 @@ export default function DashboardPage() {
                                 <th className="p-4 border-b border-white/10">Ngày</th>
                                 <th className="p-4 border-b border-white/10">Mô tả</th>
                                 <th className="p-4 border-b border-white/10">Số tiền</th>
+                                <th className="p-4 border-b border-white/10">Tiền tệ</th>
                                 <th className="p-4 border-b border-white/10">Trạng thái</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-white/5">
-                            {transactions.slice(0, 5).map(tx => (
-                                <tr key={tx.id} className="hover:bg-white/5 text-sm">
-                                    <td className="p-4 text-[var(--muted)]">{new Date(tx.date).toLocaleDateString()}</td>
-                                    <td className="p-4">
-                                        <div className="font-medium text-white">{tx.category}</div>
-                                        <div className="text-xs text-[var(--muted)] truncate max-w-[200px]">{tx.description}</div>
-                                    </td>
-                                    <td className={`p-4 font-bold ${tx.type === "IN" ? "text-green-400" : "text-white"}`}>
-                                        {tx.type === "IN" ? "+" : "-"}{tx.amount.toLocaleString()} <span className="text-[10px] text-[var(--muted)]">{tx.currency}</span>
-                                    </td>
-                                    <td className="p-4">
-                                        <span className={`px-2 py-1 rounded text-xs font-bold ${tx.status === "APPROVED" ? "bg-green-500/20 text-green-400" :
-                                            tx.status === "PENDING" ? "bg-yellow-500/20 text-yellow-400" :
+                            {transactions
+                                .filter(tx => !filterProject || tx.projectId === filterProject)
+                                .filter(tx => filterCurrency === "ALL" || tx.currency === filterCurrency)
+                                .slice(0, 10)
+                                .map(tx => (
+                                    <tr key={tx.id} className="hover:bg-white/5 transition-colors">
+                                        <td className="p-4 text-[var(--muted)]">
+                                            {new Date(tx.date).toLocaleDateString('vi-VN')}
+                                        </td>
+                                        <td className="p-4">
+                                            <div className="font-medium text-white">{tx.category}</div>
+                                            {tx.description && (
+                                                <div className="text-xs text-[var(--muted)] truncate max-w-[200px]">{tx.description}</div>
+                                            )}
+                                        </td>
+                                        <td className={`p-4 font-bold ${tx.type === "IN" ? "text-green-400" : "text-red-400"}`}>
+                                            {tx.type === "IN" ? "+" : "-"}{tx.amount.toLocaleString()}
+                                        </td>
+                                        <td className="p-4">
+                                            <span className="px-2 py-1 rounded text-xs" style={{ backgroundColor: CURRENCY_COLORS[tx.currency] + '30', color: CURRENCY_COLORS[tx.currency] }}>
+                                                {tx.currency}
+                                            </span>
+                                        </td>
+                                        <td className="p-4">
+                                            <span className={`px-2 py-1 rounded text-xs ${
+                                                tx.status === "APPROVED" ? "bg-green-500/20 text-green-400" :
+                                                tx.status === "PENDING" ? "bg-yellow-500/20 text-yellow-400" :
                                                 "bg-red-500/20 text-red-400"
                                             }`}>
-                                            {tx.status === "APPROVED" ? "Đã duyệt" : tx.status === "PENDING" ? "Chờ duyệt" : "Từ chối"}
-                                        </span>
-                                    </td>
-                                </tr>
-                            ))}
+                                                {tx.status === "APPROVED" ? "Đã duyệt" : tx.status === "PENDING" ? "Chờ duyệt" : "Từ chối"}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                ))}
                         </tbody>
                     </table>
                 </div>

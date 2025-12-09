@@ -18,8 +18,21 @@ export default function FixedCostsPage() {
     const [currency, setCurrency] = useState<Currency>("USD");
     const [cycle, setCycle] = useState<FixedCost["cycle"]>("MONTHLY");
     const [selectedAccountId, setSelectedAccountId] = useState("");
+    const [category, setCategory] = useState<string>("Khác");
 
     const [deleteLoading, setDeleteLoading] = useState(false);
+
+    // Fixed cost categories
+    const FIXED_COST_CATEGORIES = [
+        "Lương nhân sự",
+        "Thuê văn phòng",
+        "Cước vận chuyển",
+        "Marketing/Ads",
+        "Vận hành",
+        "SIM",
+        "Thuế",
+        "Khác"
+    ];
 
     const fetchData = async () => {
         setLoading(true);
@@ -48,11 +61,13 @@ export default function FixedCostsPage() {
                 status: "ON",
                 description: "",
                 accountId: selectedAccountId || undefined,
+                category: category as any, // NEW: Category field
             });
             setIsModalOpen(false);
             setName("");
             setAmount("");
             setSelectedAccountId("");
+            setCategory("Khác");
             fetchData();
         } catch (error) {
             console.error(error);
@@ -177,6 +192,7 @@ export default function FixedCostsPage() {
                         <thead className="bg-[#1a1a1a] text-[var(--muted)] uppercase text-xs font-semibold tracking-wider">
                             <tr>
                                 <th className="p-4 border-b border-white/10">Tên khoản chi</th>
+                                <th className="p-4 border-b border-white/10">Hạng mục</th>
                                 <th className="p-4 border-b border-white/10">Số tiền</th>
                                 <th className="p-4 border-b border-white/10">Chu kỳ</th>
                                 <th className="p-4 border-b border-white/10">Tài khoản trả</th>
@@ -195,6 +211,18 @@ export default function FixedCostsPage() {
                                             className="bg-transparent text-white w-full focus:outline-none focus:border-b border-blue-500"
                                         />
                                     </td>
+                                    {/* Hạng mục */}
+                                    <td className="p-4">
+                                        <select
+                                            value={cost.category || "Khác"}
+                                            onChange={(e) => handleUpdate(cost.id, { category: e.target.value as any })}
+                                            className="bg-[#1a1a1a] text-white text-xs px-2 py-1 rounded focus:outline-none border border-white/10"
+                                        >
+                                            {FIXED_COST_CATEGORIES.map(cat => (
+                                                <option key={cat} value={cat} className="bg-[#1a1a1a] text-white">{cat}</option>
+                                            ))}
+                                        </select>
+                                    </td>
                                     {/* Số tiền */}
                                     <td className="p-4">
                                         <div className="flex items-center gap-2">
@@ -209,9 +237,10 @@ export default function FixedCostsPage() {
                                                 onChange={(e) => handleUpdate(cost.id, { currency: e.target.value as Currency })}
                                                 className="bg-[#1a1a1a] text-[var(--muted)] text-xs focus:outline-none border border-white/10 rounded px-1 py-0.5"
                                             >
-                                                <option value="USD" className="bg-[#1a1a1a] text-white">USD</option>
                                                 <option value="VND" className="bg-[#1a1a1a] text-white">VND</option>
+                                                <option value="USD" className="bg-[#1a1a1a] text-white">USD</option>
                                                 <option value="KHR" className="bg-[#1a1a1a] text-white">KHR</option>
+                                                <option value="TRY" className="bg-[#1a1a1a] text-white">TRY</option>
                                             </select>
                                         </div>
                                     </td>
@@ -263,7 +292,7 @@ export default function FixedCostsPage() {
                                 </tr>
                             ))}
                             {costs.length === 0 && (
-                                <tr><td colSpan={6} className="p-8 text-center text-[var(--muted)]">Chưa có chi phí cố định nào</td></tr>
+                                <tr><td colSpan={7} className="p-8 text-center text-[var(--muted)]">Chưa có chi phí cố định nào</td></tr>
                             )}
                         </tbody>
                     </table>
@@ -290,20 +319,31 @@ export default function FixedCostsPage() {
                                     <div>
                                         <label className="block text-sm font-medium text-[var(--muted)] mb-1">Tiền tệ</label>
                                         <select value={currency} onChange={e => setCurrency(e.target.value as Currency)} className="glass-input w-full p-2 rounded-lg bg-[#1a1a1a] text-white border border-white/10">
-                                            <option value="USD" className="bg-[#1a1a1a] text-white">USD</option>
-                                            <option value="VND" className="bg-[#1a1a1a] text-white">VND</option>
-                                            <option value="KHR" className="bg-[#1a1a1a] text-white">KHR</option>
+                                            <option value="VND" className="bg-[#1a1a1a] text-white">🇻🇳 VND</option>
+                                            <option value="USD" className="bg-[#1a1a1a] text-white">🇺🇸 USD</option>
+                                            <option value="KHR" className="bg-[#1a1a1a] text-white">🇰🇭 KHR</option>
+                                            <option value="TRY" className="bg-[#1a1a1a] text-white">🇹🇷 TRY</option>
                                         </select>
                                     </div>
                                 </div>
 
-                                <div>
-                                    <label className="block text-sm font-medium text-[var(--muted)] mb-1">Chu kỳ lặp lại</label>
-                                    <select value={cycle} onChange={e => setCycle(e.target.value as any)} className="glass-input w-full p-2 rounded-lg bg-[#1a1a1a] text-white border border-white/10">
-                                        <option value="MONTHLY" className="bg-[#1a1a1a] text-white">Hàng tháng</option>
-                                        <option value="QUARTERLY" className="bg-[#1a1a1a] text-white">Hàng quý</option>
-                                        <option value="YEARLY" className="bg-[#1a1a1a] text-white">Hàng năm</option>
-                                    </select>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-[var(--muted)] mb-1">Chu kỳ lặp lại</label>
+                                        <select value={cycle} onChange={e => setCycle(e.target.value as any)} className="glass-input w-full p-2 rounded-lg bg-[#1a1a1a] text-white border border-white/10">
+                                            <option value="MONTHLY" className="bg-[#1a1a1a] text-white">Hàng tháng</option>
+                                            <option value="QUARTERLY" className="bg-[#1a1a1a] text-white">Hàng quý</option>
+                                            <option value="YEARLY" className="bg-[#1a1a1a] text-white">Hàng năm</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-[var(--muted)] mb-1">Hạng mục</label>
+                                        <select value={category} onChange={e => setCategory(e.target.value)} className="glass-input w-full p-2 rounded-lg bg-[#1a1a1a] text-white border border-white/10">
+                                            {FIXED_COST_CATEGORIES.map(cat => (
+                                                <option key={cat} value={cat} className="bg-[#1a1a1a] text-white">{cat}</option>
+                                            ))}
+                                        </select>
+                                    </div>
                                 </div>
 
                                 <div>

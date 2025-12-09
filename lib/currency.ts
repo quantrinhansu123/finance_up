@@ -39,7 +39,8 @@ export async function getExchangeRates(): Promise<ExchangeRates> {
         return {
             USD: 1,
             VND: 25400,
-            KHR: 4100
+            KHR: 4100,
+            TRY: 35 // Turkish Lira fallback rate
         };
     }
 }

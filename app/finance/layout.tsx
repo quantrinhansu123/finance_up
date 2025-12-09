@@ -170,41 +170,60 @@ export default function FinanceLayout({
             )}
 
             {/* Nav Links */}
-            <nav className="flex-1 overflow-y-auto py-2 px-2 space-y-1">
+            <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-2">
                 {navGroups.map((group) => {
                     if (group.items.length === 0) return null;
                     const isCollapsed = collapsedGroups[group.title];
                     const hasActiveItem = group.items.some(item => pathname === item.href);
+                    
+                    // Group icons mapping
+                    const groupIcons: Record<string, React.ReactNode> = {
+                        "Tổng quan": <LayoutDashboard size={16} />,
+                        "Thu & Chi": <ArrowRightLeft size={16} />,
+                        "Quản lý": <FolderOpen size={16} />,
+                        "Hệ thống": <Users size={16} />
+                    };
 
                     return (
-                        <div key={group.title}>
+                        <div key={group.title} className="mb-1">
                             <button
                                 onClick={() => toggleGroup(group.title)}
-                                className={`w-full flex items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wider rounded-lg transition-colors ${
-                                    hasActiveItem ? "text-blue-400 bg-blue-500/10" : "text-[var(--muted)] hover:text-white hover:bg-white/5"
+                                className={`w-full flex items-center gap-2 px-3 py-2.5 text-xs font-bold uppercase tracking-wider rounded-xl transition-all duration-200 ${
+                                    hasActiveItem 
+                                        ? "bg-gradient-to-r from-blue-600/30 to-purple-600/20 text-white border border-blue-500/30 shadow-lg shadow-blue-500/10" 
+                                        : "text-white/60 hover:text-white hover:bg-white/5"
                                 }`}
                             >
-                                <span>{group.title}</span>
-                                {isCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+                                <span className={`p-1.5 rounded-lg transition-all ${
+                                    hasActiveItem 
+                                        ? "bg-blue-500 text-white shadow-md shadow-blue-500/50" 
+                                        : "bg-white/10 text-white/60"
+                                }`}>
+                                    {groupIcons[group.title]}
+                                </span>
+                                <span className="flex-1 text-left">{group.title}</span>
+                                <span className={`transition-transform duration-200 ${isCollapsed ? "" : "rotate-90"}`}>
+                                    <ChevronRight size={14} />
+                                </span>
                             </button>
                             
-                            <div className={`overflow-hidden transition-all duration-200 ${
-                                isCollapsed ? "max-h-0 opacity-0" : "max-h-96 opacity-100"
+                            <div className={`overflow-hidden transition-all duration-300 ease-out ${
+                                isCollapsed ? "max-h-0 opacity-0" : "max-h-[500px] opacity-100"
                             }`}>
-                                <div className="mt-1 ml-2 space-y-0.5 border-l border-white/10">
+                                <div className="mt-1.5 ml-4 space-y-0.5 border-l-2 border-white/10 pl-2">
                                     {group.items.map((item) => {
                                         const isActive = pathname === item.href;
                                         return (
                                             <Link
                                                 key={item.href}
                                                 href={item.href}
-                                                className={`flex items-center gap-2 px-3 py-2 ml-2 rounded-lg text-sm transition-all ${
+                                                className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all duration-200 ${
                                                     isActive
-                                                        ? "bg-blue-600/20 text-blue-400 font-medium"
-                                                        : "text-[var(--muted)] hover:bg-white/5 hover:text-white"
+                                                        ? "bg-white/10 text-white font-medium border-l-2 border-blue-400 -ml-[2px] pl-[14px]"
+                                                        : "text-white/50 hover:bg-white/5 hover:text-white"
                                                 }`}
                                             >
-                                                <span className="flex-shrink-0">{item.icon}</span>
+                                                <span className={`flex-shrink-0 ${isActive ? "text-blue-400" : ""}`}>{item.icon}</span>
                                                 <span className="truncate">{item.name}</span>
                                             </Link>
                                         );

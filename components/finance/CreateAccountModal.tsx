@@ -13,6 +13,28 @@ interface CreateAccountModalProps {
 
 type AccountType = "BANK" | "CASH" | "E-WALLET";
 
+// Available expense categories
+const EXPENSE_CATEGORIES = [
+    "Thuế",
+    "Cước vận chuyển",
+    "Cước vận chuyển HN-HCM",
+    "Cước vận chuyển HCM-HN",
+    "SIM",
+    "SIM Smart",
+    "SIM CellCard",
+    "SIM MetPhone",
+    "Văn phòng",
+    "Thuê văn phòng",
+    "Mua đồ dùng văn phòng",
+    "Ads",
+    "Marketing",
+    "Lương",
+    "Chi lương nhân viên",
+    "Vận hành",
+    "Chuyển nội bộ",
+    "Khác"
+];
+
 export default function CreateAccountModal({ isOpen, onClose, onSuccess }: CreateAccountModalProps) {
     const [name, setName] = useState("");
     const [type, setType] = useState<AccountType>("BANK");
@@ -22,11 +44,24 @@ export default function CreateAccountModal({ isOpen, onClose, onSuccess }: Creat
     const [projects, setProjects] = useState<Project[]>([]);
     const [loading, setLoading] = useState(false);
 
+    // NEW: Currency and category restrictions
+    const [restrictCurrency, setRestrictCurrency] = useState(true); // Default: restrict to account's currency
+    const [allowedCategories, setAllowedCategories] = useState<string[]>([]);
+    const [showCategorySelector, setShowCategorySelector] = useState(false);
+
     useEffect(() => {
         if (isOpen) {
             getProjects().then(setProjects).catch(console.error);
         }
     }, [isOpen]);
+
+    const toggleCategory = (cat: string) => {
+        if (allowedCategories.includes(cat)) {
+            setAllowedCategories(allowedCategories.filter(c => c !== cat));
+        } else {
+            setAllowedCategories([...allowedCategories, cat]);
+        }
+    };
 
     if (!isOpen) return null;
 
@@ -43,6 +78,8 @@ export default function CreateAccountModal({ isOpen, onClose, onSuccess }: Creat
                 type,
                 isLocked: false,
                 projectId: projectId || undefined,
+                restrictCurrency, // NEW: Currency restriction
+                allowedCategories: allowedCategories.length > 0 ? allowedCategories : undefined, // NEW: Category restriction
                 createdAt: Date.now(),
             });
 
@@ -72,6 +109,8 @@ export default function CreateAccountModal({ isOpen, onClose, onSuccess }: Creat
             setType("BANK");
             setBalance("");
             setProjectId("");
+            setRestrictCurrency(true);
+            setAllowedCategories([]);
         } catch (error) {
             console.error("Failed to create account", error);
         } finally {
@@ -151,9 +190,10 @@ export default function CreateAccountModal({ isOpen, onClose, onSuccess }: Creat
                                 onChange={(e) => setCurrency(e.target.value as Currency)}
                                 className="glass-input w-full p-2 rounded-lg text-sm"
                             >
-                                <option value="VND">VND</option>
-                                <option value="USD">USD</option>
-                                <option value="KHR">KHR</option>
+                                <option value="VND">🇻🇳 VND</option>
+                                <option value="USD">🇺🇸 USD</option>
+                                <option value="KHR">🇰🇭 KHR</option>
+                                <option value="TRY">🇹🇷 TRY (Lira)</option>
                             </select>
                         </div>
                         <div>
@@ -167,6 +207,75 @@ export default function CreateAccountModal({ isOpen, onClose, onSuccess }: Creat
                                 step="any"
                             />
                         </div>
+                    </div>
+
+                    {/* NEW: Currency Restriction */}
+                    <div className="p-3 bg-white/5 rounded-lg border border-white/10">
+                        <label className="flex items-center gap-3 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={restrictCurrency}
+                                onChange={(e) => setRestrictCurrency(e.target.checked)}
+                                className="w-4 h-4 rounded"
+                            />
+                            <div>
+                                <span className="text-sm font-medium text-white">🔒 Khóa loại tiền</span>
+                                <p className="text-xs text-[var(--muted)]">
+                                    Tài khoản chỉ được chi tiền {currency}, không được chi loại tiền khác
+                                </p>
+                            </div>
+                        </label>
+                    </div>
+
+                    {/* NEW: Category Restriction */}
+                    <div className="p-3 bg-white/5 rounded-lg border border-white/10">
+                        <div className="flex items-center justify-between mb-2">
+                            <div>
+                                <span className="text-sm font-medium text-white">📋 Giới hạn hạng mục chi</span>
+                                <p className="text-xs text-[var(--muted)]">
+                                    {allowedCategories.length === 0 
+                                        ? "Cho phép tất cả hạng mục" 
+                                        : `Chỉ cho phép ${allowedCategories.length} hạng mục`}
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setShowCategorySelector(!showCategorySelector)}
+                                className="text-xs text-blue-400 hover:text-blue-300"
+                            >
+                                {showCategorySelector ? "Ẩn" : "Chọn"}
+                            </button>
+                        </div>
+                        
+                        {showCategorySelector && (
+                            <div className="mt-3 pt-3 border-t border-white/10">
+                                <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto">
+                                    {EXPENSE_CATEGORIES.map(cat => (
+                                        <button
+                                            key={cat}
+                                            type="button"
+                                            onClick={() => toggleCategory(cat)}
+                                            className={`px-2 py-1 rounded text-xs transition-all ${
+                                                allowedCategories.includes(cat)
+                                                    ? "bg-blue-500/30 text-blue-400 border border-blue-500/50"
+                                                    : "bg-white/5 text-[var(--muted)] border border-white/10 hover:border-white/20"
+                                            }`}
+                                        >
+                                            {cat}
+                                        </button>
+                                    ))}
+                                </div>
+                                {allowedCategories.length > 0 && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setAllowedCategories([])}
+                                        className="mt-2 text-xs text-red-400 hover:text-red-300"
+                                    >
+                                        Xóa tất cả
+                                    </button>
+                                )}
+                            </div>
+                        )}
                     </div>
 
                     <button

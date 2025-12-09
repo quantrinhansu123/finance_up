@@ -1,8 +1,19 @@
-export type Currency = "VND" | "USD" | "KHR";
+export type Currency = "VND" | "USD" | "KHR" | "TRY"; // Added TRY (Lira)
 
 export type TransactionType = "IN" | "OUT";
 
 export type TransactionStatus = "PENDING" | "APPROVED" | "REJECTED";
+
+// Expense categories for fixed costs and reporting
+export type ExpenseCategory = 
+    | "Lương nhân sự"
+    | "Thuê văn phòng"
+    | "Cước vận chuyển"
+    | "Marketing/Ads"
+    | "Vận hành"
+    | "SIM"
+    | "Thuế"
+    | "Khác";
 
 export interface Account {
     id: string;
@@ -12,7 +23,18 @@ export interface Account {
     balance: number;
     openingBalance: number; // Added: Initial balance
     projectId?: string; // Added: Assigned to project
+    departmentId?: string; // NEW: Assigned to department
     isLocked: boolean; // Added: Lock feature
+    
+    // NEW: Currency restriction - account can only spend its own currency
+    restrictCurrency: boolean; // If true, can only create transactions in account's currency
+    
+    // NEW: Category restriction - limit which categories this account can spend on
+    allowedCategories?: string[]; // If set, only these categories are allowed
+    
+    // NEW: Assigned users - only these users can use this account
+    assignedUserIds?: string[];
+    
     createdAt: number;
 }
 
@@ -67,6 +89,11 @@ export interface Project {
     totalRevenue: number;
     totalExpense: number;
     memberIds?: string[]; // Added: List of User UIDs
+    
+    // NEW: Default settings for project
+    defaultCurrency?: Currency; // Default currency for transactions
+    allowedCategories?: string[]; // Categories allowed for this project
+    
     createdAt: number;
 }
 
@@ -80,6 +107,16 @@ export interface FixedCost {
     lastGenerated?: string; // "YYYY-MM"
     description?: string;
     accountId?: string; // Added: Link to Account for auto-payment
+    
+    // NEW: Category for grouping in reports
+    category: ExpenseCategory;
+    
+    // NEW: Project assignment
+    projectId?: string;
+    
+    // NEW: Payment tracking
+    lastPaymentDate?: string; // ISO date of last payment
+    nextPaymentDate?: string; // ISO date of next expected payment
 }
 
 export interface MonthlyRevenue {
