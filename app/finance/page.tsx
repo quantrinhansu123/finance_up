@@ -547,8 +547,22 @@ export default function DashboardPage() {
                         <span className="text-6xl">💰</span>
                     </div>
                     <p className="text-[var(--muted)] text-sm font-medium uppercase">Tổng số dư</p>
-                    <h3 className="text-3xl font-bold text-white mt-1">{formatCurrency(totalBalance)}</h3>
-                    <p className="text-xs text-green-400 mt-2">Tất cả tài khoản</p>
+                    <h3 className="text-2xl font-bold text-white mt-1">{formatCurrency(totalBalance)}</h3>
+                    <div className="mt-3 pt-3 border-t border-white/10 space-y-1">
+                        {Object.entries(balanceByCurrency)
+                            .filter(([_, balance]) => balance !== 0)
+                            .map(([currency, balance]) => (
+                                <div key={currency} className="flex items-center justify-between text-xs">
+                                    <span className="flex items-center gap-1">
+                                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: CURRENCY_COLORS[currency] || "#888" }} />
+                                        <span className="text-white/50">{currency}</span>
+                                    </span>
+                                    <span className={`font-medium ${balance >= 0 ? 'text-white' : 'text-red-400'}`}>
+                                        {new Intl.NumberFormat('vi-VN').format(balance)}
+                                    </span>
+                                </div>
+                            ))}
+                    </div>
                 </div>
 
                 <div className="glass-card p-6 rounded-xl border border-white/5">
@@ -572,40 +586,75 @@ export default function DashboardPage() {
                 </Link>
             </div>
 
-            {/* NEW: Balance by Currency - Tách riêng từng loại tiền */}
-            <div className="glass-card p-6 rounded-xl border border-white/5">
-                <h3 className="text-lg font-bold mb-4">💵 Số dư theo Loại tiền (Không quy đổi)</h3>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {Object.entries(balanceByCurrency)
-                        .filter(([_, balance]) => balance > 0)
-                        .map(([currency, balance]) => (
-                            <div 
-                                key={currency} 
-                                className={`p-4 rounded-xl border-2 ${filterCurrency === currency ? 'border-white/40' : 'border-white/10'} bg-white/5 cursor-pointer hover:bg-white/10 transition-all`}
-                                onClick={() => setFilterCurrency(filterCurrency === currency ? "ALL" : currency as Currency)}
-                            >
-                                <div className="flex items-center gap-2 mb-2">
-                                    <div 
-                                        className="w-3 h-3 rounded-full"
-                                        style={{ backgroundColor: CURRENCY_COLORS[currency] || "#888" }}
-                                    />
-                                    <span className="text-sm font-medium text-[var(--muted)]">{currency}</span>
+            {/* Account Cards - Compact */}
+            <div className="glass-card p-4 rounded-xl border border-white/5">
+                <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-bold">� Tài khouản</h3>
+                    <Link href="/finance/accounts" className="text-xs text-[var(--muted)] hover:text-white">Quản lý →</Link>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+                    {accounts
+                        .filter(acc => !filterCurrency || filterCurrency === "ALL" || acc.currency === filterCurrency)
+                        .filter(acc => !filterProject || !acc.projectId || acc.projectId === filterProject)
+                        .map(acc => {
+                            const sameCurrencyAccounts = accounts.filter(a => a.currency === acc.currency);
+                            const maxBalance = Math.max(...sameCurrencyAccounts.map(a => a.balance), acc.balance * 1.5);
+                            const accountTxs = transactions.filter(tx => tx.accountId === acc.id && tx.status === "APPROVED");
+                            const now = new Date();
+                            let accPeriodIn = 0, accPeriodOut = 0, lastMonthBalance = acc.openingBalance || 0;
+
+                            accountTxs.forEach(tx => {
+                                const d = new Date(tx.date);
+                                const isThisMonth = d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+                                if (isThisMonth) {
+                                    if (tx.type === "IN") accPeriodIn += tx.amount;
+                                    else accPeriodOut += tx.amount;
+                                }
+                                if (d < new Date(now.getFullYear(), now.getMonth(), 1)) {
+                                    if (tx.type === "IN") lastMonthBalance += tx.amount;
+                                    else lastMonthBalance -= tx.amount;
+                                }
+                            });
+
+                            const netChange = accPeriodIn - accPeriodOut;
+                            const changePercent = lastMonthBalance > 0 ? ((acc.balance - lastMonthBalance) / lastMonthBalance * 100).toFixed(1) : "0.0";
+                            const trend = netChange >= 0 ? "up" : "down";
+                            const progressPercent = maxBalance > 0 ? Math.min((acc.balance / maxBalance) * 100, 100) : 0;
+
+                            return (
+                                <div key={acc.id} className="relative bg-white/5 rounded-lg p-3 border border-white/10 hover:border-white/20 transition-all">
+                                    {acc.isLocked && (
+                                        <svg className="absolute top-1.5 right-1.5 w-3 h-3 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                                        </svg>
+                                    )}
+                                    <div className="text-[10px] text-[var(--muted)] truncate mb-1">{acc.name}</div>
+                                    <div className="text-base font-bold text-white leading-tight">
+                                        {acc.balance.toLocaleString()} <span className="text-[10px]" style={{ color: CURRENCY_COLORS[acc.currency] }}>{acc.currency}</span>
+                                    </div>
+                                    <div className="h-1 bg-white/10 rounded-full overflow-hidden my-2">
+                                        <div className="h-full transition-all" style={{ width: `${progressPercent}%`, backgroundColor: CURRENCY_COLORS[acc.currency] }} />
+                                    </div>
+                                    <div className="flex items-center justify-between text-[10px]">
+                                        <span className={trend === "up" ? "text-green-400" : "text-red-400"}>
+                                            {trend === "up" ? "↑" : "↓"} {changePercent}%
+                                        </span>
+                                        <span className="text-green-400">+{(accPeriodIn/1000).toFixed(0)}k</span>
+                                        <span className="text-red-400">-{(accPeriodOut/1000).toFixed(0)}k</span>
+                                    </div>
                                 </div>
-                                <div className="text-2xl font-bold text-white">
-                                    {new Intl.NumberFormat('vi-VN').format(balance)}
-                                </div>
-                                {filterCurrency === currency && (
-                                    <div className="text-xs text-blue-400 mt-1">Đang lọc</div>
-                                )}
-                            </div>
-                        ))}
+                            );
+                        })}
+                    {accounts.length === 0 && (
+                        <div className="col-span-full text-center text-[var(--muted)] py-2 text-xs">Chưa có tài khoản</div>
+                    )}
                 </div>
             </div>
 
-            {/* NEW: Currency Breakdown Chart */}
+            {/* Currency Breakdown Chart */}
             {currencyBreakdown.length > 0 && (
                 <div className="glass-card p-6 rounded-xl border border-white/5">
-                    <h3 className="text-lg font-bold mb-4">📊 Thu Chi theo Loại tiền ({getPeriodLabel()})</h3>
+                    <h3 className="text-lg font-bold mb-4">💵 Thu Chi theo Loại tiền ({getPeriodLabel()})</h3>
                     <div className="h-64">
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={currencyBreakdown}>
@@ -627,277 +676,89 @@ export default function DashboardPage() {
                 </div>
             )}
 
-            {/* NEW: Fixed Cost Summary - Tổng hợp chi phí cố định */}
-            <div className="glass-card p-6 rounded-xl border border-white/5">
-                <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-bold">📋 Tổng hợp Chi phí Cố định Hàng tháng</h3>
-                    <button
-                        onClick={() => setShowFixedCostDetails(!showFixedCostDetails)}
-                        className="text-sm text-blue-400 hover:text-blue-300"
-                    >
-                        {showFixedCostDetails ? "Thu gọn" : "Chi tiết"}
-                    </button>
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {FIXED_COST_CATEGORIES.map(cat => {
-                        const data = fixedCostSummary[cat.key];
-                        const hasData = data && data.amount > 0;
-                        return (
-                            <div key={cat.key} className={`p-4 rounded-xl border border-white/10 ${hasData ? 'bg-white/5' : 'bg-white/2 opacity-50'}`}>
-                                <div className="flex items-center gap-2 mb-2">
-                                    <span className="text-xl">{cat.icon}</span>
-                                    <span className="text-sm text-[var(--muted)]">{cat.label}</span>
-                                </div>
-                                {hasData ? (
-                                    <>
-                                        <div className="text-xl font-bold text-white">
-                                            {new Intl.NumberFormat('vi-VN').format(data.amount)} {data.currency}
-                                        </div>
-                                        <div className="text-xs text-[var(--muted)] mt-1">
-                                            {data.count} khoản
-                                        </div>
-                                    </>
-                                ) : (
-                                    <div className="text-sm text-[var(--muted)]">Chưa có</div>
-                                )}
-                            </div>
-                        );
-                    })}
-                </div>
-                
-                {/* Fixed Cost Details Table */}
-                {showFixedCostDetails && fixedCosts.length > 0 && (
-                    <div className="mt-6 overflow-x-auto">
-                        <table className="w-full text-left text-sm">
-                            <thead className="bg-[#1a1a1a] text-[var(--muted)] text-xs uppercase">
-                                <tr>
-                                    <th className="p-3 border-b border-white/10">Tên</th>
-                                    <th className="p-3 border-b border-white/10">Hạng mục</th>
-                                    <th className="p-3 border-b border-white/10 text-right">Số tiền</th>
-                                    <th className="p-3 border-b border-white/10">Chu kỳ</th>
-                                    <th className="p-3 border-b border-white/10">Trạng thái</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-white/5">
-                                {fixedCosts.map(fc => (
-                                    <tr key={fc.id} className="hover:bg-white/5">
-                                        <td className="p-3 font-medium text-white">{fc.name}</td>
-                                        <td className="p-3 text-[var(--muted)]">{fc.category || "Khác"}</td>
-                                        <td className="p-3 text-right font-bold text-white">
-                                            {new Intl.NumberFormat('vi-VN').format(fc.amount)} {fc.currency}
-                                        </td>
-                                        <td className="p-3 text-[var(--muted)]">
-                                            {fc.cycle === "MONTHLY" ? "Hàng tháng" : fc.cycle === "QUARTERLY" ? "Hàng quý" : "Hàng năm"}
-                                        </td>
-                                        <td className="p-3">
-                                            <span className={`px-2 py-1 rounded text-xs ${fc.status === "ON" ? "bg-green-500/20 text-green-400" : "bg-red-500/20 text-red-400"}`}>
-                                                {fc.status === "ON" ? "Hoạt động" : "Tạm dừng"}
-                                            </span>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                        <div className="mt-4 p-4 bg-white/5 rounded-lg">
-                            <div className="text-lg font-bold text-white">
-                                Tổng chi phí cố định: {formatCurrency(
-                                    fixedCosts
-                                        .filter(fc => fc.status === "ON")
-                                        .reduce((sum, fc) => sum + convertCurrency(fc.amount, fc.currency, "USD", rates), 0)
-                                )}
-                                <span className="text-sm text-[var(--muted)] ml-2">/tháng (quy đổi USD)</span>
-                            </div>
-                        </div>
-                    </div>
-                )}
-            </div>
-
-            {/* NEW: Salary Report - Báo cáo lương chi tiết */}
-            {salaryReport.length > 0 && (
-                <div className="glass-card p-6 rounded-xl border border-white/5">
-                    <h3 className="text-lg font-bold mb-4">💰 Báo cáo Chi Lương ({getPeriodLabel()})</h3>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left text-sm">
-                            <thead className="bg-[#1a1a1a] text-[var(--muted)] text-xs uppercase">
-                                <tr>
-                                    <th className="p-3 border-b border-white/10">Ngày thanh toán</th>
-                                    <th className="p-3 border-b border-white/10 text-right">Số tiền</th>
-                                    <th className="p-3 border-b border-white/10">Tiền tệ</th>
-                                    <th className="p-3 border-b border-white/10">Mô tả</th>
-                                    <th className="p-3 border-b border-white/10">Người tạo</th>
-                                    <th className="p-3 border-b border-white/10">Trạng thái</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-white/5">
-                                {salaryReport.slice(0, 10).map((item, idx) => (
-                                    <tr key={idx} className="hover:bg-white/5">
-                                        <td className="p-3 font-medium text-white">
-                                            {new Date(item.date).toLocaleDateString('vi-VN', { 
-                                                day: '2-digit', 
-                                                month: '2-digit', 
-                                                year: 'numeric',
-                                                hour: '2-digit',
-                                                minute: '2-digit'
-                                            })}
-                                        </td>
-                                        <td className="p-3 text-right font-bold text-red-400">
-                                            {new Intl.NumberFormat('vi-VN').format(item.amount)}
-                                        </td>
-                                        <td className="p-3">
-                                            <span className="px-2 py-1 rounded text-xs" style={{ backgroundColor: CURRENCY_COLORS[item.currency] + '30', color: CURRENCY_COLORS[item.currency] }}>
-                                                {item.currency}
-                                            </span>
-                                        </td>
-                                        <td className="p-3 text-[var(--muted)] max-w-[200px] truncate">
-                                            {item.description || "-"}
-                                        </td>
-                                        <td className="p-3 text-[var(--muted)]">{item.createdBy}</td>
-                                        <td className="p-3">
-                                            <span className={`px-2 py-1 rounded text-xs ${
-                                                item.status === "APPROVED" ? "bg-green-500/20 text-green-400" : 
-                                                item.status === "PENDING" ? "bg-yellow-500/20 text-yellow-400" : 
-                                                "bg-red-500/20 text-red-400"
-                                            }`}>
-                                                {item.status === "APPROVED" ? "Đã duyệt" : item.status === "PENDING" ? "Chờ duyệt" : "Từ chối"}
-                                            </span>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                    <div className="mt-4 flex items-center justify-between p-4 bg-white/5 rounded-lg">
-                        <div>
-                            <span className="text-[var(--muted)]">Tổng chi lương kỳ này:</span>
-                            <span className="ml-2 text-xl font-bold text-red-400">
-                                {formatCurrency(salaryReport.reduce((sum, item) => sum + convertCurrency(item.amount, item.currency, "USD", rates), 0))}
-                            </span>
-                        </div>
-                        <div className="text-sm text-[var(--muted)]">
-                            {salaryReport.length} giao dịch
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Account Cards - Compact */}
-            <div className="glass-card p-4 rounded-xl border border-white/5">
-                <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-sm font-bold">Tài khoản</h3>
-                    <Link href="/finance/accounts" className="text-xs text-[var(--muted)] hover:text-white">Quản lý →</Link>
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-                    {accounts
-                        .filter(acc => !filterCurrency || filterCurrency === "ALL" || acc.currency === filterCurrency)
-                        .filter(acc => !filterProject || !acc.projectId || acc.projectId === filterProject)
-                        .map(acc => {
-                            const sameCurrencyAccounts = accounts.filter(a => a.currency === acc.currency);
-                            const maxBalance = Math.max(...sameCurrencyAccounts.map(a => a.balance), acc.balance * 1.5);
-                            const accountTxs = transactions.filter(tx => tx.accountId === acc.id && tx.status === "APPROVED");
-                            const now = new Date();
-                            let periodIn = 0, periodOut = 0, lastMonthBalance = acc.openingBalance || 0;
-
-                            accountTxs.forEach(tx => {
-                                const d = new Date(tx.date);
-                                const isThisMonth = d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-                                if (isThisMonth) {
-                                    if (tx.type === "IN") periodIn += tx.amount;
-                                    else periodOut += tx.amount;
-                                }
-                                if (d < new Date(now.getFullYear(), now.getMonth(), 1)) {
-                                    if (tx.type === "IN") lastMonthBalance += tx.amount;
-                                    else lastMonthBalance -= tx.amount;
-                                }
-                            });
-
-                            const netChange = periodIn - periodOut;
-                            const changePercent = lastMonthBalance > 0 ? ((acc.balance - lastMonthBalance) / lastMonthBalance * 100).toFixed(1) : "0.0";
-                            const trend = netChange >= 0 ? "up" : "down";
-                            const progressPercent = maxBalance > 0 ? Math.min((acc.balance / maxBalance) * 100, 100) : 0;
-                            const progressColor = CURRENCY_COLORS[acc.currency] || "bg-gray-500";
-
-                            return (
-                                <div key={acc.id} className="relative bg-white/5 rounded-lg p-3 border border-white/10 hover:border-white/20 transition-all">
-                                    {acc.isLocked && (
-                                        <svg className="absolute top-1.5 right-1.5 w-3 h-3 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
-                                            <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
-                                        </svg>
-                                    )}
-                                    {acc.restrictCurrency && (
-                                        <svg className="absolute top-1.5 right-5 w-3 h-3 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
-                                            <title>Chỉ chi tiền cùng loại</title>
-                                            <path d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" />
-                                        </svg>
-                                    )}
-                                    <div className="text-[10px] text-[var(--muted)] truncate mb-1">{acc.name}</div>
-                                    <div className="text-base font-bold text-white leading-tight">
-                                        {acc.balance.toLocaleString()} <span className="text-[10px]" style={{ color: CURRENCY_COLORS[acc.currency] }}>{acc.currency}</span>
-                                    </div>
-                                    <div className="h-1 bg-white/10 rounded-full overflow-hidden my-2">
-                                        <div className="h-full transition-all" style={{ width: `${progressPercent}%`, backgroundColor: CURRENCY_COLORS[acc.currency] }} />
-                                    </div>
-                                    <div className="flex items-center justify-between text-[10px]">
-                                        <span className={trend === "up" ? "text-green-400" : "text-red-400"}>
-                                            {trend === "up" ? "↑" : "↓"} {changePercent}%
-                                        </span>
-                                        <span className="text-green-400">+{(periodIn/1000).toFixed(0)}k</span>
-                                        <span className="text-red-400">-{(periodOut/1000).toFixed(0)}k</span>
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    {accounts.length === 0 && (
-                        <div className="col-span-full text-center text-[var(--muted)] py-2 text-xs">Chưa có tài khoản</div>
-                    )}
-                </div>
-            </div>
-
-            {/* Charts Row */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                {/* Income vs Expense */}
-                <div className="lg:col-span-2 glass-card p-6 rounded-xl border border-white/5">
-                    <h3 className="text-lg font-bold mb-6">Thu – Chi theo tháng (6 tháng gần nhất)</h3>
-                    <div className="h-72">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={chartData}>
-                                <XAxis dataKey="name" stroke="#525252" />
-                                <YAxis stroke="#525252" />
-                                <Tooltip
-                                    contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: '8px' }}
-                                    formatter={(value: number) => filterCurrency === "ALL" ? formatCurrency(value) : formatCurrency(value, filterCurrency)}
-                                />
-                                <Legend />
-                                <Bar dataKey="income" name="Thu" fill="#4ade80" radius={[4, 4, 0, 0]} />
-                                <Bar dataKey="expense" name="Chi" fill="#f87171" radius={[4, 4, 0, 0]} />
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </div>
-                </div>
-
+            {/* Expense & Income Ratio Charts - Side by Side */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Expense Breakdown */}
                 <div className="glass-card p-6 rounded-xl border border-white/5">
-                    <h3 className="text-lg font-bold mb-6">Tỷ lệ chi phí ({getPeriodLabel()})</h3>
-                    <div className="h-72">
+                    <h3 className="text-lg font-bold mb-4">📊 Tỷ lệ chi ({getPeriodLabel()})</h3>
+                    <div className="h-48 mb-4">
                         <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
-                                <Pie
-                                    data={catData}
-                                    cx="50%"
-                                    cy="50%"
-                                    innerRadius={60}
-                                    outerRadius={80}
-                                    paddingAngle={5}
-                                    dataKey="value"
-                                >
-                                    {catData.map((entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                    ))}
+                                <Pie data={catData} cx="50%" cy="50%" outerRadius={80} dataKey="value">
+                                    {catData.map((_, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
                                 </Pie>
                                 <Tooltip formatter={(value: number) => filterCurrency === "ALL" ? formatCurrency(value) : formatCurrency(value, filterCurrency)} />
-                                <Legend />
                             </PieChart>
                         </ResponsiveContainer>
                     </div>
+                    <div className="space-y-2 border-t border-white/10 pt-4">
+                        {catData.map((item, index) => (
+                            <div key={item.name} className="flex items-center justify-between text-sm">
+                                <div className="flex items-center gap-2">
+                                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
+                                    <span className="text-white/80">{item.name}</span>
+                                </div>
+                                <span className="font-bold text-red-400">
+                                    {filterCurrency === "ALL" ? formatCurrency(item.value) : formatCurrency(item.value, filterCurrency)}
+                                </span>
+                            </div>
+                        ))}
+                        {catData.length === 0 && <div className="text-[var(--muted)] text-sm text-center py-4">Chưa có dữ liệu</div>}
+                    </div>
+                </div>
+
+                {/* Income Breakdown */}
+                <div className="glass-card p-6 rounded-xl border border-white/5">
+                    <h3 className="text-lg font-bold mb-4">� TỷT lệ thu ({getPeriodLabel()})</h3>
+                    <div className="h-48 mb-4">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                                <Pie
+                                    data={Object.entries(categoryTotals).filter(([_, d]) => d.in > 0).map(([n, d]) => ({ name: n, value: d.in })).sort((a, b) => b.value - a.value).slice(0, 5)}
+                                    cx="50%" cy="50%" outerRadius={80} dataKey="value"
+                                >
+                                    {Object.entries(categoryTotals).filter(([_, d]) => d.in > 0).slice(0, 5).map((_, i) => (
+                                        <Cell key={`cell-in-${i}`} fill={["#4ade80", "#22d3ee", "#a78bfa", "#fbbf24", "#f472b6"][i % 5]} />
+                                    ))}
+                                </Pie>
+                                <Tooltip formatter={(value: number) => filterCurrency === "ALL" ? formatCurrency(value) : formatCurrency(value, filterCurrency)} />
+                            </PieChart>
+                        </ResponsiveContainer>
+                    </div>
+                    <div className="space-y-2 border-t border-white/10 pt-4">
+                        {Object.entries(categoryTotals).filter(([_, d]) => d.in > 0).map(([n, d]) => ({ name: n, value: d.in })).sort((a, b) => b.value - a.value).slice(0, 5).map((item, i) => (
+                            <div key={item.name} className="flex items-center justify-between text-sm">
+                                <div className="flex items-center gap-2">
+                                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: ["#4ade80", "#22d3ee", "#a78bfa", "#fbbf24", "#f472b6"][i % 5] }} />
+                                    <span className="text-white/80">{item.name}</span>
+                                </div>
+                                <span className="font-bold text-green-400">
+                                    {filterCurrency === "ALL" ? formatCurrency(item.value) : formatCurrency(item.value, filterCurrency)}
+                                </span>
+                            </div>
+                        ))}
+                        {Object.entries(categoryTotals).filter(([_, d]) => d.in > 0).length === 0 && <div className="text-[var(--muted)] text-sm text-center py-4">Chưa có dữ liệu</div>}
+                    </div>
+                </div>
+            </div>
+
+            {/* Income vs Expense Monthly Chart */}
+            <div className="glass-card p-6 rounded-xl border border-white/5">
+                <h3 className="text-lg font-bold mb-4">📈 Thu – Chi theo tháng (6 tháng gần nhất)</h3>
+                <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={chartData}>
+                            <XAxis dataKey="name" stroke="#525252" />
+                            <YAxis stroke="#525252" />
+                            <Tooltip
+                                contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: '8px' }}
+                                formatter={(value: number) => filterCurrency === "ALL" ? formatCurrency(value) : formatCurrency(value, filterCurrency)}
+                            />
+                            <Legend />
+                            <Bar dataKey="income" name="Thu" fill="#4ade80" radius={[4, 4, 0, 0]} />
+                            <Bar dataKey="expense" name="Chi" fill="#f87171" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                    </ResponsiveContainer>
                 </div>
             </div>
 
@@ -979,19 +840,48 @@ export default function DashboardPage() {
                 </div>
             </div>
 
-            {/* Project Summary */}
+            {/* Project Summary with Chart */}
             <div className="glass-card p-6 rounded-xl border border-white/5">
                 <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-bold">Thu Chi theo Dự án ({getPeriodLabel()})</h3>
+                    <h3 className="text-lg font-bold">📁 Thu Chi theo Dự án ({getPeriodLabel()})</h3>
                     {projects.filter(p => projectStats[p.id] && (projectStats[p.id].in > 0 || projectStats[p.id].out > 0)).length > 5 && (
                         <button
                             onClick={() => setShowAllProjects(!showAllProjects)}
                             className="text-sm text-blue-400 hover:text-blue-300 transition-colors"
                         >
-                            {showAllProjects ? "Thu gọn ↑" : `Xem tất cả (${projects.filter(p => projectStats[p.id] && (projectStats[p.id].in > 0 || projectStats[p.id].out > 0)).length}) ↓`}
+                            {showAllProjects ? "Thu gọn ↑" : `Xem tất cả ↓`}
                         </button>
                     )}
                 </div>
+                
+                {/* Project Chart */}
+                <div className="h-56 mb-6">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <BarChart 
+                            data={projects
+                                .filter(p => !filterProject || p.id === filterProject)
+                                .filter(p => projectStats[p.id] && (projectStats[p.id].in > 0 || projectStats[p.id].out > 0))
+                                .slice(0, 6)
+                                .map(p => ({
+                                    name: p.name.length > 12 ? p.name.substring(0, 12) + '...' : p.name,
+                                    thu: projectStats[p.id]?.in || 0,
+                                    chi: projectStats[p.id]?.out || 0
+                                }))}
+                            layout="vertical"
+                        >
+                            <XAxis type="number" stroke="#525252" />
+                            <YAxis type="category" dataKey="name" stroke="#525252" width={100} tick={{ fontSize: 11 }} />
+                            <Tooltip
+                                contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: '8px' }}
+                                formatter={(value: number) => filterCurrency === "ALL" ? formatCurrency(value) : formatCurrency(value, filterCurrency)}
+                            />
+                            <Legend />
+                            <Bar dataKey="thu" name="Thu" fill="#4ade80" radius={[0, 4, 4, 0]} />
+                            <Bar dataKey="chi" name="Chi" fill="#f87171" radius={[0, 4, 4, 0]} />
+                        </BarChart>
+                    </ResponsiveContainer>
+                </div>
+
                 <div className="overflow-x-auto">
                     <table className="w-full text-left text-sm">
                         <thead className="bg-[#1a1a1a] text-[var(--muted)] text-xs uppercase font-semibold tracking-wider">
