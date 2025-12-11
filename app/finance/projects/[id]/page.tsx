@@ -50,7 +50,9 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     const [totalIn, setTotalIn] = useState(0);
     const [totalOut, setTotalOut] = useState(0);
     const [monthlyData, setMonthlyData] = useState<any[]>([]);
-    const [categoryData, setCategoryData] = useState<any[]>([]);
+    const [categoryData, setCategoryData] = useState<any[]>([]); // Chi theo danh mục
+    const [incomeData, setIncomeData] = useState<any[]>([]); // Thu theo nguồn
+    const [memberStats, setMemberStats] = useState<any[]>([]);
 
     useEffect(() => {
         const loadData = async () => {
@@ -87,24 +89,37 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                 let inTotal = 0;
                 let outTotal = 0;
                 const monthly: Record<string, { in: number, out: number }> = {};
-                const categories: Record<string, number> = {};
+                const expenseCategories: Record<string, number> = {}; // Chi theo danh mục
+                const incomeCategories: Record<string, number> = {}; // Thu theo nguồn
+                const memberTxStats: Record<string, { in: number, out: number, count: number }> = {};
 
                 projectTxs.forEach(tx => {
                     const amountUSD = convertCurrency(tx.amount, tx.currency, "USD", exchangeRates);
                     const d = new Date(tx.date);
                     const monthKey = `${d.getMonth() + 1}/${d.getFullYear()}`;
+                    
+                    // Member stats
+                    const creator = tx.createdBy || "Unknown";
+                    if (!memberTxStats[creator]) memberTxStats[creator] = { in: 0, out: 0, count: 0 };
+                    memberTxStats[creator].count++;
+
+                    const cat = tx.category || tx.source || "Khác";
 
                     if (tx.type === "IN") {
                         inTotal += amountUSD;
                         if (!monthly[monthKey]) monthly[monthKey] = { in: 0, out: 0 };
                         monthly[monthKey].in += amountUSD;
+                        memberTxStats[creator].in += amountUSD;
+                        // Thu theo nguồn
+                        const source = tx.source || tx.category || "Khác";
+                        incomeCategories[source] = (incomeCategories[source] || 0) + amountUSD;
                     } else {
                         outTotal += amountUSD;
                         if (!monthly[monthKey]) monthly[monthKey] = { in: 0, out: 0 };
                         monthly[monthKey].out += amountUSD;
-
-                        const cat = tx.category || "Khác";
-                        categories[cat] = (categories[cat] || 0) + amountUSD;
+                        memberTxStats[creator].out += amountUSD;
+                        // Chi theo danh mục
+                        expenseCategories[cat] = (expenseCategories[cat] || 0) + amountUSD;
                     }
                 });
 
@@ -122,12 +137,31 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                     .slice(-6);
                 setMonthlyData(mData);
 
-                // Format category data
-                const cData = Object.entries(categories)
+                // Format income data (Thu theo nguồn)
+                const iData = Object.entries(incomeCategories)
+                    .map(([name, value]) => ({ name, value }))
+                    .sort((a, b) => b.value - a.value)
+                    .slice(0, 5);
+                setIncomeData(iData);
+
+                // Format expense data (Chi theo danh mục)
+                const cData = Object.entries(expenseCategories)
                     .map(([name, value]) => ({ name, value }))
                     .sort((a, b) => b.value - a.value)
                     .slice(0, 5);
                 setCategoryData(cData);
+
+                // Format member stats
+                const mStats = Object.entries(memberTxStats)
+                    .map(([name, stats]) => ({ 
+                        name: name.split('@')[0], // Shorten email
+                        fullName: name,
+                        ...stats,
+                        total: stats.in + stats.out
+                    }))
+                    .sort((a, b) => b.total - a.total)
+                    .slice(0, 8);
+                setMemberStats(mStats);
 
             } catch (e) {
                 console.error(e);
@@ -411,17 +445,74 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                 </div>
             </div>
 
-            {/* Charts */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* Monthly Chart */}
-                <div className="glass-card p-6 rounded-xl">
-                    <h3 className="text-lg font-bold mb-4">Thu – Chi theo tháng</h3>
+            {/* Account Cards */}
+            <div className="glass-card p-4 rounded-xl border border-white/5">
+                <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-bold flex items-center gap-2">
+                        <Landmark size={16} />
+                        Tài khoản dự án ({accounts.length})
+                    </h3>
+                    <button
+                        onClick={() => setIsAccountModalOpen(true)}
+                        className="text-xs text-[var(--muted)] hover:text-white flex items-center gap-1"
+                    >
+                        <Plus size={12} />
+                        Quản lý
+                    </button>
+                </div>
+                {accounts.length > 0 ? (
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                        {accounts.map(acc => {
+                            const accTxs = transactions.filter(tx => tx.accountId === acc.id);
+                            const accIn = accTxs.filter(tx => tx.type === "IN").reduce((sum, tx) => sum + tx.amount, 0);
+                            const accOut = accTxs.filter(tx => tx.type === "OUT").reduce((sum, tx) => sum + tx.amount, 0);
+                            return (
+                                <div key={acc.id} className="relative p-3 rounded-xl bg-white/5 border border-white/10 hover:border-white/20 transition-all group">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <span className="text-lg">🏦</span>
+                                        <span className="text-xs bg-white/10 px-1.5 py-0.5 rounded">{acc.currency}</span>
+                                        {acc.isLocked && <span className="text-xs">🔒</span>}
+                                    </div>
+                                    <div className="font-medium text-sm truncate mb-1">{acc.name}</div>
+                                    <div className={`text-lg font-bold ${acc.balance >= 0 ? 'text-white' : 'text-red-400'}`}>
+                                        {acc.balance.toLocaleString()}
+                                    </div>
+                                    <div className="flex gap-2 mt-2 text-xs">
+                                        <span className="text-green-400">+{accIn.toLocaleString()}</span>
+                                        <span className="text-red-400">-{accOut.toLocaleString()}</span>
+                                    </div>
+                                    {/* Progress bar */}
+                                    <div className="mt-2 h-1 bg-white/10 rounded-full overflow-hidden">
+                                        <div 
+                                            className="h-full bg-gradient-to-r from-green-500 to-blue-500 rounded-full"
+                                            style={{ width: `${Math.min((acc.balance / (acc.openingBalance || acc.balance || 1)) * 100, 100)}%` }}
+                                        />
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                ) : (
+                    <div className="text-center py-6 text-[var(--muted)] text-sm">
+                        Chưa có tài khoản nào được gán
+                        <button onClick={() => setIsAccountModalOpen(true)} className="block mx-auto mt-2 text-blue-400 hover:underline">
+                            + Thêm tài khoản
+                        </button>
+                    </div>
+                )}
+            </div>
+
+            {/* Charts Row 1: Monthly + Ratio */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Monthly Chart - Larger */}
+                <div className="lg:col-span-2 glass-card p-6 rounded-xl">
+                    <h3 className="text-lg font-bold mb-4">📊 Thu – Chi theo tháng</h3>
                     <div className="h-64">
                         {monthlyData.length > 0 ? (
                             <ResponsiveContainer width="100%" height="100%">
                                 <BarChart data={monthlyData}>
-                                    <XAxis dataKey="name" stroke="#525252" />
-                                    <YAxis stroke="#525252" />
+                                    <XAxis dataKey="name" stroke="#525252" fontSize={12} />
+                                    <YAxis stroke="#525252" fontSize={12} tickFormatter={(v) => `$${(v/1000).toFixed(0)}k`} />
                                     <Tooltip
                                         contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: '8px' }}
                                         formatter={(value: number) => formatCurrency(value)}
@@ -439,10 +530,48 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                     </div>
                 </div>
 
-                {/* Category Pie */}
+                {/* Income Pie - Tỷ lệ Thu theo nguồn */}
                 <div className="glass-card p-6 rounded-xl">
-                    <h3 className="text-lg font-bold mb-4">Phân bố chi phí</h3>
-                    <div className="h-64">
+                    <h3 className="text-lg font-bold mb-4 text-green-400">💰 Tỷ lệ Thu</h3>
+                    <div className="h-48">
+                        {incomeData.length > 0 ? (
+                            <ResponsiveContainer width="100%" height="100%">
+                                <PieChart>
+                                    <Pie
+                                        data={incomeData}
+                                        cx="50%"
+                                        cy="50%"
+                                        innerRadius={35}
+                                        outerRadius={55}
+                                        paddingAngle={3}
+                                        dataKey="value"
+                                    >
+                                        {incomeData.map((_, index) => (
+                                            <Cell key={`cell-in-${index}`} fill={["#4ade80", "#22c55e", "#16a34a", "#15803d", "#166534"][index % 5]} />
+                                        ))}
+                                    </Pie>
+                                    <Tooltip formatter={(value: number) => formatCurrency(value)} />
+                                    <Legend wrapperStyle={{ fontSize: '11px' }} />
+                                </PieChart>
+                            </ResponsiveContainer>
+                        ) : (
+                            <div className="h-full flex items-center justify-center text-[var(--muted)] text-sm">
+                                Chưa có dữ liệu thu
+                            </div>
+                        )}
+                    </div>
+                    <div className="text-center mt-2 text-lg font-bold text-green-400">
+                        +{formatCurrency(totalIn)}
+                    </div>
+                </div>
+            </div>
+
+            {/* Charts Row 2: Expense Pie + Member Stats */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Expense Pie - Tỷ lệ Chi theo danh mục */}
+                <div className="glass-card p-6 rounded-xl">
+                    <h3 className="text-lg font-bold mb-4 text-red-400">💸 Tỷ lệ Chi</h3>
+                    <div className="h-48">
                         {categoryData.length > 0 ? (
                             <ResponsiveContainer width="100%" height="100%">
                                 <PieChart>
@@ -450,79 +579,70 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                                         data={categoryData}
                                         cx="50%"
                                         cy="50%"
-                                        innerRadius={50}
-                                        outerRadius={70}
-                                        paddingAngle={5}
+                                        innerRadius={35}
+                                        outerRadius={55}
+                                        paddingAngle={3}
                                         dataKey="value"
                                     >
-                                        {categoryData.map((entry, index) => (
-                                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                        {categoryData.map((_, index) => (
+                                            <Cell key={`cell-out-${index}`} fill={["#f87171", "#ef4444", "#dc2626", "#b91c1c", "#991b1b"][index % 5]} />
                                         ))}
                                     </Pie>
                                     <Tooltip formatter={(value: number) => formatCurrency(value)} />
-                                    <Legend />
+                                    <Legend wrapperStyle={{ fontSize: '11px' }} />
                                 </PieChart>
                             </ResponsiveContainer>
                         ) : (
-                            <div className="h-full flex items-center justify-center text-[var(--muted)]">
+                            <div className="h-full flex items-center justify-center text-[var(--muted)] text-sm">
                                 Chưa có dữ liệu chi
                             </div>
                         )}
                     </div>
+                    <div className="text-center mt-2 text-lg font-bold text-red-400">
+                        -{formatCurrency(totalOut)}
+                    </div>
+                </div>
+
+                {/* Member Stats */}
+                <div className="glass-card p-6 rounded-xl">
+                    <h3 className="text-lg font-bold mb-4">👥 Thống kê theo nhân viên</h3>
+                    <div className="h-64">
+                        {memberStats.length > 0 ? (
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={memberStats} layout="vertical">
+                                    <XAxis type="number" stroke="#525252" fontSize={10} tickFormatter={(v) => `$${(v/1000).toFixed(0)}k`} />
+                                    <YAxis type="category" dataKey="name" stroke="#525252" fontSize={10} width={80} />
+                                    <Tooltip
+                                        contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: '8px' }}
+                                        formatter={(value: number, name: string) => [formatCurrency(value), name === "in" ? "Thu" : "Chi"]}
+                                        labelFormatter={(label) => memberStats.find(m => m.name === label)?.fullName || label}
+                                    />
+                                    <Legend />
+                                    <Bar dataKey="in" name="Thu" fill="#4ade80" radius={[0, 4, 4, 0]} />
+                                    <Bar dataKey="out" name="Chi" fill="#f87171" radius={[0, 4, 4, 0]} />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        ) : (
+                            <div className="h-full flex items-center justify-center text-[var(--muted)]">
+                                Chưa có dữ liệu
+                            </div>
+                        )}
+                    </div>
+                    {/* Member summary */}
+                    {memberStats.length > 0 && (
+                        <div className="mt-3 pt-3 border-t border-white/10 grid grid-cols-2 gap-2 text-xs">
+                            {memberStats.slice(0, 4).map((m, i) => (
+                                <div key={i} className="flex items-center justify-between bg-white/5 px-2 py-1 rounded">
+                                    <span className="truncate">{m.name}</span>
+                                    <span className="text-[var(--muted)]">{m.count} GD</span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
             </div>
 
-            {/* Assigned Accounts */}
-            <div className="glass-card rounded-xl overflow-hidden">
-                <div className="p-4 border-b border-white/5 flex items-center justify-between">
-                    <h3 className="text-lg font-bold">Tài khoản được gán</h3>
-                    <button
-                        onClick={() => setIsAccountModalOpen(true)}
-                        className="glass-button px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1"
-                    >
-                        <Landmark size={14} />
-                        Quản lý
-                    </button>
-                </div>
-                {accounts.length > 0 ? (
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left text-sm">
-                            <thead className="bg-white/5 text-[var(--muted)] text-xs uppercase">
-                                <tr>
-                                    <th className="p-4">Tên tài khoản</th>
-                                    <th className="p-4">Loại tiền</th>
-                                    <th className="p-4 text-right">Số dư</th>
-                                    <th className="p-4">Trạng thái</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-white/5">
-                                {accounts.map(acc => (
-                                    <tr key={acc.id} className="hover:bg-white/5">
-                                        <td className="p-4 font-medium text-white">{acc.name}</td>
-                                        <td className="p-4">
-                                            <span className="bg-white/10 px-2 py-1 rounded text-xs">{acc.currency}</span>
-                                        </td>
-                                        <td className="p-4 text-right font-bold text-white">
-                                            {acc.balance.toLocaleString()}
-                                        </td>
-                                        <td className="p-4">
-                                            {acc.isLocked ? (
-                                                <span className="text-red-400">🔒 Khóa</span>
-                                            ) : (
-                                                <span className="text-green-400">🔓 Hoạt động</span>
-                                            )}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                ) : (
-                    <div className="p-8 text-center text-[var(--muted)]">
-                        Chưa có tài khoản nào được gán cho dự án này
-                    </div>
-                )}
-            </div>
+
 
             {/* Recent Transactions */}
             <div className="glass-card rounded-xl overflow-hidden">
