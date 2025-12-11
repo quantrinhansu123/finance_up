@@ -79,6 +79,46 @@ export interface Fund {
     createdAt: number;
 }
 
+// Project member roles
+export type ProjectRole = "OWNER" | "MANAGER" | "MEMBER" | "VIEWER";
+
+export interface ProjectMember {
+    id: string;           // User UID
+    role: ProjectRole;    // Role in this project
+    permissions: ProjectPermission[];
+    addedAt: number;
+    addedBy?: string;
+}
+
+export type ProjectPermission = 
+    | "view_transactions"      // Xem giao dịch
+    | "create_income"          // Tạo khoản thu
+    | "create_expense"         // Tạo khoản chi
+    | "approve_transactions"   // Duyệt giao dịch
+    | "manage_accounts"        // Quản lý tài khoản dự án
+    | "manage_members"         // Quản lý thành viên
+    | "view_reports"           // Xem báo cáo
+    | "edit_project";          // Sửa thông tin dự án
+
+// Default permissions for each project role
+export const PROJECT_ROLE_PERMISSIONS: Record<ProjectRole, ProjectPermission[]> = {
+    OWNER: [
+        "view_transactions", "create_income", "create_expense", 
+        "approve_transactions", "manage_accounts", "manage_members", 
+        "view_reports", "edit_project"
+    ],
+    MANAGER: [
+        "view_transactions", "create_income", "create_expense",
+        "approve_transactions", "manage_accounts", "view_reports"
+    ],
+    MEMBER: [
+        "view_transactions", "create_income", "create_expense"
+    ],
+    VIEWER: [
+        "view_transactions", "view_reports"
+    ]
+};
+
 export interface Project {
     id: string;
     name: string;
@@ -88,13 +128,17 @@ export interface Project {
     currency?: Currency; // Added: Budget currency
     totalRevenue: number;
     totalExpense: number;
-    memberIds?: string[]; // Added: List of User UIDs
+    memberIds?: string[]; // Added: List of User UIDs (backward compatible)
+    
+    // NEW: Project members with roles
+    members?: ProjectMember[];
     
     // NEW: Default settings for project
     defaultCurrency?: Currency; // Default currency for transactions
     allowedCategories?: string[]; // Categories allowed for this project
     
     createdAt: number;
+    createdBy?: string; // Owner user ID
 }
 
 export interface FixedCost {
