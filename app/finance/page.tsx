@@ -6,7 +6,7 @@ import {
 } from "recharts";
 import { getTransactions, getAccounts, getRevenues, getFixedCosts, getProjects } from "@/lib/finance";
 import { Transaction, Account, Currency, MonthlyRevenue, Fund, FixedCost, Project } from "@/types/finance";
-import { canViewGlobalStats, getUserRole, Role, getAccessibleProjects } from "@/lib/permissions";
+import { getUserRole, Role, getAccessibleProjects, hasProjectPermission } from "@/lib/permissions";
 import { getExchangeRates, convertCurrency } from "@/lib/currency";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -50,7 +50,7 @@ export default function DashboardPage() {
     const [accounts, setAccounts] = useState<Account[]>([]);
     const [fixedCosts, setFixedCosts] = useState<FixedCost[]>([]);
     const [projects, setProjects] = useState<Project[]>([]);
-    const [userRole, setUserRole] = useState<Role>("STAFF");
+    const [userRole, setUserRole] = useState<Role>("USER");
     const [currentUser, setCurrentUser] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [viewPeriod, setViewPeriod] = useState<ViewPeriod>("month");
@@ -105,10 +105,24 @@ export default function DashboardPage() {
     const [showAllProjects, setShowAllProjects] = useState(false);
     const [showFixedCostDetails, setShowFixedCostDetails] = useState(false);
 
-    // Get accessible projects based on user role
+    // Get accessible projects based on user role - chỉ lấy dự án có quyền view_reports
     const accessibleProjects = useMemo(() => {
-        return getAccessibleProjects(currentUser, projects);
-    }, [currentUser, projects]);
+        if (!currentUser) return [];
+        if (userRole === "ADMIN") return projects;
+        
+        const userId = currentUser?.uid || currentUser?.id;
+        if (!userId) return [];
+        
+        return getAccessibleProjects(currentUser, projects).filter(p => 
+            hasProjectPermission(userId, p, "view_reports", currentUser)
+        );
+    }, [currentUser, userRole, projects]);
+
+    // Kiểm tra user có quyền xem dashboard không
+    const canViewDashboard = useMemo(() => {
+        if (userRole === "ADMIN") return true;
+        return accessibleProjects.length > 0;
+    }, [userRole, accessibleProjects]);
 
     useEffect(() => {
         const u = localStorage.getItem("user") || sessionStorage.getItem("user");
@@ -132,18 +146,47 @@ export default function DashboardPage() {
                     getFixedCosts()
                 ]);
 
-                setTransactions(txs);
                 setRevenues(revsData);
                 setFunds(fundsData);
-                setAccounts(accs);
                 setProjects(projectsData);
                 setFixedCosts(fixedCostsData);
                 setRates(exchangeRates);
 
+                // Filter transactions và accounts theo dự án user có quyền
+                const u = localStorage.getItem("user") || sessionStorage.getItem("user");
+                const parsedUser = u ? JSON.parse(u) : null;
+                const role = parsedUser ? getUserRole(parsedUser) : "USER";
+                const userId = parsedUser?.uid || parsedUser?.id;
+
+                let filteredTxs = txs;
+                let filteredAccs = accs;
+
+                if (role !== "ADMIN" && userId) {
+                    // Lấy danh sách dự án user có quyền view_reports
+                    const userAccessibleProjects = getAccessibleProjects(parsedUser, projectsData)
+                        .filter(p => hasProjectPermission(userId, p, "view_reports", parsedUser));
+                    const accessibleProjectIds = userAccessibleProjects.map(p => p.id);
+
+                    // Filter transactions theo dự án có quyền
+                    filteredTxs = txs.filter(tx => 
+                        (tx.projectId && accessibleProjectIds.includes(tx.projectId)) ||
+                        tx.userId === userId
+                    );
+
+                    // Filter accounts theo dự án có quyền
+                    filteredAccs = accs.filter(acc => 
+                        (acc.projectId && accessibleProjectIds.includes(acc.projectId)) ||
+                        !acc.projectId
+                    );
+                }
+
+                setTransactions(filteredTxs);
+                setAccounts(filteredAccs);
+
                 // Calculate balance by currency (không quy đổi)
                 const byCurrency: Record<Currency, number> = { VND: 0, USD: 0, KHR: 0, TRY: 0 };
                 let totalUSD = 0;
-                accs.forEach(acc => {
+                filteredAccs.forEach(acc => {
                     byCurrency[acc.currency] = (byCurrency[acc.currency] || 0) + acc.balance;
                     totalUSD += convertCurrency(acc.balance, acc.currency, "USD", exchangeRates);
                 });
@@ -164,7 +207,7 @@ export default function DashboardPage() {
                 });
                 setFixedCostSummary(fcSummary);
 
-                calculateMetrics(txs, exchangeRates, viewPeriod, revsData, fundsData, projectsData, "", "ALL");
+                calculateMetrics(filteredTxs, exchangeRates, viewPeriod, revsData, fundsData, projectsData, "", "ALL");
 
             } catch (e) {
                 console.error(e);
@@ -465,16 +508,17 @@ export default function DashboardPage() {
 
     if (loading) return <div className="p-8 text-[var(--muted)]">Loading Dashboard...</div>;
 
-    if (!canViewGlobalStats(userRole)) {
+    if (!canViewDashboard) {
         return (
             <div className="space-y-8">
                 <div>
-                    <h1 className="text-3xl font-bold text-white">My Dashboard</h1>
-                    <p className="text-[var(--muted)]">Welcome back.</p>
+                    <h1 className="text-3xl font-bold text-white">Dashboard</h1>
+                    <p className="text-[var(--muted)]">Chào mừng bạn trở lại.</p>
                 </div>
                 <div className="glass-card p-6 rounded-xl">
-                    <h3 className="text-xl font-bold mb-4">My Recent Transactions</h3>
-                    <p className="text-[var(--muted)]">Go to Transactions tab to view history.</p>
+                    <h3 className="text-xl font-bold mb-4">Chưa có quyền xem báo cáo</h3>
+                    <p className="text-[var(--muted)]">Bạn cần được cấp quyền "Xem báo cáo" trong ít nhất 1 dự án để xem Dashboard.</p>
+                    <p className="text-sm text-[var(--muted)] mt-2">Liên hệ Admin để được cấp quyền.</p>
                 </div>
             </div>
         );

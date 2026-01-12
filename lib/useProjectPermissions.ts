@@ -7,7 +7,8 @@ import {
     getProjectPermissions, 
     hasProjectPermission,
     PROJECT_ROLE_LABELS,
-    PROJECT_ROLE_COLORS
+    PROJECT_ROLE_COLORS,
+    getUserRole
 } from "@/lib/permissions";
 
 export interface ProjectPermissionState {
@@ -33,7 +34,8 @@ export interface ProjectPermissionState {
 
 export function useProjectPermissions(
     userId: string | null, 
-    project: Project | null
+    project: Project | null,
+    user?: any // Truyền user object để kiểm tra ADMIN chính xác
 ): ProjectPermissionState {
     return useMemo(() => {
         if (!userId || !project) {
@@ -56,7 +58,7 @@ export function useProjectPermissions(
         }
 
         const role = getProjectRole(userId, project);
-        const permissions = getProjectPermissions(userId, project);
+        const permissions = getProjectPermissions(userId, project, user);
 
         return {
             userId,
@@ -64,25 +66,26 @@ export function useProjectPermissions(
             roleLabel: role ? PROJECT_ROLE_LABELS[role] : "",
             roleColor: role ? PROJECT_ROLE_COLORS[role] : "",
             permissions,
-            canView: hasProjectPermission(userId, project, "view_transactions"),
-            canCreateIncome: hasProjectPermission(userId, project, "create_income"),
-            canCreateExpense: hasProjectPermission(userId, project, "create_expense"),
-            canApprove: hasProjectPermission(userId, project, "approve_transactions"),
-            canManageAccounts: hasProjectPermission(userId, project, "manage_accounts"),
-            canManageMembers: hasProjectPermission(userId, project, "manage_members"),
-            canViewReports: hasProjectPermission(userId, project, "view_reports"),
-            canEditProject: hasProjectPermission(userId, project, "edit_project"),
+            canView: hasProjectPermission(userId, project, "view_transactions", user),
+            canCreateIncome: hasProjectPermission(userId, project, "create_income", user),
+            canCreateExpense: hasProjectPermission(userId, project, "create_expense", user),
+            canApprove: hasProjectPermission(userId, project, "approve_transactions", user),
+            canManageAccounts: hasProjectPermission(userId, project, "manage_accounts", user),
+            canManageMembers: hasProjectPermission(userId, project, "manage_members", user),
+            canViewReports: hasProjectPermission(userId, project, "view_reports", user),
+            canEditProject: hasProjectPermission(userId, project, "edit_project", user),
             hasPermission: (permission: ProjectPermission) => 
-                hasProjectPermission(userId, project, permission)
+                hasProjectPermission(userId, project, permission, user)
         };
-    }, [userId, project]);
+    }, [userId, project, user]);
 }
 
 // Utility function to check if user can perform action
 export function checkProjectAccess(
     userId: string | null,
     project: Project | null,
-    requiredPermission: ProjectPermission
+    requiredPermission: ProjectPermission,
+    user?: any // Truyền user object để kiểm tra ADMIN chính xác
 ): { allowed: boolean; message: string } {
     if (!userId) {
         return { allowed: false, message: "Bạn cần đăng nhập để thực hiện thao tác này" };
@@ -92,12 +95,17 @@ export function checkProjectAccess(
         return { allowed: false, message: "Không tìm thấy dự án" };
     }
 
+    // ADMIN luôn có quyền
+    if (user && getUserRole(user) === "ADMIN") {
+        return { allowed: true, message: "" };
+    }
+
     const role = getProjectRole(userId, project);
     if (!role) {
         return { allowed: false, message: "Bạn không phải thành viên của dự án này" };
     }
 
-    const hasAccess = hasProjectPermission(userId, project, requiredPermission);
+    const hasAccess = hasProjectPermission(userId, project, requiredPermission, user);
     if (!hasAccess) {
         const permissionLabels: Record<ProjectPermission, string> = {
             view_transactions: "xem giao dịch",

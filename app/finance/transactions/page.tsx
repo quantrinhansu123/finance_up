@@ -1,17 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import TransactionList from "@/components/finance/TransactionList";
 import { getTransactions } from "@/lib/finance";
 import { Transaction } from "@/types/finance";
-import { canViewAllTransactions, getUserRole, Role } from "@/lib/permissions";
+import { getUserRole, getAccessibleProjects, hasProjectPermission, Role } from "@/lib/permissions";
 import Link from "next/link";
 
 export default function TransactionsPage() {
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [loading, setLoading] = useState(true);
     const [currentUser, setCurrentUser] = useState<any>(null);
-    const [userRole, setUserRole] = useState<Role>("STAFF");
+    const [userRole, setUserRole] = useState<Role>("USER");
 
     // Filters
     const [filterDate, setFilterDate] = useState("");
@@ -42,15 +42,38 @@ export default function TransactionsPage() {
         });
     }, []);
 
+    // Lọc dự án user có quyền xem giao dịch
+    const accessibleProjects = useMemo(() => {
+        if (!currentUser) return [];
+        if (userRole === "ADMIN") return projects;
+        
+        const userId = currentUser?.uid || currentUser?.id;
+        if (!userId) return [];
+        
+        return getAccessibleProjects(currentUser, projects).filter(p => 
+            hasProjectPermission(userId, p, "view_transactions", currentUser)
+        );
+    }, [currentUser, userRole, projects]);
+
+    const accessibleProjectIds = useMemo(() => accessibleProjects.map(p => p.id), [accessibleProjects]);
+
     const fetchTransactions = async () => {
         setLoading(true);
         try {
             const data = await getTransactions();
 
-            // 1. Role-based Filter
+            // 1. Filter theo quyền dự án
             let filteredData = data;
-            if (currentUser && !canViewAllTransactions(userRole)) {
-                filteredData = data.filter(tx => tx.userId === currentUser.id || tx.userId === currentUser.uid);
+            if (userRole !== "ADMIN") {
+                // User chỉ xem giao dịch của dự án mình có quyền view_transactions
+                // HOẶC giao dịch do chính mình tạo
+                const userId = currentUser?.uid || currentUser?.id;
+                filteredData = data.filter(tx => 
+                    (tx.projectId && accessibleProjectIds.includes(tx.projectId)) ||
+                    tx.userId === userId ||
+                    tx.createdBy === currentUser?.displayName ||
+                    tx.createdBy === currentUser?.email
+                );
             }
 
             // 2. UI Filters
@@ -89,10 +112,10 @@ export default function TransactionsPage() {
     };
 
     useEffect(() => {
-        if (currentUser) {
+        if (currentUser && projects.length > 0) {
             fetchTransactions();
         }
-    }, [currentUser, filterDate, filterProject, filterAccount, filterSource, filterType, filterStatus]);
+    }, [currentUser, accessibleProjectIds, filterDate, filterProject, filterAccount, filterSource, filterType, filterStatus]);
 
     // Stats
     const totalIn = transactions.filter(t => t.type === "IN" && t.status === "APPROVED").reduce((sum, t) => sum + t.amount, 0);
@@ -176,7 +199,7 @@ export default function TransactionsPage() {
                         className="glass-input p-2 rounded-lg w-full text-sm"
                     >
                         <option value="">Tất cả dự án</option>
-                        {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                        {accessibleProjects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                     </select>
                     <select
                         value={filterAccount}

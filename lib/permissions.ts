@@ -1,5 +1,7 @@
-export type Role = "ADMIN" | "TREASURER" | "MANAGER" | "ACCOUNTANT" | "STAFF";
+// Chỉ còn 2 role: ADMIN (full quyền hệ thống) và USER (phân quyền theo dự án)
+export type Role = "ADMIN" | "USER";
 
+// Permissions chỉ dành cho ADMIN - các user khác phân quyền theo dự án
 export const PERMISSIONS = {
     ADMIN: {
         canApprove: true,
@@ -16,61 +18,7 @@ export const PERMISSIONS = {
         canViewLogs: true,
         allowedCategories: ["ALL"],
     },
-    ACCOUNTANT: { // Kế toán
-        canApprove: false,
-        canEditBalance: true,
-        canViewUsers: false,
-        canViewAllTransactions: true,
-        canViewGlobalStats: true,
-        canViewAccounts: true,
-        canManageFixedCosts: true,
-        canManageProjects: true,
-        canManageFunds: true,
-        canManageRevenue: true,
-        canViewReports: true,
-        canViewLogs: false,
-        allowedCategories: ["ALL"],
-    },
-    TREASURER: { // Thủ quỹ - chỉ quản lý tài khoản và quỹ nhóm
-        canApprove: false,
-        canEditBalance: false,
-        canViewUsers: false,
-        canViewAllTransactions: false,
-        canViewGlobalStats: false,
-        canViewAccounts: true,
-        canManageFixedCosts: false,
-        canManageProjects: false,
-        canManageFunds: true,
-        canManageRevenue: false,
-        canViewReports: false,
-        canViewLogs: false,
-        allowedCategories: [
-            "Chi lương nhân viên",
-            "Thanh toán cước vận chuyển VET",
-            "Thanh toán cước vận chuyển J&T",
-            "Mua đồ dùng văn phòng",
-            "Chuyển nội bộ",
-            "Cước vận chuyển HN-HCM",
-            "Cước vận chuyển HCM-HN",
-            "SIM Smart", "SIM CellCard", "SIM MetPhone"
-        ],
-    },
-    MANAGER: {
-        canApprove: false,
-        canEditBalance: false,
-        canViewUsers: false,
-        canViewAllTransactions: false,
-        canViewGlobalStats: false,
-        canViewAccounts: false,
-        canManageFixedCosts: false,
-        canManageProjects: true,
-        canManageFunds: true,
-        canManageRevenue: true,
-        canViewReports: true,
-        canViewLogs: false,
-        allowedCategories: ["ALL"],
-    },
-    STAFF: {
+    USER: {
         canApprove: false,
         canEditBalance: false,
         canViewUsers: false,
@@ -87,105 +35,85 @@ export const PERMISSIONS = {
     }
 };
 
-export function getCategoriesForRole(role: Role = "ADMIN", allCategories: string[]) {
-    const roleKey = role || "STAFF";
-    // Safety check if role exists
-    const permissions = PERMISSIONS[roleKey] || PERMISSIONS["STAFF"];
-
-    if (permissions.allowedCategories[0] === "ALL") return allCategories;
-    return allCategories.filter(cat => permissions.allowedCategories.includes(cat));
+export function getCategoriesForRole(role: Role = "USER", allCategories: string[]) {
+    // Tất cả user đều có thể dùng mọi category - giới hạn theo project/account
+    return allCategories;
 }
 
-// Permission Helpers
-export function canAccessApprovals(role: Role = "ADMIN") {
-    return (PERMISSIONS[role] || PERMISSIONS["STAFF"]).canApprove;
+// Permission Helpers - Chỉ ADMIN mới có quyền hệ thống
+export function canAccessApprovals(role: Role = "USER") {
+    return role === "ADMIN";
 }
 
-export function canAccessUsers(role: Role = "ADMIN") {
-    return (PERMISSIONS[role] || PERMISSIONS["STAFF"]).canViewUsers;
+export function canAccessUsers(role: Role = "USER") {
+    return role === "ADMIN";
 }
 
-export function canViewAllTransactions(role: Role = "ADMIN") {
-    return (PERMISSIONS[role] || PERMISSIONS["STAFF"]).canViewAllTransactions;
+export function canViewAllTransactions(role: Role = "USER") {
+    return role === "ADMIN";
 }
 
-export function canViewGlobalStats(role: Role = "ADMIN") {
-    return (PERMISSIONS[role] || PERMISSIONS["STAFF"]).canViewGlobalStats;
+export function canViewGlobalStats(role: Role = "USER") {
+    return role === "ADMIN";
 }
 
-export function canViewAccounts(role: Role = "ADMIN") {
-    return (PERMISSIONS[role] || PERMISSIONS["STAFF"]).canViewAccounts;
+export function canViewAccounts(role: Role = "USER") {
+    return role === "ADMIN";
 }
 
-export function canManageFixedCosts(role: Role = "ADMIN") {
-    return (PERMISSIONS[role] || PERMISSIONS["STAFF"]).canManageFixedCosts;
+export function canManageFixedCosts(role: Role = "USER") {
+    return role === "ADMIN";
 }
 
-export function canManageProjects(role: Role = "ADMIN") {
-    return (PERMISSIONS[role] || PERMISSIONS["STAFF"]).canManageProjects;
+export function canManageProjects(role: Role = "USER") {
+    return role === "ADMIN";
 }
 
-export function canManageFunds(role: Role = "ADMIN") {
-    return (PERMISSIONS[role] || PERMISSIONS["STAFF"]).canManageFunds;
+export function canManageFunds(role: Role = "USER") {
+    return role === "ADMIN";
 }
 
-export function canManageRevenue(role: Role = "ADMIN") {
-    return (PERMISSIONS[role] || PERMISSIONS["STAFF"]).canManageRevenue;
+export function canManageRevenue(role: Role = "USER") {
+    return role === "ADMIN";
 }
 
-export function canViewReports(role: Role = "ADMIN") {
-    return (PERMISSIONS[role] || PERMISSIONS["STAFF"]).canViewReports;
+export function canViewReports(role: Role = "USER") {
+    return role === "ADMIN";
 }
 
-export function canViewLogs(role: Role = "ADMIN") {
-    return (PERMISSIONS[role] || PERMISSIONS["STAFF"]).canViewLogs;
+export function canViewLogs(role: Role = "USER") {
+    return role === "ADMIN";
 }
 
 export function getUserRole(user: any): Role {
-    if (!user) return "STAFF";
+    if (!user) return "USER";
 
-    // 1. Ưu tiên kiểm tra financeRole được phân quyền trực tiếp
-    if (user.financeRole && user.financeRole !== "NONE") {
-        const validRoles: Role[] = ["ADMIN", "ACCOUNTANT", "TREASURER", "MANAGER", "STAFF"];
-        if (validRoles.includes(user.financeRole)) {
-            return user.financeRole as Role;
-        }
-    }
-
-    // 2. Hardcode ADMIN cho CEO email
+    // Chỉ kiểm tra ADMIN - các trường hợp khác đều là USER (phân quyền theo dự án)
+    
+    // 1. Hardcode ADMIN cho CEO email
     if (user.email && user.email.toLowerCase() === "ceo.fata@gmail.com") {
         return "ADMIN";
     }
 
-    // 3. Kiểm tra employment.position từ hệ thống nhân sự
+    // 2. Kiểm tra employment.position
     const employmentPosition = user.employment?.position ? user.employment.position.toUpperCase() : "";
-    
     if (employmentPosition === "CEO&FOUNDER") {
         return "ADMIN";
     }
 
-    // 4. Fallback theo position/role cũ
-    const position = user.position ? user.position.toUpperCase() : "";
-    const role = user.role ? user.role.toUpperCase() : "";
-
-    if (position.includes("CEO") || role === "ADMIN") {
+    // 3. Kiểm tra financeRole hoặc role = ADMIN
+    if (user.financeRole === "ADMIN" || user.role?.toUpperCase() === "ADMIN") {
         return "ADMIN";
     }
 
-    if (employmentPosition.includes("KẾ TOÁN") || position.includes("KẾ TOÁN") || role === "ACCOUNTANT") {
-        return "ACCOUNTANT";
+    // 4. Kiểm tra position
+    const position = user.position ? user.position.toUpperCase() : "";
+    if (position.includes("CEO")) {
+        return "ADMIN";
     }
 
-    if (employmentPosition.includes("THỦ QUỸ") || position.includes("THỦ QUỸ") || role === "TREASURER") {
-        return "TREASURER";
-    }
-
-    if (role === "MANAGER" || employmentPosition.includes("QUẢN LÝ") || position.includes("QUẢN LÝ") || employmentPosition.includes("TRƯỞNG PHÒNG") || position.includes("TRƯỞNG PHÒNG")) {
-        return "MANAGER";
-    }
-
-    // 5. Default to STAFF
-    return "STAFF";
+    // Tất cả user khác đều là USER - quyền được phân theo dự án
+    return "USER";
 }
 
 // Kiểm tra user có quyền truy cập hệ thống tài chính không
@@ -193,35 +121,35 @@ export function canAccessFinanceSystem(user: any): boolean {
     if (!user) return false;
     
     // Admin luôn được truy cập
-    if (user.email?.toLowerCase() === "ceo.fata@gmail.com") return true;
-    if (user.employment?.position?.toUpperCase() === "CEO&FOUNDER") return true;
+    if (getUserRole(user) === "ADMIN") return true;
     
-    // Kiểm tra financeRole
-    if (user.financeRole) {
-        return user.financeRole !== "NONE";
+    // User được truy cập nếu có financeRole không phải NONE
+    if (user.financeRole && user.financeRole !== "NONE") {
+        return true;
     }
     
     // Nếu chưa được phân quyền financeRole -> không cho truy cập
     return false;
 }
 
-// Kiểm tra user có quyền chuyển tiền nội bộ không (STAFF không được)
+// Tất cả user đều có thể chuyển tiền nội bộ (nếu có quyền trong dự án)
 export function canTransferMoney(role: Role): boolean {
-    return role !== "STAFF";
+    return true; // Quyền chuyển tiền được kiểm tra theo dự án
 }
 
 // Lấy danh sách project mà user được phép truy cập
 export function getAccessibleProjects(user: any, allProjects: any[]): any[] {
     const role = getUserRole(user);
     
-    // Admin, Accountant, Manager có thể xem tất cả
-    if (role === "ADMIN" || role === "ACCOUNTANT" || role === "MANAGER") {
+    // Admin có thể xem tất cả
+    if (role === "ADMIN") {
         return allProjects;
     }
     
-    // STAFF và TREASURER chỉ xem project mình tham gia
+    // User chỉ xem project mình tham gia (trong members hoặc memberIds)
     const userId = user?.uid || user?.id;
     return allProjects.filter(p => 
+        p.members?.some((m: any) => m.id === userId) ||
         p.memberIds?.includes(userId) || 
         p.createdBy === userId
     );
@@ -231,15 +159,14 @@ export function getAccessibleProjects(user: any, allProjects: any[]): any[] {
 export function getAccessibleAccounts(user: any, allAccounts: any[], accessibleProjectIds: string[]): any[] {
     const role = getUserRole(user);
     
-    // Admin, Accountant có thể xem tất cả
-    if (role === "ADMIN" || role === "ACCOUNTANT") {
+    // Admin có thể xem tất cả
+    if (role === "ADMIN") {
         return allAccounts;
     }
     
-    // Các role khác chỉ xem account của project mình hoặc account chung
+    // User chỉ xem account của project mình tham gia
     return allAccounts.filter(a => 
-        !a.projectId || // Account chung
-        accessibleProjectIds.includes(a.projectId)
+        a.projectId && accessibleProjectIds.includes(a.projectId)
     );
 }
 
@@ -272,19 +199,19 @@ export function getProjectRole(userId: string, project: Project): ProjectRole | 
 export function hasProjectPermission(
     userId: string, 
     project: Project, 
-    permission: ProjectPermission
+    permission: ProjectPermission,
+    user?: any // Truyền user object để kiểm tra ADMIN chính xác
 ): boolean {
-    // System Admin luôn có full quyền
-    const systemRole = getUserRole({ uid: userId });
-    if (systemRole === "ADMIN") return true;
+    // System Admin luôn có full quyền - cần truyền user object đầy đủ
+    if (user && getUserRole(user) === "ADMIN") return true;
     
     const projectRole = getProjectRole(userId, project);
     if (!projectRole) return false;
     
-    // Kiểm tra custom permissions nếu có
+    // Kiểm tra custom permissions nếu có (phải có ít nhất 1 permission)
     if (project.members) {
         const member = project.members.find(m => m.id === userId);
-        if (member?.permissions) {
+        if (member?.permissions && member.permissions.length > 0) {
             return member.permissions.includes(permission);
         }
     }
@@ -294,19 +221,19 @@ export function hasProjectPermission(
 }
 
 // Lấy tất cả permissions của user trong project
-export function getProjectPermissions(userId: string, project: Project): ProjectPermission[] {
-    const systemRole = getUserRole({ uid: userId });
-    if (systemRole === "ADMIN") {
-        return PROJECT_ROLE_PERMISSIONS["OWNER"]; // Admin có full quyền
+export function getProjectPermissions(userId: string, project: Project, user?: any): ProjectPermission[] {
+    // Admin có full quyền - cần truyền user object đầy đủ
+    if (user && getUserRole(user) === "ADMIN") {
+        return PROJECT_ROLE_PERMISSIONS["OWNER"];
     }
     
     const projectRole = getProjectRole(userId, project);
     if (!projectRole) return [];
     
-    // Kiểm tra custom permissions
+    // Kiểm tra custom permissions (phải có ít nhất 1 permission)
     if (project.members) {
         const member = project.members.find(m => m.id === userId);
-        if (member?.permissions) {
+        if (member?.permissions && member.permissions.length > 0) {
             return member.permissions;
         }
     }

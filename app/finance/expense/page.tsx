@@ -6,8 +6,8 @@ import { Account, Project, Transaction, Fund } from "@/types/finance";
 import { uploadImage } from "@/lib/upload";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { getUserRole, getAccessibleProjects, getAccessibleAccounts, getCategoriesForRole, Role } from "@/lib/permissions";
-import { FolderOpen, CreditCard, Receipt, Upload, Check, ChevronRight, AlertCircle } from "lucide-react";
+import { getUserRole, getAccessibleProjects, getAccessibleAccounts, getCategoriesForRole, hasProjectPermission, Role } from "@/lib/permissions";
+import { FolderOpen, CreditCard, Receipt, Upload, Check, ChevronRight, AlertCircle, Lock } from "lucide-react";
 
 const EXPENSE_CATEGORIES = [
     "Thuế", "Long Heng", "Cước vận chuyển", "Cước vận chuyển HN-HCM", "Cước vận chuyển HCM-HN",
@@ -26,7 +26,7 @@ export default function ExpensePage() {
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const [currentUser, setCurrentUser] = useState<any>(null);
-    const [userRole, setUserRole] = useState<Role>("STAFF");
+    const [userRole, setUserRole] = useState<Role>("USER");
 
     // Form State
     const [projectId, setProjectId] = useState("");
@@ -55,7 +55,15 @@ export default function ExpensePage() {
         if (currentUser !== null) fetchData();
     }, [currentUser]);
 
-    const accessibleProjects = useMemo(() => getAccessibleProjects(currentUser, projects), [currentUser, projects]);
+    // Lọc dự án user có quyền tạo chi (create_expense)
+    const accessibleProjects = useMemo(() => {
+        const userId = currentUser?.uid || currentUser?.id;
+        if (!userId) return [];
+        
+        const allAccessible = getAccessibleProjects(currentUser, projects);
+        // Chỉ hiện dự án mà user có quyền create_expense
+        return allAccessible.filter(p => hasProjectPermission(userId, p, "create_expense", currentUser));
+    }, [currentUser, projects]);
 
     const accessibleAccounts = useMemo(() => {
         let filtered = getAccessibleAccounts(currentUser, accounts, accessibleProjects.map(p => p.id));
@@ -70,6 +78,14 @@ export default function ExpensePage() {
     }, [currentUser, accounts, accessibleProjects, projectId]);
 
     const selectedAccount = useMemo(() => accounts.find(a => a.id === accountId), [accounts, accountId]);
+    
+    // Kiểm tra quyền tạo chi cho dự án đã chọn
+    const selectedProject = useMemo(() => projects.find(p => p.id === projectId), [projects, projectId]);
+    const canCreateExpense = useMemo(() => {
+        if (!selectedProject || !currentUser) return false;
+        const userId = currentUser?.uid || currentUser?.id;
+        return hasProjectPermission(userId, selectedProject, "create_expense", currentUser);
+    }, [selectedProject, currentUser]);
 
     const allowedCategories = useMemo(() => {
         const roleCategories = getCategoriesForRole(userRole, EXPENSE_CATEGORIES);
@@ -97,7 +113,8 @@ export default function ExpensePage() {
         try {
             const snapshot = await getDocs(collection(db, "finance_transactions"));
             let txs = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Transaction)).filter(t => t.type === "OUT");
-            if (userRole === "STAFF") {
+            // User thường chỉ xem giao dịch của mình, ADMIN xem tất cả
+            if (userRole !== "ADMIN") {
                 const userId = currentUser.uid || currentUser.id;
                 txs = txs.filter(t => t.userId === userId);
             }
@@ -148,6 +165,13 @@ export default function ExpensePage() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        
+        // Kiểm tra quyền trước khi submit
+        if (!canCreateExpense) {
+            alert("Bạn không có quyền tạo khoản chi trong dự án này");
+            return;
+        }
+        
         setSubmitting(true);
         try {
             const numAmount = parseFloat(amount);
@@ -258,7 +282,7 @@ export default function ExpensePage() {
                         <option value="">Chọn dự án...</option>
                         {accessibleProjects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                     </select>
-                    {userRole === "STAFF" && accessibleProjects.length === 0 && (
+                    {userRole !== "ADMIN" && accessibleProjects.length === 0 && (
                         <p className="flex items-center gap-2 mt-2 text-xs text-yellow-400">
                             <AlertCircle size={14} /> Bạn chưa được gán vào dự án nào
                         </p>

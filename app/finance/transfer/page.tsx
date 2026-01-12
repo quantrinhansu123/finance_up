@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { createTransaction, getAccounts, updateAccountBalance } from "@/lib/finance";
+import { createTransaction, getAccounts, updateAccountBalance, getProjects } from "@/lib/finance";
 import { Account } from "@/types/finance";
-import { getUserRole, canTransferMoney, Role } from "@/lib/permissions";
+import { getUserRole, Role, hasProjectPermission } from "@/lib/permissions";
 import { ArrowRightLeft, ShieldX } from "lucide-react";
 
 export default function TransferPage() {
@@ -13,7 +13,8 @@ export default function TransferPage() {
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const [currentUser, setCurrentUser] = useState<any>(null);
-    const [userRole, setUserRole] = useState<Role>("STAFF");
+    const [, setUserRole] = useState<Role>("USER");
+    const [canTransfer, setCanTransfer] = useState(false);
 
     // Form
     const [fromAccount, setFromAccount] = useState("");
@@ -22,17 +23,57 @@ export default function TransferPage() {
     const [description, setDescription] = useState("");
 
     useEffect(() => {
-        const u = localStorage.getItem("user") || sessionStorage.getItem("user");
-        if (u) {
+        const loadData = async () => {
+            const u = localStorage.getItem("user") || sessionStorage.getItem("user");
+            if (!u) {
+                setLoading(false);
+                return;
+            }
+            
             const parsed = JSON.parse(u);
             setCurrentUser(parsed);
-            setUserRole(getUserRole(parsed));
-        }
-
-        getAccounts().then(accs => {
-            setAccounts(accs);
+            const role = getUserRole(parsed);
+            setUserRole(role);
+            
+            const userId = parsed.uid || parsed.id;
+            
+            // ADMIN có full quyền
+            if (role === "ADMIN") {
+                setCanTransfer(true);
+                const accs = await getAccounts();
+                setAccounts(accs);
+                setLoading(false);
+                return;
+            }
+            
+            // USER: Kiểm tra quyền create_expense trong các dự án
+            const [allProjects, allAccounts] = await Promise.all([
+                getProjects(),
+                getAccounts()
+            ]);
+            
+            // Lấy các project mà user có quyền create_expense (chuyển tiền = chi tiền)
+            const projectsWithTransferPermission = allProjects.filter(p => 
+                hasProjectPermission(userId, p, "create_expense", parsed)
+            );
+            
+            if (projectsWithTransferPermission.length > 0) {
+                setCanTransfer(true);
+                // Lọc accounts thuộc các project có quyền
+                const projectIds = projectsWithTransferPermission.map(p => p.id);
+                const filteredAccounts = allAccounts.filter(a => 
+                    a.projectId && projectIds.includes(a.projectId)
+                );
+                setAccounts(filteredAccounts);
+            } else {
+                setCanTransfer(false);
+                setAccounts([]);
+            }
+            
             setLoading(false);
-        });
+        };
+        
+        loadData();
     }, []);
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -134,12 +175,29 @@ export default function TransferPage() {
     if (loading) return <div className="p-8 text-[var(--muted)]">Loading...</div>;
 
     // Check permission
-    if (!canTransferMoney(userRole)) {
+    if (!canTransfer) {
         return (
             <div className="flex flex-col items-center justify-center min-h-[50vh] text-center">
                 <ShieldX size={64} className="text-red-400 mb-4" />
                 <h1 className="text-2xl font-bold text-white mb-2">Không có quyền truy cập</h1>
                 <p className="text-[var(--muted)] mb-4">Bạn không có quyền thực hiện chuyển tiền nội bộ.</p>
+                <button
+                    onClick={() => router.push("/finance")}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm"
+                >
+                    Quay về Dashboard
+                </button>
+            </div>
+        );
+    }
+    
+    // Không có tài khoản nào
+    if (accounts.length < 2) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[50vh] text-center">
+                <ArrowRightLeft size={64} className="text-yellow-400 mb-4" />
+                <h1 className="text-2xl font-bold text-white mb-2">Không đủ tài khoản</h1>
+                <p className="text-[var(--muted)] mb-4">Cần ít nhất 2 tài khoản để thực hiện chuyển tiền nội bộ.</p>
                 <button
                     onClick={() => router.push("/finance")}
                     className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm"

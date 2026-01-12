@@ -1,11 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { getTransactions, updateTransactionStatus, updateAccountBalance, getAccounts } from "@/lib/finance";
+import { getTransactions, updateTransactionStatus, updateAccountBalance, getAccounts, getProjects } from "@/lib/finance";
 import { Transaction, Account } from "@/types/finance";
 import { logActivity } from "@/lib/logger";
-import { doc, updateDoc, collection, query, where, orderBy, limit, getDocs } from "firebase/firestore";
+import { doc, updateDoc, collection, query, orderBy, limit, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { getUserRole, hasProjectPermission } from "@/lib/permissions";
+import { useRouter } from "next/navigation";
+import { ShieldX } from "lucide-react";
 
 type ApprovalTab = "all" | "high_value" | "pending";
 
@@ -20,12 +23,15 @@ interface ApprovalLog {
 }
 
 export default function ApprovalsPage() {
+    const router = useRouter();
     const [pendingTransactions, setPendingTransactions] = useState<Transaction[]>([]);
     const [loading, setLoading] = useState(true);
     const [accounts, setAccounts] = useState<Account[]>([]);
     const [currentUser, setCurrentUser] = useState<any>(null);
     const [activeTab, setActiveTab] = useState<ApprovalTab>("all");
     const [approvalLogs, setApprovalLogs] = useState<ApprovalLog[]>([]);
+    const [canApprove, setCanApprove] = useState(false);
+    const [approvalProjectIds, setApprovalProjectIds] = useState<string[]>([]);
 
     // Rejection Modal
     const [showRejectModal, setShowRejectModal] = useState(false);
@@ -33,7 +39,7 @@ export default function ApprovalsPage() {
     const [rejectionReason, setRejectionReason] = useState("");
 
     useEffect(() => {
-        const u = localStorage.getItem("user");
+        const u = localStorage.getItem("user") || sessionStorage.getItem("user");
         if (u) setCurrentUser(JSON.parse(u));
 
         fetchData();
@@ -42,12 +48,52 @@ export default function ApprovalsPage() {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [txs, accs] = await Promise.all([getTransactions(), getAccounts()]);
-            // Filter only PENDING
-            setPendingTransactions(txs.filter(t => t.status === "PENDING"));
+            const u = localStorage.getItem("user") || sessionStorage.getItem("user");
+            if (!u) {
+                setLoading(false);
+                return;
+            }
+            
+            const parsed = JSON.parse(u);
+            const role = getUserRole(parsed);
+            const userId = parsed.uid || parsed.id;
+            
+            const [txs, accs, allProjects] = await Promise.all([
+                getTransactions(), 
+                getAccounts(),
+                getProjects()
+            ]);
+            
             setAccounts(accs);
+            
+            // ADMIN có full quyền
+            if (role === "ADMIN") {
+                setCanApprove(true);
+                setPendingTransactions(txs.filter(t => t.status === "PENDING"));
+                setApprovalProjectIds(allProjects.map(p => p.id));
+            } else {
+                // Lấy các project mà user có quyền approve_transactions
+                const projectsWithApproval = allProjects.filter(p => 
+                    hasProjectPermission(userId, p, "approve_transactions", parsed)
+                );
+                
+                if (projectsWithApproval.length > 0) {
+                    setCanApprove(true);
+                    const projectIds = projectsWithApproval.map(p => p.id);
+                    setApprovalProjectIds(projectIds);
+                    
+                    // Lọc giao dịch PENDING thuộc các project có quyền
+                    const filteredTxs = txs.filter(t => 
+                        t.status === "PENDING" && t.projectId && projectIds.includes(t.projectId)
+                    );
+                    setPendingTransactions(filteredTxs);
+                } else {
+                    setCanApprove(false);
+                    setPendingTransactions([]);
+                }
+            }
 
-            // Fetch recent logs (Broad query to avoid Composite Index requirement)
+            // Fetch recent logs
             const logsSnapshot = await getDocs(
                 query(
                     collection(db, "finance_logs"),
@@ -56,7 +102,6 @@ export default function ApprovalsPage() {
                 )
             );
 
-            // Client-side Filter
             const rawLogs = logsSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as ApprovalLog));
             const filteredLogs = rawLogs.filter(l => ["APPROVE", "REJECT"].includes(l.action));
 
@@ -165,6 +210,27 @@ export default function ApprovalsPage() {
     };
 
     const filteredTxs = getFilteredTransactions();
+
+    if (loading) {
+        return <div className="p-8 text-[var(--muted)]">Đang tải...</div>;
+    }
+
+    // Kiểm tra quyền
+    if (!canApprove) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[50vh] text-center">
+                <ShieldX size={64} className="text-red-400 mb-4" />
+                <h1 className="text-2xl font-bold text-white mb-2">Không có quyền truy cập</h1>
+                <p className="text-[var(--muted)] mb-4">Bạn cần có quyền "Duyệt giao dịch" trong ít nhất 1 dự án.</p>
+                <button
+                    onClick={() => router.push("/finance")}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm"
+                >
+                    Quay về Dashboard
+                </button>
+            </div>
+        );
+    }
 
     return (
         <div className="space-y-8">

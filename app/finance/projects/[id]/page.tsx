@@ -704,8 +704,16 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                             </div>
                             <div>
                                 <h2 className="text-2xl font-bold">Phân quyền dự án</h2>
-                                <p className="text-sm text-[var(--muted)]">Quản lý thành viên và quyền hạn trong dự án</p>
+                                <p className="text-sm text-[var(--muted)]">Quyền hạn này quyết định thành viên có thể làm gì trong dự án</p>
                             </div>
+                        </div>
+
+                        {/* Important Notice */}
+                        <div className="mt-4 p-3 bg-blue-500/10 border border-blue-500/30 rounded-xl">
+                            <p className="text-sm text-blue-400">
+                                <strong>💡 Lưu ý:</strong> Chỉ những người được thêm vào đây mới có thể truy cập dự án này. 
+                                Quyền hạn được phân theo vai trò hoặc tùy chỉnh riêng cho từng người.
+                            </p>
                         </div>
 
                         <div className="flex-1 overflow-y-auto mt-6 space-y-6">
@@ -713,7 +721,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                             <div>
                                 <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
                                     <Users size={16} />
-                                    Thành viên hiện tại ({projectMembers.length})
+                                    Thành viên dự án ({projectMembers.length})
                                 </h3>
                                 
                                 {projectMembers.length > 0 ? (
@@ -752,7 +760,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                                                         {member.permissions.slice(0, 3).map(p => (
                                                             <span key={p} className="text-xs bg-white/10 px-2 py-0.5 rounded" title={PROJECT_PERMISSION_LABELS[p]}>
                                                                 {p === "view_transactions" && "👁️"}
-                                                                {p === "create_income" && "�"}
+                                                                {p === "create_income" && "💰"}
                                                                 {p === "create_expense" && "💸"}
                                                                 {p === "approve_transactions" && "✅"}
                                                                 {p === "manage_accounts" && "🏦"}
@@ -791,31 +799,55 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                                 ) : (
                                     <div className="text-center py-6 bg-white/5 rounded-xl border border-dashed border-white/10">
                                         <p className="text-[var(--muted)] text-sm">Chưa có thành viên nào</p>
+                                        <p className="text-xs text-yellow-400 mt-1">⚠️ Dự án cần ít nhất 1 thành viên để hoạt động</p>
                                     </div>
                                 )}
                             </div>
 
-                            {/* Role Legend */}
+                            {/* Role Legend - Updated descriptions */}
                             <div className="p-4 bg-white/5 rounded-xl border border-white/10">
-                                <h4 className="text-xs font-semibold text-[var(--muted)] uppercase mb-3">Mô tả quyền hạn</h4>
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-                                    <div>
-                                        <span className={`inline-block px-2 py-1 rounded-full border mb-1 ${PROJECT_ROLE_COLORS["OWNER"]}`}>👑 Chủ dự án</span>
-                                        <p className="text-[var(--muted)]">Toàn quyền quản lý</p>
+                                <h4 className="text-xs font-semibold text-[var(--muted)] uppercase mb-3">Vai trò & Quyền hạn mặc định</h4>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                                    <div className="p-3 bg-white/5 rounded-lg">
+                                        <span className={`inline-block px-2 py-1 rounded-full border mb-2 ${PROJECT_ROLE_COLORS["OWNER"]}`}>👑 Chủ dự án</span>
+                                        <ul className="text-[var(--muted)] space-y-1 ml-1">
+                                            <li>✓ Toàn quyền quản lý dự án</li>
+                                            <li>✓ Thêm/xóa thành viên</li>
+                                            <li>✓ Duyệt giao dịch</li>
+                                            <li>✓ Quản lý tài khoản</li>
+                                        </ul>
                                     </div>
-                                    <div>
-                                        <span className={`inline-block px-2 py-1 rounded-full border mb-1 ${PROJECT_ROLE_COLORS["MANAGER"]}`}>🔧 Quản lý</span>
-                                        <p className="text-[var(--muted)]">Duyệt giao dịch, quản lý TK</p>
+                                    <div className="p-3 bg-white/5 rounded-lg">
+                                        <span className={`inline-block px-2 py-1 rounded-full border mb-2 ${PROJECT_ROLE_COLORS["MANAGER"]}`}>🔧 Quản lý</span>
+                                        <ul className="text-[var(--muted)] space-y-1 ml-1">
+                                            <li>✓ Duyệt giao dịch</li>
+                                            <li>✓ Quản lý tài khoản dự án</li>
+                                            <li>✓ Tạo thu/chi</li>
+                                            <li>✓ Xem báo cáo</li>
+                                        </ul>
                                     </div>
-                                    <div>
-                                        <span className={`inline-block px-2 py-1 rounded-full border mb-1 ${PROJECT_ROLE_COLORS["MEMBER"]}`}>👤 Thành viên</span>
-                                        <p className="text-[var(--muted)]">Tạo thu/chi, xem GD</p>
+                                    <div className="p-3 bg-white/5 rounded-lg">
+                                        <span className={`inline-block px-2 py-1 rounded-full border mb-2 ${PROJECT_ROLE_COLORS["MEMBER"]}`}>👤 Thành viên</span>
+                                        <ul className="text-[var(--muted)] space-y-1 ml-1">
+                                            <li>✓ Tạo khoản thu</li>
+                                            <li>✓ Tạo khoản chi</li>
+                                            <li>✓ Xem giao dịch</li>
+                                            <li className="text-red-400/70">✗ Không duyệt được</li>
+                                        </ul>
                                     </div>
-                                    <div>
-                                        <span className={`inline-block px-2 py-1 rounded-full border mb-1 ${PROJECT_ROLE_COLORS["VIEWER"]}`}>👁️ Người xem</span>
-                                        <p className="text-[var(--muted)]">Chỉ xem, không tạo</p>
+                                    <div className="p-3 bg-white/5 rounded-lg">
+                                        <span className={`inline-block px-2 py-1 rounded-full border mb-2 ${PROJECT_ROLE_COLORS["VIEWER"]}`}>👁️ Người xem</span>
+                                        <ul className="text-[var(--muted)] space-y-1 ml-1">
+                                            <li>✓ Xem giao dịch</li>
+                                            <li>✓ Xem báo cáo</li>
+                                            <li className="text-red-400/70">✗ Không tạo thu/chi</li>
+                                            <li className="text-red-400/70">✗ Chỉ đọc</li>
+                                        </ul>
                                     </div>
                                 </div>
+                                <p className="text-xs text-[var(--muted)] mt-3 italic">
+                                    💡 Bạn có thể tùy chỉnh quyền riêng cho từng người bằng cách click vào biểu tượng quyền
+                                </p>
                             </div>
 
                             {/* Add New Members */}
@@ -883,13 +915,13 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                 </div>
             )}
 
-            {/* Permission Detail Modal - Compact 2 columns */}
+            {/* Permission Detail Modal - Scrollable */}
             {permissionDetailMember && (
                 <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-                    <div className="glass-card w-full max-w-lg p-5 rounded-2xl relative">
+                    <div className="glass-card w-full max-w-md p-4 rounded-2xl relative max-h-[85vh] flex flex-col">
                         <button 
                             onClick={() => setPermissionDetailMember(null)} 
-                            className="absolute top-3 right-3 text-[var(--muted)] hover:text-white"
+                            className="absolute top-3 right-3 text-[var(--muted)] hover:text-white z-10"
                         >
                             ✕
                         </button>
@@ -898,55 +930,60 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                             const user = allUsers.find(u => u.uid === permissionDetailMember.id);
                             return (
                                 <>
-                                    <div className="flex items-center gap-3 mb-4">
-                                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center font-bold">
+                                    {/* Header - Fixed */}
+                                    <div className="flex items-center gap-3 mb-3 pr-6">
+                                        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center font-bold text-sm">
                                             {user?.displayName?.[0]?.toUpperCase() || user?.email[0].toUpperCase()}
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <h3 className="font-bold truncate">{user?.displayName || user?.email}</h3>
+                                            <h3 className="font-bold text-sm truncate">{user?.displayName || user?.email}</h3>
                                             <span className={`text-xs px-2 py-0.5 rounded-full border ${PROJECT_ROLE_COLORS[permissionDetailMember.role]}`}>
                                                 {PROJECT_ROLE_LABELS[permissionDetailMember.role]}
                                             </span>
                                         </div>
                                     </div>
 
-                                    <h4 className="text-xs font-semibold text-[var(--muted)] uppercase mb-2">Quyền hạn</h4>
-                                    <div className="grid grid-cols-2 gap-2">
-                                        {(Object.keys(PROJECT_PERMISSION_LABELS) as ProjectPermission[]).map(permission => {
-                                            const hasPermission = permissionDetailMember.permissions.includes(permission);
-                                            const icons: Record<ProjectPermission, string> = {
-                                                view_transactions: "👁️",
-                                                create_income: "💰",
-                                                create_expense: "💸",
-                                                approve_transactions: "✅",
-                                                manage_accounts: "🏦",
-                                                manage_members: "👥",
-                                                view_reports: "📊",
-                                                edit_project: "✏️"
-                                            };
-                                            return (
-                                                <label 
-                                                    key={permission}
-                                                    className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer border transition-all text-sm ${
-                                                        hasPermission 
-                                                            ? "bg-green-500/10 border-green-500/30" 
-                                                            : "bg-white/5 border-white/10 hover:border-white/20"
-                                                    }`}
-                                                >
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={hasPermission}
-                                                        onChange={() => handleTogglePermission(permissionDetailMember.id, permission)}
-                                                        className="w-4 h-4 rounded border-gray-600 bg-transparent text-green-500 focus:ring-green-500 focus:ring-offset-0"
-                                                    />
-                                                    <span>{icons[permission]}</span>
-                                                    <span className="truncate">{PROJECT_PERMISSION_LABELS[permission]}</span>
-                                                </label>
-                                            );
-                                        })}
+                                    {/* Scrollable Content */}
+                                    <div className="flex-1 overflow-y-auto pr-1 -mr-1">
+                                        <h4 className="text-xs font-semibold text-[var(--muted)] uppercase mb-2 sticky top-0 bg-[#1a1a1a] py-1">Quyền hạn ({permissionDetailMember.permissions.length}/8)</h4>
+                                        <div className="grid grid-cols-2 gap-1.5">
+                                            {(Object.keys(PROJECT_PERMISSION_LABELS) as ProjectPermission[]).map(permission => {
+                                                const hasPermission = permissionDetailMember.permissions.includes(permission);
+                                                const icons: Record<ProjectPermission, string> = {
+                                                    view_transactions: "👁️",
+                                                    create_income: "💰",
+                                                    create_expense: "💸",
+                                                    approve_transactions: "✅",
+                                                    manage_accounts: "🏦",
+                                                    manage_members: "👥",
+                                                    view_reports: "📊",
+                                                    edit_project: "✏️"
+                                                };
+                                                return (
+                                                    <label 
+                                                        key={permission}
+                                                        className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer border transition-all text-xs ${
+                                                            hasPermission 
+                                                                ? "bg-green-500/10 border-green-500/30" 
+                                                                : "bg-white/5 border-white/10 hover:border-white/20"
+                                                        }`}
+                                                    >
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={hasPermission}
+                                                            onChange={() => handleTogglePermission(permissionDetailMember.id, permission)}
+                                                            className="w-3.5 h-3.5 rounded border-gray-600 bg-transparent text-green-500 focus:ring-green-500 focus:ring-offset-0"
+                                                        />
+                                                        <span>{icons[permission]}</span>
+                                                        <span className="truncate">{PROJECT_PERMISSION_LABELS[permission]}</span>
+                                                    </label>
+                                                );
+                                            })}
+                                        </div>
                                     </div>
 
-                                    <div className="mt-4 pt-3 border-t border-white/10 flex justify-between items-center">
+                                    {/* Footer - Fixed */}
+                                    <div className="mt-3 pt-3 border-t border-white/10 flex justify-between items-center">
                                         <button
                                             onClick={() => {
                                                 const defaultPerms = PROJECT_ROLE_PERMISSIONS[permissionDetailMember.role];
@@ -959,7 +996,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                                             }}
                                             className="text-xs text-[var(--muted)] hover:text-white transition-colors"
                                         >
-                                            Reset mặc định
+                                            🔄 Reset về mặc định
                                         </button>
                                         <button
                                             onClick={() => setPermissionDetailMember(null)}

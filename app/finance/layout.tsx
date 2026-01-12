@@ -2,21 +2,15 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
-    canAccessApprovals,
-    canAccessUsers,
-    canViewAccounts,
-    canManageFixedCosts,
-    canManageProjects,
-    canManageFunds,
-    canManageRevenue,
-    canViewReports,
-    canViewLogs,
-    canTransferMoney,
     getUserRole,
+    getAccessibleProjects,
+    hasProjectPermission,
     Role
 } from "@/lib/permissions";
+import { getProjects } from "@/lib/finance";
+import { Project } from "@/types/finance";
 import {
     LayoutDashboard,
     ArrowDownToLine,
@@ -33,7 +27,6 @@ import {
     ScrollText,
     Menu,
     X,
-    ChevronDown,
     ChevronRight,
     UserCircle
 } from "lucide-react";
@@ -45,8 +38,9 @@ export default function FinanceLayout({
 }) {
     const pathname = usePathname();
     const router = useRouter();
-    const [userRole, setUserRole] = useState<Role>("STAFF");
+    const [userRole, setUserRole] = useState<Role>("USER");
     const [user, setUser] = useState<any>(null);
+    const [projects, setProjects] = useState<Project[]>([]);
     const [sidebarOpen, setSidebarOpen] = useState(false);
     
     // Default all groups to collapsed
@@ -67,6 +61,72 @@ export default function FinanceLayout({
             router.push("/login");
         }
     }, [router]);
+
+    // Load projects để kiểm tra quyền
+    useEffect(() => {
+        const loadProjects = async () => {
+            try {
+                const projs = await getProjects();
+                setProjects(projs);
+            } catch (e) {
+                console.error("Failed to load projects for permissions", e);
+            }
+        };
+        if (user) loadProjects();
+    }, [user]);
+
+    // Kiểm tra user có quyền gì trong các dự án
+    const userPermissions = useMemo(() => {
+        if (!user || userRole === "ADMIN") {
+            return {
+                canCreateIncome: true,
+                canCreateExpense: true,
+                canViewTransactions: true,
+                canApprove: userRole === "ADMIN",
+                canTransfer: true,
+                canViewReports: true
+            };
+        }
+
+        const userId = user?.uid || user?.id;
+        if (!userId) return {
+            canCreateIncome: false,
+            canCreateExpense: false,
+            canViewTransactions: false,
+            canApprove: false,
+            canTransfer: false,
+            canViewReports: false
+        };
+
+        const accessibleProjects = getAccessibleProjects(user, projects);
+        
+        // Kiểm tra xem user có quyền nào trong ít nhất 1 dự án
+        let canCreateIncome = false;
+        let canCreateExpense = false;
+        let canViewTransactions = false;
+        let canApprove = false;
+        let canViewReports = false;
+
+        for (const project of accessibleProjects) {
+            if (hasProjectPermission(userId, project, "create_income", user)) canCreateIncome = true;
+            if (hasProjectPermission(userId, project, "create_expense", user)) canCreateExpense = true;
+            if (hasProjectPermission(userId, project, "view_transactions", user)) canViewTransactions = true;
+            if (hasProjectPermission(userId, project, "approve_transactions", user)) canApprove = true;
+            if (hasProjectPermission(userId, project, "view_reports", user)) canViewReports = true;
+            
+            // Nếu đã có tất cả quyền thì không cần check tiếp
+            if (canCreateIncome && canCreateExpense && canViewTransactions && canApprove && canViewReports) break;
+        }
+
+        return {
+            canCreateIncome,
+            canCreateExpense,
+            canViewTransactions,
+            canApprove,
+            canTransfer: canCreateIncome || canCreateExpense, // Có thể chuyển tiền nếu có quyền thu hoặc chi
+            canViewReports
+        };
+    }, [user, userRole, projects]);
 
     // Auto-expand group containing current page
     useEffect(() => {
@@ -105,29 +165,40 @@ export default function FinanceLayout({
         {
             title: "Thu & Chi",
             items: [
-                { name: "Thu tiền", href: "/finance/income", icon: <ArrowDownToLine size={18} /> },
-                { name: "Chi tiền", href: "/finance/expense", icon: <ArrowUpFromLine size={18} /> },
-                ...(canTransferMoney(userRole) ? [{ name: "Chuyển tiền", href: "/finance/transfer", icon: <ArrowRightLeft size={18} /> }] : []),
-                ...(canAccessApprovals(userRole) ? [{ name: "Phê duyệt", href: "/finance/approvals", icon: <CheckSquare size={18} /> }] : []),
-                { name: "Giao dịch", href: "/finance/transactions", icon: <ArrowRightLeft size={18} /> },
+                // Chỉ hiện Thu tiền nếu user có quyền create_income trong ít nhất 1 dự án
+                ...(userPermissions.canCreateIncome ? [{ name: "Thu tiền", href: "/finance/income", icon: <ArrowDownToLine size={18} /> }] : []),
+                // Chỉ hiện Chi tiền nếu user có quyền create_expense trong ít nhất 1 dự án
+                ...(userPermissions.canCreateExpense ? [{ name: "Chi tiền", href: "/finance/expense", icon: <ArrowUpFromLine size={18} /> }] : []),
+                // Chỉ hiện Chuyển tiền nếu user có quyền thu hoặc chi
+                ...(userPermissions.canTransfer ? [{ name: "Chuyển tiền", href: "/finance/transfer", icon: <ArrowRightLeft size={18} /> }] : []),
+                // Chỉ hiện Phê duyệt nếu user có quyền approve trong ít nhất 1 dự án hoặc là ADMIN
+                ...(userPermissions.canApprove ? [{ name: "Phê duyệt", href: "/finance/approvals", icon: <CheckSquare size={18} /> }] : []),
+                // Chỉ hiện Giao dịch nếu user có quyền xem giao dịch
+                ...(userPermissions.canViewTransactions ? [{ name: "Giao dịch", href: "/finance/transactions", icon: <ArrowRightLeft size={18} /> }] : []),
             ]
         },
         {
             title: "Quản lý",
-            items: [
-                ...(canViewAccounts(userRole) ? [{ name: "Tài khoản", href: "/finance/accounts", icon: <CreditCard size={18} /> }] : []),
-                ...(canManageProjects(userRole) ? [{ name: "Dự án", href: "/finance/projects", icon: <FolderOpen size={18} /> }] : []),
-                ...(canManageFunds(userRole) ? [{ name: "Quỹ/Nhóm", href: "/finance/funds", icon: <PiggyBank size={18} /> }] : []),
-                ...(canManageRevenue(userRole) ? [{ name: "Doanh thu", href: "/finance/revenue", icon: <TrendingUp size={18} /> }] : []),
-                ...(canManageFixedCosts(userRole) ? [{ name: "Chi phí cố định", href: "/finance/fixed-costs", icon: <Pin size={18} /> }] : []),
-            ]
+            // Chỉ ADMIN mới thấy mục Quản lý
+            items: userRole === "ADMIN" ? [
+                { name: "Tài khoản", href: "/finance/accounts", icon: <CreditCard size={18} /> },
+                { name: "Dự án", href: "/finance/projects", icon: <FolderOpen size={18} /> },
+                { name: "Quỹ/Nhóm", href: "/finance/funds", icon: <PiggyBank size={18} /> },
+                { name: "Doanh thu", href: "/finance/revenue", icon: <TrendingUp size={18} /> },
+                { name: "Chi phí cố định", href: "/finance/fixed-costs", icon: <Pin size={18} /> },
+            ] : []
         },
         {
             title: "Hệ thống",
             items: [
-                ...(canViewReports(userRole) ? [{ name: "Báo cáo", href: "/finance/reports", icon: <FileBarChart size={18} /> }] : []),
-                ...(canAccessUsers(userRole) ? [{ name: "Người dùng", href: "/finance/users", icon: <Users size={18} /> }] : []),
-                ...(canViewLogs(userRole) ? [{ name: "Nhật ký", href: "/finance/logs", icon: <ScrollText size={18} /> }] : []),
+                // Báo cáo - hiện nếu user có quyền view_reports trong ít nhất 1 dự án hoặc là ADMIN
+                ...(userPermissions.canViewReports ? [{ name: "Báo cáo", href: "/finance/reports", icon: <FileBarChart size={18} /> }] : []),
+                // Chỉ ADMIN mới thấy Người dùng, Nhật ký
+                ...(userRole === "ADMIN" ? [
+                    { name: "Người dùng", href: "/finance/users", icon: <Users size={18} /> },
+                    { name: "Nhật ký", href: "/finance/logs", icon: <ScrollText size={18} /> },
+                ] : []),
+                // Tài khoản của tôi - tất cả đều thấy
                 { name: "Tài khoản của tôi", href: "/finance/profile", icon: <UserCircle size={18} /> },
             ]
         }
@@ -159,10 +230,7 @@ export default function FinanceLayout({
                         <div className="overflow-hidden min-w-0">
                             <h4 className="font-medium text-white text-xs truncate">{user.displayName}</h4>
                             <p className="text-[10px] text-white/40 uppercase tracking-wider">
-                                {userRole === "ADMIN" ? "Quản trị" : 
-                                 userRole === "ACCOUNTANT" ? "Kế toán" :
-                                 userRole === "TREASURER" ? "Thủ quỹ" :
-                                 userRole === "MANAGER" ? "Quản lý" : "Nhân viên"}
+                                {userRole === "ADMIN" ? "Quản trị viên" : "Thành viên"}
                             </p>
                         </div>
                     </div>

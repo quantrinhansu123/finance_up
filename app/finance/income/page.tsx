@@ -6,8 +6,8 @@ import { Account, Currency, Project, Transaction } from "@/types/finance";
 import { uploadImage } from "@/lib/upload";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { getUserRole, getAccessibleProjects, getAccessibleAccounts, Role } from "@/lib/permissions";
-import { FolderOpen, CreditCard, Wallet, Upload, Check, ChevronRight, AlertCircle } from "lucide-react";
+import { getUserRole, getAccessibleProjects, getAccessibleAccounts, hasProjectPermission, Role } from "@/lib/permissions";
+import { FolderOpen, CreditCard, Wallet, Upload, Check, ChevronRight, AlertCircle, Lock } from "lucide-react";
 
 const INCOME_SOURCES = ["COD VET", "COD JNT", "Khách CK", "Khác"];
 const CURRENCY_FLAGS: Record<string, string> = { "VND": "🇻🇳", "USD": "🇺🇸", "KHR": "🇰🇭", "TRY": "🇹🇷" };
@@ -19,7 +19,7 @@ export default function IncomePage() {
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const [currentUser, setCurrentUser] = useState<any>(null);
-    const [userRole, setUserRole] = useState<Role>("STAFF");
+    const [userRole, setUserRole] = useState<Role>("USER");
 
     const [projectId, setProjectId] = useState("");
     const [accountId, setAccountId] = useState("");
@@ -37,7 +37,16 @@ export default function IncomePage() {
 
     useEffect(() => { if (currentUser !== null) fetchData(); }, [currentUser]);
 
-    const accessibleProjects = useMemo(() => getAccessibleProjects(currentUser, projects), [currentUser, projects]);
+    // Lọc dự án user có quyền tạo thu (create_income)
+    const accessibleProjects = useMemo(() => {
+        const userId = currentUser?.uid || currentUser?.id;
+        if (!userId) return [];
+        
+        const allAccessible = getAccessibleProjects(currentUser, projects);
+        // Chỉ hiện dự án mà user có quyền create_income
+        return allAccessible.filter(p => hasProjectPermission(userId, p, "create_income", currentUser));
+    }, [currentUser, projects]);
+
     const accessibleAccounts = useMemo(() => {
         let filtered = getAccessibleAccounts(currentUser, accounts, accessibleProjects.map(p => p.id));
         const userId = currentUser?.uid || currentUser?.id;
@@ -46,6 +55,14 @@ export default function IncomePage() {
         return filtered;
     }, [currentUser, accounts, accessibleProjects, projectId]);
     const selectedAccount = useMemo(() => accounts.find(a => a.id === accountId), [accounts, accountId]);
+    
+    // Kiểm tra quyền tạo thu cho dự án đã chọn
+    const selectedProject = useMemo(() => projects.find(p => p.id === projectId), [projects, projectId]);
+    const canCreateIncome = useMemo(() => {
+        if (!selectedProject || !currentUser) return false;
+        const userId = currentUser?.uid || currentUser?.id;
+        return hasProjectPermission(userId, selectedProject, "create_income", currentUser);
+    }, [selectedProject, currentUser]);
 
     const fetchData = async () => {
         setLoading(true);
@@ -60,7 +77,8 @@ export default function IncomePage() {
         try {
             const snapshot = await getDocs(collection(db, "finance_transactions"));
             let txs = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Transaction)).filter(t => t.type === "IN");
-            if (userRole === "STAFF") { const userId = currentUser.uid || currentUser.id; txs = txs.filter(t => t.userId === userId); }
+            // User thường chỉ xem giao dịch của mình, ADMIN xem tất cả
+            if (userRole !== "ADMIN") { const userId = currentUser.uid || currentUser.id; txs = txs.filter(t => t.userId === userId); }
             if (filterDate) txs = txs.filter(t => t.date.startsWith(filterDate));
             if (filterProject) txs = txs.filter(t => t.projectId === filterProject);
             txs.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -72,7 +90,15 @@ export default function IncomePage() {
     useEffect(() => { if (projectId && selectedAccount?.projectId && selectedAccount.projectId !== projectId) setAccountId(""); }, [projectId]);
 
     const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault(); setSubmitting(true);
+        e.preventDefault(); 
+        
+        // Kiểm tra quyền trước khi submit
+        if (!canCreateIncome) {
+            alert("Bạn không có quyền tạo khoản thu trong dự án này");
+            return;
+        }
+        
+        setSubmitting(true);
         try {
             const numAmount = parseFloat(amount);
             const currency = selectedAccount?.currency || "USD";
@@ -131,7 +157,7 @@ export default function IncomePage() {
                         <option value="">Chọn dự án...</option>
                         {accessibleProjects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                     </select>
-                    {userRole === "STAFF" && accessibleProjects.length === 0 && <p className="flex items-center gap-2 mt-2 text-xs text-yellow-400"><AlertCircle size={14} /> Bạn chưa được gán vào dự án nào</p>}
+                    {userRole !== "ADMIN" && accessibleProjects.length === 0 && <p className="flex items-center gap-2 mt-2 text-xs text-yellow-400"><AlertCircle size={14} /> Bạn chưa được gán vào dự án nào</p>}
                 </div>
 
                 {projectId && (

@@ -6,6 +6,7 @@ import { Transaction, Account, Project, Fund, FixedCost, Currency } from "@/type
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
+import { getUserRole, getAccessibleProjects, hasProjectPermission, Role } from "@/lib/permissions";
 
 const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884d8", "#82ca9d"];
 const CURRENCY_COLORS: Record<string, string> = {
@@ -24,6 +25,8 @@ export default function ReportsPage() {
     const [projects, setProjects] = useState<Project[]>([]);
     const [funds, setFunds] = useState<Fund[]>([]);
     const [fixedCosts, setFixedCosts] = useState<FixedCost[]>([]);
+    const [currentUser, setCurrentUser] = useState<any>(null);
+    const [userRole, setUserRole] = useState<Role>("USER");
 
     // Report Type
     const [reportType, setReportType] = useState<ReportType>("overview");
@@ -37,6 +40,30 @@ export default function ReportsPage() {
     const [filterDateTo, setFilterDateTo] = useState("");
     const [filterCurrency, setFilterCurrency] = useState<Currency | "ALL">("ALL");
     const [includeImages, setIncludeImages] = useState(false);
+
+    useEffect(() => {
+        const storedUser = localStorage.getItem("user") || sessionStorage.getItem("user");
+        if (storedUser) {
+            const parsed = JSON.parse(storedUser);
+            setCurrentUser(parsed);
+            setUserRole(getUserRole(parsed));
+        }
+    }, []);
+
+    // Lọc dự án user có quyền xem báo cáo
+    const accessibleProjects = useMemo(() => {
+        if (!currentUser) return [];
+        if (userRole === "ADMIN") return projects;
+        
+        const userId = currentUser?.uid || currentUser?.id;
+        if (!userId) return [];
+        
+        return getAccessibleProjects(currentUser, projects).filter(p => 
+            hasProjectPermission(userId, p, "view_reports", currentUser)
+        );
+    }, [currentUser, userRole, projects]);
+
+    const accessibleProjectIds = useMemo(() => accessibleProjects.map(p => p.id), [accessibleProjects]);
 
     useEffect(() => {
         const loadOptions = async () => {
@@ -60,6 +87,15 @@ export default function ReportsPage() {
 
     const getFilteredTransactions = async () => {
         let txs = await getTransactions();
+
+        // Filter theo dự án user có quyền view_reports
+        if (userRole !== "ADMIN") {
+            const userId = currentUser?.uid || currentUser?.id;
+            txs = txs.filter(tx => 
+                (tx.projectId && accessibleProjectIds.includes(tx.projectId)) ||
+                tx.userId === userId
+            );
+        }
 
         if (filterAccount) {
             txs = txs.filter(t => t.accountId === filterAccount);
@@ -283,14 +319,28 @@ export default function ReportsPage() {
         setFilterCurrency("ALL");
     };
 
-    // Load transactions for preview
+    // Load transactions for preview - filter theo quyền
     useEffect(() => {
         const loadTxs = async () => {
-            const txs = await getTransactions();
+            if (!currentUser) return;
+            
+            let txs = await getTransactions();
+            
+            // Filter theo dự án user có quyền view_reports
+            if (userRole !== "ADMIN") {
+                const userId = currentUser?.uid || currentUser?.id;
+                txs = txs.filter(tx => 
+                    (tx.projectId && accessibleProjectIds.includes(tx.projectId)) ||
+                    tx.userId === userId
+                );
+            }
+            
             setTransactions(txs);
         };
-        loadTxs();
-    }, []);
+        if (currentUser && projects.length > 0) {
+            loadTxs();
+        }
+    }, [currentUser, userRole, accessibleProjectIds, projects]);
 
     return (
         <div className="space-y-8">
