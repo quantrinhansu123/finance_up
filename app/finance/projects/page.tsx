@@ -138,14 +138,10 @@ export default function ProjectsPage() {
     const handleDelete = async (id: string, e: React.MouseEvent) => {
         e.stopPropagation();
         
-        // Chỉ ADMIN hoặc OWNER của dự án mới được xóa
+        // Chỉ ADMIN mới được xóa
         if (userRole !== "ADMIN") {
-            const project = projects.find(p => p.id === id);
-            const userId = currentUser?.uid || currentUser?.id;
-            if (!project || !hasProjectPermission(userId, project, "edit_project", currentUser)) {
-                alert("Bạn không có quyền xóa dự án này");
-                return;
-            }
+            alert("Chỉ quản trị viên mới có quyền xóa dự án");
+            return;
         }
         
         if (!confirm("Bạn có chắc chắn muốn xóa dự án này?")) return;
@@ -222,7 +218,8 @@ export default function ProjectsPage() {
             {userRole !== "ADMIN" && (
                 <div className="glass-card p-4 rounded-xl bg-blue-500/10 border border-blue-500/20">
                     <p className="text-sm text-blue-400">
-                        📋 Bạn chỉ có thể xem các dự án mà bạn được phân quyền tham gia ({projects.length} dự án)
+                        📋 Bạn chỉ có thể xem các dự án mà bạn được phân quyền tham gia ({projects.length} dự án). 
+                        Liên hệ quản trị viên để được thêm vào dự án khác.
                     </p>
                 </div>
             )}
@@ -310,8 +307,8 @@ export default function ProjectsPage() {
                                     ${(project.totalRevenue - project.totalExpense).toLocaleString()}
                                 </td>
                                 <td className="p-4 text-right">
-                                    {/* Chỉ hiện nút xóa nếu user có quyền */}
-                                    {(userRole === "ADMIN" || hasProjectPermission(currentUser?.uid || currentUser?.id, project, "edit_project", currentUser)) && (
+                                    {/* Chỉ ADMIN mới thấy nút xóa */}
+                                    {userRole === "ADMIN" && (
                                         <button
                                             onClick={(e) => handleDelete(project.id, e)}
                                             className="text-red-500 hover:bg-red-500/10 p-2 rounded-lg transition-colors"

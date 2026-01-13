@@ -2,7 +2,7 @@
 
 import { useState, useEffect, use } from "react";
 import { getTransactions, getAccounts, updateProject, updateAccount, deleteProject } from "@/lib/finance";
-import { Transaction, Account, Project, ProjectMember, ProjectRole, ProjectPermission, PROJECT_ROLE_PERMISSIONS } from "@/types/finance";
+import { Transaction, Account, Project, ProjectMember, ProjectRole, ProjectPermission } from "@/types/finance";
 import { getExchangeRates, convertCurrency } from "@/lib/currency";
 import { getUsers } from "@/lib/users";
 import { UserProfile } from "@/types/user";
@@ -18,6 +18,8 @@ import {
     PROJECT_ROLE_LABELS, 
     PROJECT_ROLE_COLORS, 
     PROJECT_PERMISSION_LABELS,
+    PROJECT_PERMISSION_DESCRIPTIONS,
+    PROJECT_ROLE_PERMISSIONS,
     createProjectMember,
     getProjectRole,
     getUserRole,
@@ -83,15 +85,16 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
             const role = getProjectRole(userId, project);
             setUserProjectRole(role);
             
-            // Check permissions
+            // Check permissions - cần quyền view_transactions để xem chi tiết dự án
             const canViewProject = userRole === "ADMIN" || hasProjectPermission(userId, project, "view_transactions", currentUser);
-            const canEditProject = userRole === "ADMIN" || hasProjectPermission(userId, project, "edit_project", currentUser);
+            const canEditProject = userRole === "ADMIN" || hasProjectPermission(userId, project, "manage_members", currentUser);
             
             setCanView(canViewProject);
             setCanEdit(canEditProject);
             
             // If user can't view project, redirect
             if (!canViewProject) {
+                alert("Bạn không có quyền xem giao dịch của dự án này");
                 router.push("/finance/projects");
                 return;
             }
@@ -222,8 +225,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     };
 
     const handleUpdateMembers = async () => {
-        if (!project || !canEdit) {
-            alert("Bạn không có quyền chỉnh sửa thành viên dự án");
+        if (!project || userRole !== "ADMIN") {
+            alert("Chỉ quản trị viên mới có quyền chỉnh sửa thành viên dự án");
             return;
         }
         try {
@@ -322,9 +325,15 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
         }
     };
 
+    const toggleAccountSelection = (accId: string) => {
+        setSelectedAccountIds(prev =>
+            prev.includes(accId) ? prev.filter(id => id !== accId) : [...prev, accId]
+        );
+    };
+
     const handleDeleteProject = async () => {
-        if (!canEdit) {
-            alert("Bạn không có quyền xóa dự án này");
+        if (userRole !== "ADMIN") {
+            alert("Chỉ quản trị viên mới có quyền xóa dự án");
             return;
         }
         if (!confirm("Bạn có chắc chắn muốn xóa dự án này? Hành động này không thể hoàn tác.")) return;
@@ -338,8 +347,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     };
 
     const handleStatusChange = async (newStatus: Project["status"]) => {
-        if (!canEdit) {
-            alert("Bạn không có quyền thay đổi trạng thái dự án");
+        if (userRole !== "ADMIN") {
+            alert("Chỉ quản trị viên mới có quyền thay đổi trạng thái dự án");
             return;
         }
         try {
@@ -353,12 +362,6 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     const toggleMemberSelection = (uid: string) => {
         setSelectedMemberIds(prev =>
             prev.includes(uid) ? prev.filter(id => id !== uid) : [...prev, uid]
-        );
-    };
-
-    const toggleAccountSelection = (accId: string) => {
-        setSelectedAccountIds(prev =>
-            prev.includes(accId) ? prev.filter(id => id !== accId) : [...prev, accId]
         );
     };
 
@@ -380,9 +383,9 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                     <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-500/20 flex items-center justify-center">
                         <Shield size={32} className="text-red-400" />
                     </div>
-                    <h3 className="text-xl font-semibold text-white mb-2">Không có quyền truy cập</h3>
+                    <h3 className="text-xl font-semibold text-white mb-2">Không có quyền xem giao dịch</h3>
                     <p className="text-[var(--muted)] mb-4">
-                        Bạn không có quyền xem dự án này. Vui lòng liên hệ quản trị viên để được cấp quyền.
+                        Bạn cần có quyền <strong className="text-blue-400">"Xem lịch sử giao dịch"</strong> để truy cập trang chi tiết dự án này.
                     </p>
                     <Link 
                         href="/finance/projects"
@@ -419,8 +422,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                         </div>
                     )}
                     
-                    {/* Status change buttons - only if user can edit */}
-                    {canEdit && (
+                    {/* Status change buttons - only if user is ADMIN */}
+                    {userRole === "ADMIN" && (
                         <div className="flex items-center bg-white/5 p-1 rounded-xl">
                             <button
                                 onClick={() => handleStatusChange("ACTIVE")}
@@ -454,8 +457,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                         </div>
                     )}
 
-                    {/* Delete button - only if user can edit */}
-                    {canEdit && (
+                    {/* Delete button - only if user is ADMIN */}
+                    {userRole === "ADMIN" && (
                         <button
                             onClick={handleDeleteProject}
                             className="glass-button px-3 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 border-red-500/20 rounded-xl text-sm transition-colors"
@@ -495,8 +498,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                         <Users size={20} />
                         Thành viên dự án ({projectMembers.length})
                     </h3>
-                    {/* Only show manage button if user can edit */}
-                    {canEdit && (
+                    {/* Only show manage button if user is ADMIN */}
+                    {userRole === "ADMIN" && (
                         <button
                             onClick={() => setIsMemberModalOpen(true)}
                             className="glass-button px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1"
@@ -531,7 +534,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                         <div className="col-span-full text-center py-8">
                             <Users size={40} className="mx-auto text-[var(--muted)] mb-2 opacity-50" />
                             <p className="text-[var(--muted)] text-sm">Chưa có thành viên nào.</p>
-                            {canEdit && (
+                            {userRole === "ADMIN" && (
                                 <button 
                                     onClick={() => setIsMemberModalOpen(true)}
                                     className="mt-3 text-blue-400 text-sm hover:underline"
@@ -799,32 +802,32 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
             {/* Member Management Modal with Role Selection */}
             {isMemberModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-                    <div className="glass-card w-full max-w-4xl p-6 rounded-2xl relative max-h-[90vh] flex flex-col">
-                        <button onClick={() => setIsMemberModalOpen(false)} className="absolute top-4 right-4 text-[var(--muted)] hover:text-white text-xl">✕</button>
+                    <div className="glass-card w-full max-w-6xl p-8 rounded-2xl relative max-h-[95vh] flex flex-col">
+                        <button onClick={() => setIsMemberModalOpen(false)} className="absolute top-6 right-6 text-[var(--muted)] hover:text-white text-2xl">✕</button>
                         
-                        <div className="flex items-center gap-3 mb-2">
-                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-blue-600 flex items-center justify-center">
-                                <Shield size={20} />
+                        <div className="flex items-center gap-4 mb-3">
+                            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-blue-600 flex items-center justify-center">
+                                <Shield size={24} />
                             </div>
                             <div>
-                                <h2 className="text-2xl font-bold">Phân quyền dự án</h2>
-                                <p className="text-sm text-[var(--muted)]">Quyền hạn này quyết định thành viên có thể làm gì trong dự án</p>
+                                <h2 className="text-3xl font-bold">Phân quyền dự án</h2>
+                                <p className="text-base text-[var(--muted)]">Quyền hạn này quyết định thành viên có thể làm gì trong dự án</p>
                             </div>
                         </div>
 
                         {/* Important Notice */}
-                        <div className="mt-4 p-3 bg-blue-500/10 border border-blue-500/30 rounded-xl">
-                            <p className="text-sm text-blue-400">
+                        <div className="mt-6 p-4 bg-blue-500/10 border border-blue-500/30 rounded-xl">
+                            <p className="text-base text-blue-400">
                                 <strong>💡 Lưu ý:</strong> Chỉ những người được thêm vào đây mới có thể truy cập dự án này. 
                                 Quyền hạn được phân theo vai trò hoặc tùy chỉnh riêng cho từng người.
                             </p>
                         </div>
 
-                        <div className="flex-1 overflow-y-auto mt-6 space-y-6">
+                        <div className="flex-1 overflow-y-auto mt-8 space-y-8">
                             {/* Current Members */}
                             <div>
-                                <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
-                                    <Users size={16} />
+                                <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                                    <Users size={20} />
                                     Thành viên dự án ({projectMembers.length})
                                 </h3>
                                 
@@ -834,20 +837,20 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                                             const user = allUsers.find(u => u.uid === member.id);
                                             if (!user) return null;
                                             return (
-                                                <div key={member.id} className="flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/10">
-                                                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center font-bold text-sm shrink-0">
+                                                <div key={member.id} className="flex items-center gap-4 p-4 rounded-xl bg-white/5 border border-white/10">
+                                                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center font-bold text-base shrink-0">
                                                         {user.displayName?.[0]?.toUpperCase() || user.email[0].toUpperCase()}
                                                     </div>
                                                     <div className="flex-1 min-w-0">
-                                                        <div className="font-medium text-white truncate">{user.displayName || user.email}</div>
-                                                        <div className="text-xs text-[var(--muted)]">{user.email}</div>
+                                                        <div className="font-medium text-white text-base truncate">{user.displayName || user.email}</div>
+                                                        <div className="text-sm text-[var(--muted)]">{user.email}</div>
                                                     </div>
                                                     
                                                     {/* Role Selector */}
                                                     <select
                                                         value={member.role}
                                                         onChange={(e) => handleChangeMemberRole(member.id, e.target.value as ProjectRole)}
-                                                        className="bg-white/10 border border-white/20 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500"
+                                                        className="bg-white/10 border border-white/20 rounded-lg px-4 py-2 text-base focus:outline-none focus:border-blue-500"
                                                     >
                                                         <option value="OWNER">👑 Chủ dự án</option>
                                                         <option value="MANAGER">🔧 Quản lý</option>
@@ -858,25 +861,29 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                                                     {/* Permissions Badge - Click to edit */}
                                                     <button
                                                         onClick={() => setPermissionDetailMember(member)}
-                                                        className="hidden md:flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-white/10 transition-colors"
-                                                        title="Click để tùy chỉnh quyền"
+                                                        className="hidden md:flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-white/10 transition-colors border border-white/10"
+                                                        title="Click để tùy chỉnh quyền chi tiết"
                                                     >
-                                                        {member.permissions.slice(0, 3).map(p => (
-                                                            <span key={p} className="text-xs bg-white/10 px-2 py-0.5 rounded" title={PROJECT_PERMISSION_LABELS[p]}>
-                                                                {p === "view_transactions" && "👁️"}
-                                                                {p === "create_income" && "💰"}
-                                                                {p === "create_expense" && "💸"}
-                                                                {p === "approve_transactions" && "✅"}
-                                                                {p === "manage_accounts" && "🏦"}
-                                                                {p === "manage_members" && "👥"}
-                                                                {p === "view_reports" && "📊"}
-                                                                {p === "edit_project" && "✏️"}
-                                                            </span>
-                                                        ))}
-                                                        {member.permissions.length > 3 && (
-                                                            <span className="text-xs text-[var(--muted)]">+{member.permissions.length - 3}</span>
-                                                        )}
-                                                        <ChevronDown size={14} className="text-[var(--muted)]" />
+                                                        <div className="flex items-center gap-1">
+                                                            {member.permissions.slice(0, 4).map(p => (
+                                                                <span key={p} className="text-sm" title={PROJECT_PERMISSION_LABELS[p]}>
+                                                                    {p === "view_transactions" && "👁️"}
+                                                                    {p === "create_income" && "💰"}
+                                                                    {p === "create_expense" && "💸"}
+                                                                    {p === "approve_transactions" && "✅"}
+                                                                    {p === "manage_accounts" && "🏦"}
+                                                                    {p === "manage_members" && "👥"}
+                                                                    {p === "view_reports" && "📊"}
+                                                                </span>
+                                                            ))}
+                                                            {member.permissions.length > 4 && (
+                                                                <span className="text-sm text-[var(--muted)]">+{member.permissions.length - 4}</span>
+                                                            )}
+                                                        </div>
+                                                        <div className="text-xs text-[var(--muted)]">
+                                                            {member.permissions.length} quyền
+                                                        </div>
+                                                        <ChevronDown size={16} className="text-[var(--muted)]" />
                                                     </button>
                                                     
                                                     {/* Edit Permissions Button (Mobile) */}
@@ -885,7 +892,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                                                         className="md:hidden p-2 rounded-lg hover:bg-white/10 text-[var(--muted)] transition-colors"
                                                         title="Tùy chỉnh quyền"
                                                     >
-                                                        <Shield size={16} />
+                                                        <Shield size={18} />
                                                     </button>
                                                     
                                                     {/* Remove Button */}
@@ -894,7 +901,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                                                         className="p-2 rounded-lg hover:bg-red-500/20 text-red-400 transition-colors"
                                                         title="Xóa khỏi dự án"
                                                     >
-                                                        <X size={16} />
+                                                        <X size={18} />
                                                     </button>
                                                 </div>
                                             );
@@ -909,75 +916,77 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                             </div>
 
                             {/* Role Legend - Updated descriptions */}
-                            <div className="p-4 bg-white/5 rounded-xl border border-white/10">
-                                <h4 className="text-xs font-semibold text-[var(--muted)] uppercase mb-3">Vai trò & Quyền hạn mặc định</h4>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-                                    <div className="p-3 bg-white/5 rounded-lg">
-                                        <span className={`inline-block px-2 py-1 rounded-full border mb-2 ${PROJECT_ROLE_COLORS["OWNER"]}`}>👑 Chủ dự án</span>
-                                        <ul className="text-[var(--muted)] space-y-1 ml-1">
+                            <div className="p-6 bg-white/5 rounded-xl border border-white/10">
+                                <h4 className="text-sm font-semibold text-[var(--muted)] uppercase mb-4">Vai trò & Quyền hạn mặc định</h4>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                                    <div className="p-4 bg-white/5 rounded-lg">
+                                        <span className={`inline-block px-3 py-1.5 rounded-full border mb-3 text-sm ${PROJECT_ROLE_COLORS["OWNER"]}`}>👑 Chủ dự án</span>
+                                        <ul className="text-[var(--muted)] space-y-1.5 ml-1">
                                             <li>✓ Toàn quyền quản lý dự án</li>
-                                            <li>✓ Thêm/xóa thành viên</li>
-                                            <li>✓ Duyệt giao dịch</li>
-                                            <li>✓ Quản lý tài khoản</li>
+                                            <li>✓ Phân quyền thành viên</li>
+                                            <li>✓ Phê duyệt giao dịch</li>
+                                            <li>✓ Quản lý tài khoản ngân hàng</li>
+                                            <li className="text-yellow-400/70">⚠️ Không sửa/xóa dự án (chỉ Admin)</li>
                                         </ul>
                                     </div>
-                                    <div className="p-3 bg-white/5 rounded-lg">
-                                        <span className={`inline-block px-2 py-1 rounded-full border mb-2 ${PROJECT_ROLE_COLORS["MANAGER"]}`}>🔧 Quản lý</span>
-                                        <ul className="text-[var(--muted)] space-y-1 ml-1">
-                                            <li>✓ Duyệt giao dịch</li>
+                                    <div className="p-4 bg-white/5 rounded-lg">
+                                        <span className={`inline-block px-3 py-1.5 rounded-full border mb-3 text-sm ${PROJECT_ROLE_COLORS["MANAGER"]}`}>🔧 Quản lý</span>
+                                        <ul className="text-[var(--muted)] space-y-1.5 ml-1">
+                                            <li>✓ Phê duyệt giao dịch</li>
                                             <li>✓ Quản lý tài khoản dự án</li>
-                                            <li>✓ Tạo thu/chi</li>
-                                            <li>✓ Xem báo cáo</li>
+                                            <li>✓ Tạo phiếu thu/chi</li>
+                                            <li>✓ Xem dashboard & báo cáo</li>
                                         </ul>
                                     </div>
-                                    <div className="p-3 bg-white/5 rounded-lg">
-                                        <span className={`inline-block px-2 py-1 rounded-full border mb-2 ${PROJECT_ROLE_COLORS["MEMBER"]}`}>👤 Thành viên</span>
-                                        <ul className="text-[var(--muted)] space-y-1 ml-1">
-                                            <li>✓ Tạo khoản thu</li>
-                                            <li>✓ Tạo khoản chi</li>
-                                            <li>✓ Xem giao dịch</li>
-                                            <li className="text-red-400/70">✗ Không duyệt được</li>
+                                    <div className="p-4 bg-white/5 rounded-lg">
+                                        <span className={`inline-block px-3 py-1.5 rounded-full border mb-3 text-sm ${PROJECT_ROLE_COLORS["MEMBER"]}`}>👤 Thành viên</span>
+                                        <ul className="text-[var(--muted)] space-y-1.5 ml-1">
+                                            <li>✓ Tạo phiếu thu tiền</li>
+                                            <li>✓ Tạo phiếu chi tiền</li>
+                                            <li>✓ Xem lịch sử giao dịch</li>
+                                            <li className="text-red-400/70">✗ Không phê duyệt được</li>
                                         </ul>
                                     </div>
-                                    <div className="p-3 bg-white/5 rounded-lg">
-                                        <span className={`inline-block px-2 py-1 rounded-full border mb-2 ${PROJECT_ROLE_COLORS["VIEWER"]}`}>👁️ Người xem</span>
-                                        <ul className="text-[var(--muted)] space-y-1 ml-1">
-                                            <li>✓ Xem giao dịch</li>
-                                            <li>✓ Xem báo cáo</li>
+                                    <div className="p-4 bg-white/5 rounded-lg">
+                                        <span className={`inline-block px-3 py-1.5 rounded-full border mb-3 text-sm ${PROJECT_ROLE_COLORS["VIEWER"]}`}>👁️ Người xem</span>
+                                        <ul className="text-[var(--muted)] space-y-1.5 ml-1">
+                                            <li>✓ Xem lịch sử giao dịch</li>
+                                            <li>✓ Xem dashboard & báo cáo</li>
                                             <li className="text-red-400/70">✗ Không tạo thu/chi</li>
                                             <li className="text-red-400/70">✗ Chỉ đọc</li>
                                         </ul>
                                     </div>
                                 </div>
-                                <p className="text-xs text-[var(--muted)] mt-3 italic">
-                                    💡 Bạn có thể tùy chỉnh quyền riêng cho từng người bằng cách click vào biểu tượng quyền
+                                <p className="text-sm text-[var(--muted)] mt-4 italic">
+                                    💡 <strong>Lưu ý:</strong> Để vào trang chi tiết dự án, cần có quyền <strong>"Xem lịch sử giao dịch"</strong>. 
+                                    Chỉ có Quản trị viên mới có thể sửa/xóa thông tin dự án.
                                 </p>
                             </div>
 
                             {/* Add New Members */}
                             <div>
-                                <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
-                                    <Plus size={16} />
+                                <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                                    <Plus size={20} />
                                     Thêm thành viên mới
                                 </h3>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-60 overflow-y-auto pr-2">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-80 overflow-y-auto pr-2">
                                     {allUsers
                                         .filter(u => !projectMembers.find(m => m.id === u.uid))
                                         .map(u => (
                                             <div 
                                                 key={u.uid} 
-                                                className="flex items-center gap-3 p-3 rounded-xl border border-white/5 hover:border-white/20 hover:bg-white/5 transition-all"
+                                                className="flex items-center gap-4 p-4 rounded-xl border border-white/5 hover:border-white/20 hover:bg-white/5 transition-all"
                                             >
-                                                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-gray-700 to-gray-600 flex items-center justify-center font-bold text-xs shrink-0">
+                                                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-700 to-gray-600 flex items-center justify-center font-bold text-sm shrink-0">
                                                     {u.displayName?.[0]?.toUpperCase() || u.email[0].toUpperCase()}
                                                 </div>
                                                 <div className="flex-1 min-w-0">
-                                                    <div className="font-medium text-white text-sm truncate">{u.displayName || u.email}</div>
-                                                    <div className="text-xs text-[var(--muted)]">{u.position || "Nhân viên"}</div>
+                                                    <div className="font-medium text-white text-base truncate">{u.displayName || u.email}</div>
+                                                    <div className="text-sm text-[var(--muted)]">{u.position || "Nhân viên"}</div>
                                                 </div>
                                                 <button
                                                     onClick={() => handleAddMember(u.uid, "MEMBER")}
-                                                    className="px-3 py-1 rounded-lg bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 text-xs font-medium transition-colors"
+                                                    className="px-4 py-2 rounded-lg bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 text-sm font-medium transition-colors"
                                                 >
                                                     + Thêm
                                                 </button>
@@ -1022,10 +1031,10 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
             {/* Permission Detail Modal - Scrollable */}
             {permissionDetailMember && (
                 <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-                    <div className="glass-card w-full max-w-md p-4 rounded-2xl relative max-h-[85vh] flex flex-col">
+                    <div className="glass-card w-full max-w-2xl p-6 rounded-2xl relative max-h-[90vh] flex flex-col">
                         <button 
                             onClick={() => setPermissionDetailMember(null)} 
-                            className="absolute top-3 right-3 text-[var(--muted)] hover:text-white z-10"
+                            className="absolute top-4 right-4 text-[var(--muted)] hover:text-white z-10 text-xl"
                         >
                             ✕
                         </button>
@@ -1035,22 +1044,24 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                             return (
                                 <>
                                     {/* Header - Fixed */}
-                                    <div className="flex items-center gap-3 mb-3 pr-6">
-                                        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center font-bold text-sm">
+                                    <div className="flex items-center gap-4 mb-6 pr-8">
+                                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center font-bold text-lg">
                                             {user?.displayName?.[0]?.toUpperCase() || user?.email[0].toUpperCase()}
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <h3 className="font-bold text-sm truncate">{user?.displayName || user?.email}</h3>
-                                            <span className={`text-xs px-2 py-0.5 rounded-full border ${PROJECT_ROLE_COLORS[permissionDetailMember.role]}`}>
+                                            <h3 className="font-bold text-lg truncate">{user?.displayName || user?.email}</h3>
+                                            <span className={`text-sm px-3 py-1 rounded-full border ${PROJECT_ROLE_COLORS[permissionDetailMember.role]}`}>
                                                 {PROJECT_ROLE_LABELS[permissionDetailMember.role]}
                                             </span>
                                         </div>
                                     </div>
 
                                     {/* Scrollable Content */}
-                                    <div className="flex-1 overflow-y-auto pr-1 -mr-1">
-                                        <h4 className="text-xs font-semibold text-[var(--muted)] uppercase mb-2 sticky top-0 bg-[#1a1a1a] py-1">Quyền hạn ({permissionDetailMember.permissions.length}/8)</h4>
-                                        <div className="grid grid-cols-2 gap-1.5">
+                                    <div className="flex-1 overflow-y-auto pr-2 -mr-2">
+                                        <h4 className="text-lg font-semibold text-white uppercase mb-4 sticky top-0 bg-[#1a1a1a] py-2">
+                                            Quyền hạn ({permissionDetailMember.permissions.length}/7)
+                                        </h4>
+                                        <div className="space-y-4">
                                             {(Object.keys(PROJECT_PERMISSION_LABELS) as ProjectPermission[]).map(permission => {
                                                 const hasPermission = permissionDetailMember.permissions.includes(permission);
                                                 const icons: Record<ProjectPermission, string> = {
@@ -1060,13 +1071,12 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                                                     approve_transactions: "✅",
                                                     manage_accounts: "🏦",
                                                     manage_members: "👥",
-                                                    view_reports: "📊",
-                                                    edit_project: "✏️"
+                                                    view_reports: "📊"
                                                 };
                                                 return (
                                                     <label 
                                                         key={permission}
-                                                        className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer border transition-all text-xs ${
+                                                        className={`flex items-start gap-4 p-4 rounded-xl cursor-pointer border transition-all ${
                                                             hasPermission 
                                                                 ? "bg-green-500/10 border-green-500/30" 
                                                                 : "bg-white/5 border-white/10 hover:border-white/20"
@@ -1076,10 +1086,17 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                                                             type="checkbox"
                                                             checked={hasPermission}
                                                             onChange={() => handleTogglePermission(permissionDetailMember.id, permission)}
-                                                            className="w-3.5 h-3.5 rounded border-gray-600 bg-transparent text-green-500 focus:ring-green-500 focus:ring-offset-0"
+                                                            className="w-5 h-5 rounded border-gray-600 bg-transparent text-green-500 focus:ring-green-500 focus:ring-offset-0 mt-1"
                                                         />
-                                                        <span>{icons[permission]}</span>
-                                                        <span className="truncate">{PROJECT_PERMISSION_LABELS[permission]}</span>
+                                                        <div className="flex-1">
+                                                            <div className="flex items-center gap-2 mb-2">
+                                                                <span className="text-xl">{icons[permission]}</span>
+                                                                <span className="font-medium text-white">{PROJECT_PERMISSION_LABELS[permission]}</span>
+                                                            </div>
+                                                            <p className="text-sm text-[var(--muted)] leading-relaxed">
+                                                                {PROJECT_PERMISSION_DESCRIPTIONS[permission]}
+                                                            </p>
+                                                        </div>
                                                     </label>
                                                 );
                                             })}
@@ -1087,7 +1104,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                                     </div>
 
                                     {/* Footer - Fixed */}
-                                    <div className="mt-3 pt-3 border-t border-white/10 flex justify-between items-center">
+                                    <div className="mt-6 pt-4 border-t border-white/10 flex justify-between items-center">
                                         <button
                                             onClick={() => {
                                                 const defaultPerms = PROJECT_ROLE_PERMISSIONS[permissionDetailMember.role];
@@ -1098,13 +1115,13 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                                                 ));
                                                 setPermissionDetailMember(prev => prev ? { ...prev, permissions: [...defaultPerms] } : null);
                                             }}
-                                            className="text-xs text-[var(--muted)] hover:text-white transition-colors"
+                                            className="text-sm text-blue-400 hover:text-blue-300 underline"
                                         >
-                                            🔄 Reset về mặc định
+                                            Đặt lại về mặc định
                                         </button>
                                         <button
                                             onClick={() => setPermissionDetailMember(null)}
-                                            className="glass-button px-4 py-1.5 rounded-lg text-sm font-medium bg-blue-500/20 hover:bg-blue-500/30 text-blue-400"
+                                            className="px-6 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm font-medium transition-colors"
                                         >
                                             Xong
                                         </button>
@@ -1118,39 +1135,38 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
 
             {/* Account Management Modal */}
             {isAccountModalOpen && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-                        <div className="glass-card w-full max-w-2xl p-6 rounded-2xl relative max-h-[90vh] flex flex-col">
-                            <button onClick={() => setIsAccountModalOpen(false)} className="absolute top-4 right-4 text-[var(--muted)] hover:text-white">✕</button>
-                            <h2 className="text-2xl font-bold mb-2">Quản lý tài khoản ngân hàng</h2>
-                            <p className="text-sm text-[var(--muted)] mb-6">Chọn tài khoản ngân hàng để gán cho dự án này.</p>
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+                    <div className="glass-card w-full max-w-2xl p-6 rounded-2xl relative max-h-[90vh] flex flex-col">
+                        <button onClick={() => setIsAccountModalOpen(false)} className="absolute top-4 right-4 text-[var(--muted)] hover:text-white">✕</button>
+                        <h2 className="text-2xl font-bold mb-2">Quản lý tài khoản ngân hàng</h2>
+                        <p className="text-sm text-[var(--muted)] mb-6">Chọn tài khoản ngân hàng để gán cho dự án này.</p>
 
-                            <div className="flex-1 overflow-y-auto mb-6 pr-2">
-                                <AccountSelector
-                                    selectedAccountIds={selectedAccountIds}
-                                    toggleSelection={toggleAccountSelection}
-                                    currentProjectId={projectId}
-                                />
-                            </div>
+                        <div className="flex-1 overflow-y-auto mb-6 pr-2">
+                            <AccountSelector
+                                selectedAccountIds={selectedAccountIds}
+                                toggleSelection={toggleAccountSelection}
+                                currentProjectId={projectId}
+                            />
+                        </div>
 
-                            <div className="flex justify-end gap-3 pt-4 border-t border-white/10 mt-auto">
-                                <button
-                                    onClick={() => setIsAccountModalOpen(false)}
-                                    className="px-4 py-2 rounded-lg text-sm font-medium hover:bg-white/10 transition-colors"
-                                >
-                                    Hủy
-                                </button>
-                                <button
-                                    onClick={handleUpdateAccounts}
-                                    className="glass-button px-6 py-2 rounded-lg text-sm font-bold bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 border-blue-500/30"
-                                >
-                                    Lưu thay đổi
-                                </button>
-                            </div>
+                        <div className="flex justify-end gap-3 pt-4 border-t border-white/10 mt-auto">
+                            <button
+                                onClick={() => setIsAccountModalOpen(false)}
+                                className="px-4 py-2 rounded-lg text-sm font-medium hover:bg-white/10 transition-colors"
+                            >
+                                Hủy
+                            </button>
+                            <button
+                                onClick={handleUpdateAccounts}
+                                className="glass-button px-6 py-2 rounded-lg text-sm font-bold bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 border-blue-500/30"
+                            >
+                                Lưu thay đổi
+                            </button>
                         </div>
                     </div>
-                )
-            }
-        </div >
+                </div>
+            )}
+        </div>
     );
 }
 

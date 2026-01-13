@@ -176,6 +176,9 @@ export function getAccessibleAccounts(user: any, allAccounts: any[], accessibleP
 
 import { ProjectRole, ProjectPermission, ProjectMember, PROJECT_ROLE_PERMISSIONS, Project } from "@/types/finance";
 
+// Export PROJECT_ROLE_PERMISSIONS để sử dụng ở nơi khác
+export { PROJECT_ROLE_PERMISSIONS };
+
 // Lấy role của user trong một project cụ thể
 export function getProjectRole(userId: string, project: Project): ProjectRole | null {
     if (!project || !userId) return null;
@@ -317,16 +320,26 @@ export const PROJECT_ROLE_LABELS: Record<ProjectRole, string> = {
     VIEWER: "Người xem"
 };
 
-// Label tiếng Việt cho ProjectPermission
+// Label và mô tả chi tiết cho ProjectPermission
 export const PROJECT_PERMISSION_LABELS: Record<ProjectPermission, string> = {
-    view_transactions: "Xem giao dịch",
-    create_income: "Tạo khoản thu",
-    create_expense: "Tạo khoản chi",
-    approve_transactions: "Duyệt giao dịch",
-    manage_accounts: "Quản lý tài khoản",
-    manage_members: "Quản lý thành viên",
-    view_reports: "Xem báo cáo",
-    edit_project: "Sửa dự án"
+    view_transactions: "Xem lịch sử giao dịch",
+    create_income: "Tạo phiếu thu tiền",
+    create_expense: "Tạo phiếu chi tiền", 
+    approve_transactions: "Phê duyệt giao dịch",
+    manage_accounts: "Quản lý tài khoản ngân hàng",
+    manage_members: "Phân quyền thành viên",
+    view_reports: "Xem dashboard & báo cáo"
+};
+
+// Mô tả chi tiết cho từng quyền
+export const PROJECT_PERMISSION_DESCRIPTIONS: Record<ProjectPermission, string> = {
+    view_transactions: "Xem danh sách giao dịch thu/chi và truy cập trang chi tiết dự án",
+    create_income: "Tạo phiếu thu tiền mới cho dự án (COD, chuyển khoản, tiền mặt...)",
+    create_expense: "Tạo phiếu chi tiền cho các khoản chi phí của dự án (lương, quảng cáo, vận hành...)",
+    approve_transactions: "Phê duyệt hoặc từ chối các giao dịch đang chờ duyệt trong dự án",
+    manage_accounts: "Quản lý tài khoản ngân hàng được gán cho dự án (thêm/xóa/chỉnh sửa)",
+    manage_members: "Thêm/xóa thành viên và phân quyền cho các thành viên khác trong dự án",
+    view_reports: "Xem dashboard tổng quan, báo cáo tài chính và thống kê của dự án"
 };
 
 // Màu sắc cho từng role

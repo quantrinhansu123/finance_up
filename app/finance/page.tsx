@@ -524,7 +524,7 @@ export default function DashboardPage() {
                     </div>
                     <h3 className="text-xl font-semibold text-white mb-2">Chưa có quyền xem Dashboard</h3>
                     <p className="text-[var(--muted)] mb-4">
-                        Để xem Dashboard, bạn cần được phân quyền <strong className="text-blue-400">"Xem báo cáo"</strong> trong ít nhất một dự án.
+                        Để xem Dashboard, bạn cần được phân quyền <strong className="text-blue-400">"Xem dashboard & báo cáo"</strong> trong ít nhất một dự án.
                     </p>
                     <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4 mb-4">
                         <p className="text-sm text-blue-400">

@@ -37,40 +37,20 @@ export default function TransferPage() {
             
             const userId = parsed.uid || parsed.id;
             
-            // ADMIN có full quyền
+            // Chỉ ADMIN mới được chuyển tiền
             if (role === "ADMIN") {
                 setCanTransfer(true);
                 const accs = await getAccounts();
                 setAccounts(accs);
                 setLoading(false);
                 return;
-            }
-            
-            // USER: Kiểm tra quyền create_expense trong các dự án
-            const [allProjects, allAccounts] = await Promise.all([
-                getProjects(),
-                getAccounts()
-            ]);
-            
-            // Lấy các project mà user có quyền create_expense (chuyển tiền = chi tiền)
-            const projectsWithTransferPermission = allProjects.filter(p => 
-                hasProjectPermission(userId, p, "create_expense", parsed)
-            );
-            
-            if (projectsWithTransferPermission.length > 0) {
-                setCanTransfer(true);
-                // Lọc accounts thuộc các project có quyền
-                const projectIds = projectsWithTransferPermission.map(p => p.id);
-                const filteredAccounts = allAccounts.filter(a => 
-                    a.projectId && projectIds.includes(a.projectId)
-                );
-                setAccounts(filteredAccounts);
             } else {
+                // USER không được chuyển tiền
                 setCanTransfer(false);
                 setAccounts([]);
+                setLoading(false);
+                return;
             }
-            
-            setLoading(false);
         };
         
         loadData();
@@ -179,8 +159,8 @@ export default function TransferPage() {
         return (
             <div className="flex flex-col items-center justify-center min-h-[50vh] text-center">
                 <ShieldX size={64} className="text-red-400 mb-4" />
-                <h1 className="text-2xl font-bold text-white mb-2">Không có quyền truy cập</h1>
-                <p className="text-[var(--muted)] mb-4">Bạn không có quyền thực hiện chuyển tiền nội bộ.</p>
+                <h1 className="text-2xl font-bold text-white mb-2">Chỉ dành cho Quản trị viên</h1>
+                <p className="text-[var(--muted)] mb-4">Chức năng chuyển tiền nội bộ chỉ dành cho quản trị viên hệ thống.</p>
                 <button
                     onClick={() => router.push("/finance")}
                     className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm"

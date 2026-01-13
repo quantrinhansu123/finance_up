@@ -84,7 +84,8 @@ export default function FinanceLayout({
                 canViewTransactions: true,
                 canApprove: userRole === "ADMIN",
                 canTransfer: true,
-                canViewReports: true
+                canViewReports: true,
+                hasAccessibleProjects: true
             };
         }
 
@@ -95,7 +96,8 @@ export default function FinanceLayout({
             canViewTransactions: false,
             canApprove: false,
             canTransfer: false,
-            canViewReports: false
+            canViewReports: false,
+            hasAccessibleProjects: false
         };
 
         const accessibleProjects = getAccessibleProjects(user, projects);
@@ -121,10 +123,11 @@ export default function FinanceLayout({
         return {
             canCreateIncome,
             canCreateExpense,
-            canViewTransactions,
+            canViewTransactions: canViewTransactions, // Chỉ hiện khi có quyền view_transactions
             canApprove,
             canTransfer: canCreateIncome || canCreateExpense, // Có thể chuyển tiền nếu có quyền thu hoặc chi
-            canViewReports
+            canViewReports,
+            hasAccessibleProjects: accessibleProjects.length > 0 // Thêm để kiểm tra có dự án nào không
         };
     }, [user, userRole, projects]);
 
@@ -169,8 +172,8 @@ export default function FinanceLayout({
                 ...(userPermissions.canCreateIncome ? [{ name: "Thu tiền", href: "/finance/income", icon: <ArrowDownToLine size={18} /> }] : []),
                 // Chỉ hiện Chi tiền nếu user có quyền create_expense trong ít nhất 1 dự án
                 ...(userPermissions.canCreateExpense ? [{ name: "Chi tiền", href: "/finance/expense", icon: <ArrowUpFromLine size={18} /> }] : []),
-                // Chỉ hiện Chuyển tiền nếu user có quyền thu hoặc chi
-                ...(userPermissions.canTransfer ? [{ name: "Chuyển tiền", href: "/finance/transfer", icon: <ArrowRightLeft size={18} /> }] : []),
+                // Chỉ hiện Chuyển tiền nếu là ADMIN
+                ...(userRole === "ADMIN" ? [{ name: "Chuyển tiền", href: "/finance/transfer", icon: <ArrowRightLeft size={18} /> }] : []),
                 // Chỉ hiện Phê duyệt nếu user có quyền approve trong ít nhất 1 dự án hoặc là ADMIN
                 ...(userPermissions.canApprove ? [{ name: "Phê duyệt", href: "/finance/approvals", icon: <CheckSquare size={18} /> }] : []),
                 // Chỉ hiện Giao dịch nếu user có quyền xem giao dịch
@@ -179,14 +182,17 @@ export default function FinanceLayout({
         },
         {
             title: "Quản lý",
-            // Chỉ ADMIN mới thấy mục Quản lý
-            items: userRole === "ADMIN" ? [
-                { name: "Tài khoản", href: "/finance/accounts", icon: <CreditCard size={18} /> },
-                { name: "Dự án", href: "/finance/projects", icon: <FolderOpen size={18} /> },
-                { name: "Quỹ/Nhóm", href: "/finance/funds", icon: <PiggyBank size={18} /> },
-                { name: "Doanh thu", href: "/finance/revenue", icon: <TrendingUp size={18} /> },
-                { name: "Chi phí cố định", href: "/finance/fixed-costs", icon: <Pin size={18} /> },
-            ] : []
+            items: [
+                // Dự án - hiện nếu user có quyền xem ít nhất 1 dự án hoặc là ADMIN
+                ...(userRole === "ADMIN" || userPermissions.hasAccessibleProjects ? [{ name: "Dự án", href: "/finance/projects", icon: <FolderOpen size={18} /> }] : []),
+                // Các mục khác chỉ ADMIN mới thấy
+                ...(userRole === "ADMIN" ? [
+                    { name: "Tài khoản", href: "/finance/accounts", icon: <CreditCard size={18} /> },
+                    { name: "Quỹ/Nhóm", href: "/finance/funds", icon: <PiggyBank size={18} /> },
+                    { name: "Doanh thu", href: "/finance/revenue", icon: <TrendingUp size={18} /> },
+                    { name: "Chi phí cố định", href: "/finance/fixed-costs", icon: <Pin size={18} /> },
+                ] : [])
+            ]
         },
         {
             title: "Hệ thống",
