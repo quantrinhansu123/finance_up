@@ -19,7 +19,10 @@ import {
     PROJECT_ROLE_COLORS, 
     PROJECT_PERMISSION_LABELS,
     createProjectMember,
-    getProjectRole
+    getProjectRole,
+    getUserRole,
+    hasProjectPermission,
+    Role
 } from "@/lib/permissions";
 
 const COLORS = ["#4ade80", "#f87171", "#60a5fa", "#fbbf24", "#a78bfa"];
@@ -38,6 +41,13 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     const [isMemberModalOpen, setIsMemberModalOpen] = useState(false);
     const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
     const [projectMembers, setProjectMembers] = useState<ProjectMember[]>([]);
+    
+    // User permissions
+    const [currentUser, setCurrentUser] = useState<any>(null);
+    const [userRole, setUserRole] = useState<Role>("USER");
+    const [userProjectRole, setUserProjectRole] = useState<ProjectRole | null>(null);
+    const [canEdit, setCanEdit] = useState(false);
+    const [canView, setCanView] = useState(false);
 
     // Account Modal
     const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
@@ -53,6 +63,40 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     const [categoryData, setCategoryData] = useState<any[]>([]); // Chi theo danh mục
     const [incomeData, setIncomeData] = useState<any[]>([]); // Thu theo nguồn
     const [memberStats, setMemberStats] = useState<any[]>([]);
+
+    // Load user info and check permissions
+    useEffect(() => {
+        const storedUser = localStorage.getItem("user") || sessionStorage.getItem("user");
+        if (storedUser) {
+            const parsedUser = JSON.parse(storedUser);
+            setCurrentUser(parsedUser);
+            setUserRole(getUserRole(parsedUser));
+        } else {
+            router.push("/login");
+        }
+    }, [router]);
+
+    // Check project permissions when user and project are loaded
+    useEffect(() => {
+        if (currentUser && project) {
+            const userId = currentUser?.uid || currentUser?.id;
+            const role = getProjectRole(userId, project);
+            setUserProjectRole(role);
+            
+            // Check permissions
+            const canViewProject = userRole === "ADMIN" || hasProjectPermission(userId, project, "view_transactions", currentUser);
+            const canEditProject = userRole === "ADMIN" || hasProjectPermission(userId, project, "edit_project", currentUser);
+            
+            setCanView(canViewProject);
+            setCanEdit(canEditProject);
+            
+            // If user can't view project, redirect
+            if (!canViewProject) {
+                router.push("/finance/projects");
+                return;
+            }
+        }
+    }, [currentUser, project, userRole, router]);
 
     useEffect(() => {
         const loadData = async () => {
@@ -178,7 +222,10 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     };
 
     const handleUpdateMembers = async () => {
-        if (!project) return;
+        if (!project || !canEdit) {
+            alert("Bạn không có quyền chỉnh sửa thành viên dự án");
+            return;
+        }
         try {
             // Sync memberIds với projectMembers
             const memberIds = projectMembers.map(m => m.id);
@@ -276,6 +323,10 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     };
 
     const handleDeleteProject = async () => {
+        if (!canEdit) {
+            alert("Bạn không có quyền xóa dự án này");
+            return;
+        }
         if (!confirm("Bạn có chắc chắn muốn xóa dự án này? Hành động này không thể hoàn tác.")) return;
         try {
             await deleteProject(projectId);
@@ -287,6 +338,10 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     };
 
     const handleStatusChange = async (newStatus: Project["status"]) => {
+        if (!canEdit) {
+            alert("Bạn không có quyền thay đổi trạng thái dự án");
+            return;
+        }
         try {
             await updateProject(projectId, { status: newStatus });
             setProject(prev => prev ? { ...prev, status: newStatus } : null);
@@ -316,6 +371,29 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
 
     if (loading) return <div className="p-8 text-[var(--muted)]">Đang tải...</div>;
     if (!project) return <div className="p-8 text-[var(--muted)]">Không tìm thấy dự án</div>;
+    
+    // Check if user has permission to view this project
+    if (!canView && !loading) {
+        return (
+            <div className="space-y-8">
+                <div className="glass-card p-8 rounded-xl text-center">
+                    <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-500/20 flex items-center justify-center">
+                        <Shield size={32} className="text-red-400" />
+                    </div>
+                    <h3 className="text-xl font-semibold text-white mb-2">Không có quyền truy cập</h3>
+                    <p className="text-[var(--muted)] mb-4">
+                        Bạn không có quyền xem dự án này. Vui lòng liên hệ quản trị viên để được cấp quyền.
+                    </p>
+                    <Link 
+                        href="/finance/projects"
+                        className="inline-block px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
+                    >
+                        ← Quay lại danh sách dự án
+                    </Link>
+                </div>
+            </div>
+        );
+    }
 
     const profit = totalIn - totalOut;
 
@@ -331,44 +409,60 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                     <p className="text-[var(--muted)]">{project.description || "Không có mô tả"}</p>
                 </div>
                 <div className="flex items-center gap-3">
-                    <div className="flex items-center bg-white/5 p-1 rounded-xl">
-                        <button
-                            onClick={() => handleStatusChange("ACTIVE")}
-                            className={`px-3 py-1.5 rounded-lg text-sm font-bold transition-all ${project.status === "ACTIVE"
-                                    ? "bg-green-500 text-white shadow-lg"
-                                    : "text-[var(--muted)] hover:text-white"
-                                }`}
-                        >
-                            Doing
-                        </button>
+                    {/* Show user's role in project */}
+                    {userProjectRole && (
+                        <div className="flex items-center gap-2 px-3 py-1.5 bg-white/10 rounded-lg">
+                            <span className="text-xs text-[var(--muted)]">Vai trò của bạn:</span>
+                            <span className={`text-xs px-2 py-0.5 rounded-full border ${PROJECT_ROLE_COLORS[userProjectRole]}`}>
+                                {PROJECT_ROLE_LABELS[userProjectRole]}
+                            </span>
+                        </div>
+                    )}
+                    
+                    {/* Status change buttons - only if user can edit */}
+                    {canEdit && (
+                        <div className="flex items-center bg-white/5 p-1 rounded-xl">
+                            <button
+                                onClick={() => handleStatusChange("ACTIVE")}
+                                className={`px-3 py-1.5 rounded-lg text-sm font-bold transition-all ${project.status === "ACTIVE"
+                                        ? "bg-green-500 text-white shadow-lg"
+                                        : "text-[var(--muted)] hover:text-white"
+                                    }`}
+                            >
+                                Doing
+                            </button>
 
-                        <button
-                            onClick={() => handleStatusChange("COMPLETED")}
-                            className={`px-3 py-1.5 rounded-lg text-sm font-bold transition-all ${project.status === "COMPLETED"
-                                    ? "bg-blue-500 text-white shadow-lg"
-                                    : "text-[var(--muted)] hover:text-white"
-                                }`}
-                        >
-                            Completed
-                        </button>
+                            <button
+                                onClick={() => handleStatusChange("COMPLETED")}
+                                className={`px-3 py-1.5 rounded-lg text-sm font-bold transition-all ${project.status === "COMPLETED"
+                                        ? "bg-blue-500 text-white shadow-lg"
+                                        : "text-[var(--muted)] hover:text-white"
+                                    }`}
+                            >
+                                Completed
+                            </button>
 
-                        <button
-                            onClick={() => handleStatusChange("PAUSED")}
-                            className={`px-3 py-1.5 rounded-lg text-sm font-bold transition-all ${project.status === "PAUSED"
-                                    ? "bg-gray-500 text-white shadow-lg"
-                                    : "text-[var(--muted)] hover:text-white"
-                                }`}
-                        >
-                            Paused
-                        </button>
-                    </div>
+                            <button
+                                onClick={() => handleStatusChange("PAUSED")}
+                                className={`px-3 py-1.5 rounded-lg text-sm font-bold transition-all ${project.status === "PAUSED"
+                                        ? "bg-gray-500 text-white shadow-lg"
+                                        : "text-[var(--muted)] hover:text-white"
+                                    }`}
+                            >
+                                Paused
+                            </button>
+                        </div>
+                    )}
 
-                    <button
-                        onClick={handleDeleteProject}
-                        className="glass-button px-3 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 border-red-500/20 rounded-xl text-sm transition-colors"
-                    >
-                        Xóa dự án
-                    </button>
+                    {/* Delete button - only if user can edit */}
+                    {canEdit && (
+                        <button
+                            onClick={handleDeleteProject}
+                            className="glass-button px-3 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 border-red-500/20 rounded-xl text-sm transition-colors"
+                        >
+                            Xóa dự án
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -401,13 +495,16 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                         <Users size={20} />
                         Thành viên dự án ({projectMembers.length})
                     </h3>
-                    <button
-                        onClick={() => setIsMemberModalOpen(true)}
-                        className="glass-button px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1"
-                    >
-                        <Shield size={14} />
-                        Phân quyền
-                    </button>
+                    {/* Only show manage button if user can edit */}
+                    {canEdit && (
+                        <button
+                            onClick={() => setIsMemberModalOpen(true)}
+                            className="glass-button px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1"
+                        >
+                            <Shield size={14} />
+                            Phân quyền
+                        </button>
+                    )}
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -434,12 +531,14 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                         <div className="col-span-full text-center py-8">
                             <Users size={40} className="mx-auto text-[var(--muted)] mb-2 opacity-50" />
                             <p className="text-[var(--muted)] text-sm">Chưa có thành viên nào.</p>
-                            <button 
-                                onClick={() => setIsMemberModalOpen(true)}
-                                className="mt-3 text-blue-400 text-sm hover:underline"
-                            >
-                                + Thêm thành viên
-                            </button>
+                            {canEdit && (
+                                <button 
+                                    onClick={() => setIsMemberModalOpen(true)}
+                                    className="mt-3 text-blue-400 text-sm hover:underline"
+                                >
+                                    + Thêm thành viên
+                                </button>
+                            )}
                         </div>
                     )}
                 </div>
@@ -452,13 +551,16 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                         <Landmark size={16} />
                         Tài khoản dự án ({accounts.length})
                     </h3>
-                    <button
-                        onClick={() => setIsAccountModalOpen(true)}
-                        className="text-xs text-[var(--muted)] hover:text-white flex items-center gap-1"
-                    >
-                        <Plus size={12} />
-                        Quản lý
-                    </button>
+                    {/* Only show manage button if user can manage accounts */}
+                    {(userRole === "ADMIN" || hasProjectPermission(currentUser?.uid || currentUser?.id, project, "manage_accounts", currentUser)) && (
+                        <button
+                            onClick={() => setIsAccountModalOpen(true)}
+                            className="text-xs text-[var(--muted)] hover:text-white flex items-center gap-1"
+                        >
+                            <Plus size={12} />
+                            Quản lý
+                        </button>
+                    )}
                 </div>
                 {accounts.length > 0 ? (
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
@@ -495,9 +597,11 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                 ) : (
                     <div className="text-center py-6 text-[var(--muted)] text-sm">
                         Chưa có tài khoản nào được gán
-                        <button onClick={() => setIsAccountModalOpen(true)} className="block mx-auto mt-2 text-blue-400 hover:underline">
-                            + Thêm tài khoản
-                        </button>
+                        {(userRole === "ADMIN" || hasProjectPermission(currentUser?.uid || currentUser?.id, project, "manage_accounts", currentUser)) && (
+                            <button onClick={() => setIsAccountModalOpen(true)} className="block mx-auto mt-2 text-blue-400 hover:underline">
+                                + Thêm tài khoản
+                            </button>
+                        )}
                     </div>
                 )}
             </div>

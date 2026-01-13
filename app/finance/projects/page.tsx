@@ -4,12 +4,16 @@ import { useState, useEffect, useMemo } from "react";
 import { getProjects, createProject, getTransactions, deleteProject } from "@/lib/finance";
 import { Project } from "@/types/finance";
 import { useRouter } from "next/navigation";
-import { Users, Trash2, Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { getUserRole, getAccessibleProjects, hasProjectPermission, Role } from "@/lib/permissions";
+import { Users, Trash2, Search, ChevronLeft, ChevronRight, ShieldX } from "lucide-react";
 
 const ITEMS_PER_PAGE = 10;
 
 export default function ProjectsPage() {
+    const [allProjects, setAllProjects] = useState<Project[]>([]);
     const [projects, setProjects] = useState<Project[]>([]);
+    const [currentUser, setCurrentUser] = useState<any>(null);
+    const [userRole, setUserRole] = useState<Role>("USER");
     const router = useRouter();
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [loading, setLoading] = useState(true);
@@ -47,6 +51,26 @@ export default function ProjectsPage() {
         setCurrentPage(1);
     }, [searchTerm, filterStatus]);
 
+    // Load user info
+    useEffect(() => {
+        const storedUser = localStorage.getItem("user") || sessionStorage.getItem("user");
+        if (storedUser) {
+            const parsedUser = JSON.parse(storedUser);
+            setCurrentUser(parsedUser);
+            setUserRole(getUserRole(parsedUser));
+        } else {
+            router.push("/login");
+        }
+    }, [router]);
+
+    // Filter projects based on user permissions
+    useEffect(() => {
+        if (currentUser && allProjects.length > 0) {
+            const accessibleProjects = getAccessibleProjects(currentUser, allProjects);
+            setProjects(accessibleProjects);
+        }
+    }, [currentUser, allProjects]);
+
     // selectedMembers state removed
 
     const fetchData = async () => {
@@ -65,8 +89,7 @@ export default function ProjectsPage() {
                 return { ...p, totalRevenue: revenue, totalExpense: expense };
             });
 
-            setProjects(projectsWithStats);
-            // setUsers removed
+            setAllProjects(projectsWithStats);
         } catch (error) {
             console.error(error);
         } finally {
@@ -80,6 +103,13 @@ export default function ProjectsPage() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        
+        // Chỉ ADMIN mới được tạo dự án mới
+        if (userRole !== "ADMIN") {
+            alert("Bạn không có quyền tạo dự án mới");
+            return;
+        }
+        
         try {
             await createProject({
                 name,
@@ -97,7 +127,6 @@ export default function ProjectsPage() {
             setDesc("");
             setBudget("");
             setCurrency("USD");
-            // setSelectedMembers removed
             fetchData();
         } catch (error) {
             console.error(error);
@@ -108,15 +137,63 @@ export default function ProjectsPage() {
 
     const handleDelete = async (id: string, e: React.MouseEvent) => {
         e.stopPropagation();
+        
+        // Chỉ ADMIN hoặc OWNER của dự án mới được xóa
+        if (userRole !== "ADMIN") {
+            const project = projects.find(p => p.id === id);
+            const userId = currentUser?.uid || currentUser?.id;
+            if (!project || !hasProjectPermission(userId, project, "edit_project", currentUser)) {
+                alert("Bạn không có quyền xóa dự án này");
+                return;
+            }
+        }
+        
         if (!confirm("Bạn có chắc chắn muốn xóa dự án này?")) return;
         try {
             await deleteProject(id);
-            setProjects(prev => prev.filter(p => p.id !== id));
+            setAllProjects(prev => prev.filter(p => p.id !== id));
         } catch (error) {
             console.error("Delete failed", error);
             alert("Xóa thất bại");
         }
     };
+
+    // Check if user can create projects
+    const canCreateProject = userRole === "ADMIN";
+
+    // Check if user has any accessible projects
+    const hasAccessibleProjects = projects.length > 0;
+
+    if (loading) {
+        return (
+            <div className="space-y-8">
+                <div className="glass-card h-64 animate-pulse rounded-xl"></div>
+            </div>
+        );
+    }
+
+    // If user has no accessible projects, show message
+    if (!hasAccessibleProjects && !loading) {
+        return (
+            <div className="space-y-8">
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h1 className="text-3xl font-bold text-white">Dự án</h1>
+                        <p className="text-[var(--muted)]">Quản lý dự án và P&L</p>
+                    </div>
+                </div>
+                
+                <div className="glass-card p-8 rounded-xl text-center">
+                    <ShieldX size={48} className="mx-auto text-[var(--muted)] mb-4" />
+                    <h3 className="text-xl font-semibold text-white mb-2">Không có quyền truy cập</h3>
+                    <p className="text-[var(--muted)]">
+                        Bạn chưa được phân quyền vào bất kỳ dự án nào. 
+                        Vui lòng liên hệ quản trị viên để được cấp quyền.
+                    </p>
+                </div>
+            </div>
+        );
+    }
 
 
 
@@ -126,18 +203,29 @@ export default function ProjectsPage() {
         <div className="space-y-8">
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-3xl font-bold text-white">Projects</h1>
-                    <p className="text-[var(--muted)]">Manage active projects and P&L</p>
+                    <h1 className="text-3xl font-bold text-white">Dự án</h1>
+                    <p className="text-[var(--muted)]">Quản lý dự án và P&L</p>
                 </div>
                 <div className="flex gap-4">
-                    <button
-                        onClick={() => setIsModalOpen(true)}
-                        className="glass-button px-6 py-3 rounded-xl font-medium"
-                    >
-                        + New Project
-                    </button>
+                    {canCreateProject && (
+                        <button
+                            onClick={() => setIsModalOpen(true)}
+                            className="glass-button px-6 py-3 rounded-xl font-medium"
+                        >
+                            + Tạo dự án mới
+                        </button>
+                    )}
                 </div>
             </div>
+
+            {/* Show access message if user has limited access */}
+            {userRole !== "ADMIN" && (
+                <div className="glass-card p-4 rounded-xl bg-blue-500/10 border border-blue-500/20">
+                    <p className="text-sm text-blue-400">
+                        📋 Bạn chỉ có thể xem các dự án mà bạn được phân quyền tham gia ({projects.length} dự án)
+                    </p>
+                </div>
+            )}
 
             {/* Filters */}
             <div className="glass-card p-4 rounded-xl flex flex-wrap items-center gap-4">
@@ -222,12 +310,15 @@ export default function ProjectsPage() {
                                     ${(project.totalRevenue - project.totalExpense).toLocaleString()}
                                 </td>
                                 <td className="p-4 text-right">
-                                    <button
-                                        onClick={(e) => handleDelete(project.id, e)}
-                                        className="text-red-500 hover:bg-red-500/10 p-2 rounded-lg transition-colors"
-                                    >
-                                        <Trash2 size={16} />
-                                    </button>
+                                    {/* Chỉ hiện nút xóa nếu user có quyền */}
+                                    {(userRole === "ADMIN" || hasProjectPermission(currentUser?.uid || currentUser?.id, project, "edit_project", currentUser)) && (
+                                        <button
+                                            onClick={(e) => handleDelete(project.id, e)}
+                                            className="text-red-500 hover:bg-red-500/10 p-2 rounded-lg transition-colors"
+                                        >
+                                            <Trash2 size={16} />
+                                        </button>
+                                    )}
                                 </td>
                             </tr>
                         ))}
@@ -295,22 +386,22 @@ export default function ProjectsPage() {
                     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
                         <div className="glass-card w-full max-w-md p-6 rounded-2xl relative max-h-[90vh] overflow-y-auto">
                             <button onClick={() => setIsModalOpen(false)} className="absolute top-4 right-4 text-[var(--muted)]">✕</button>
-                            <h2 className="text-2xl font-bold mb-6">Create Project</h2>
+                            <h2 className="text-2xl font-bold mb-6">Tạo dự án mới</h2>
                             <form onSubmit={handleSubmit} className="space-y-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-[var(--muted)] mb-1">Project Name</label>
+                                    <label className="block text-sm font-medium text-[var(--muted)] mb-1">Tên dự án</label>
                                     <input value={name} onChange={e => setName(e.target.value)} className="glass-input w-full p-2 rounded-lg" required />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-[var(--muted)] mb-1">Description</label>
+                                    <label className="block text-sm font-medium text-[var(--muted)] mb-1">Mô tả</label>
                                     <textarea value={desc} onChange={e => setDesc(e.target.value)} className="glass-input w-full p-2 rounded-lg" rows={3} />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-[var(--muted)] mb-1">Status</label>
+                                    <label className="block text-sm font-medium text-[var(--muted)] mb-1">Trạng thái</label>
                                     <select value={status} onChange={e => setStatus(e.target.value as any)} className="glass-input w-full p-2 rounded-lg">
-                                        <option value="ACTIVE">Active</option>
-                                        <option value="PAUSED">Paused</option>
-                                        <option value="COMPLETED">Completed</option>
+                                        <option value="ACTIVE">Đang hoạt động</option>
+                                        <option value="PAUSED">Tạm dừng</option>
+                                        <option value="COMPLETED">Hoàn thành</option>
                                     </select>
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
@@ -335,7 +426,7 @@ export default function ProjectsPage() {
                                     </div>
                                 </div>
 
-                                <button type="submit" className="glass-button w-full p-3 rounded-xl font-bold mt-4">Create Project</button>
+                                <button type="submit" className="glass-button w-full p-3 rounded-xl font-bold mt-4">Tạo dự án</button>
                             </form>
                         </div>
                     </div>

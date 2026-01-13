@@ -513,12 +513,38 @@ export default function DashboardPage() {
             <div className="space-y-8">
                 <div>
                     <h1 className="text-3xl font-bold text-white">Dashboard</h1>
-                    <p className="text-[var(--muted)]">Chào mừng bạn trở lại.</p>
+                    <p className="text-[var(--muted)]">Tổng quan tài chính</p>
                 </div>
-                <div className="glass-card p-6 rounded-xl">
-                    <h3 className="text-xl font-bold mb-4">Chưa có quyền xem báo cáo</h3>
-                    <p className="text-[var(--muted)]">Bạn cần được cấp quyền "Xem báo cáo" trong ít nhất 1 dự án để xem Dashboard.</p>
-                    <p className="text-sm text-[var(--muted)] mt-2">Liên hệ Admin để được cấp quyền.</p>
+                
+                <div className="glass-card p-8 rounded-xl text-center">
+                    <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-yellow-500/20 flex items-center justify-center">
+                        <svg className="w-8 h-8 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                        </svg>
+                    </div>
+                    <h3 className="text-xl font-semibold text-white mb-2">Chưa có quyền xem Dashboard</h3>
+                    <p className="text-[var(--muted)] mb-4">
+                        Để xem Dashboard, bạn cần được phân quyền <strong className="text-blue-400">"Xem báo cáo"</strong> trong ít nhất một dự án.
+                    </p>
+                    <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4 mb-4">
+                        <p className="text-sm text-blue-400">
+                            💡 <strong>Hướng dẫn:</strong> Liên hệ quản trị viên hoặc chủ dự án để được cấp quyền truy cập.
+                        </p>
+                    </div>
+                    <div className="flex justify-center gap-3">
+                        <Link 
+                            href="/finance/projects"
+                            className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
+                        >
+                            Xem dự án của tôi
+                        </Link>
+                        <Link 
+                            href="/finance/profile"
+                            className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors"
+                        >
+                            Tài khoản của tôi
+                        </Link>
+                    </div>
                 </div>
             </div>
         );
