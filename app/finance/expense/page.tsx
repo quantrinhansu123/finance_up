@@ -87,13 +87,34 @@ export default function ExpensePage() {
         return hasProjectPermission(userId, selectedProject, "create_expense", currentUser);
     }, [selectedProject, currentUser]);
 
+    // Lấy danh mục chi con từ dự án đã chọn
+    const expenseSubCategories = useMemo(() => {
+        if (!selectedProject?.expenseSubCategories || selectedProject.expenseSubCategories.length === 0) {
+            return [];
+        }
+        return selectedProject.expenseSubCategories.filter(cat => cat.isActive);
+    }, [selectedProject]);
+
+    // Fallback danh mục nếu chưa có sub-categories
+    const expenseCategories = useMemo(() => {
+        if (expenseSubCategories.length === 0) {
+            return EXPENSE_CATEGORIES;
+        }
+        return expenseSubCategories.map(cat => cat.name);
+    }, [expenseSubCategories]);
+
+    // Lấy thông tin danh mục cha từ danh mục con đã chọn
+    const selectedSubCategory = useMemo(() => {
+        return expenseSubCategories.find(cat => cat.name === category);
+    }, [expenseSubCategories, category]);
+
     const allowedCategories = useMemo(() => {
-        const roleCategories = getCategoriesForRole(userRole, EXPENSE_CATEGORIES);
+        const roleCategories = getCategoriesForRole(userRole, expenseCategories);
         if (selectedAccount?.allowedCategories && selectedAccount.allowedCategories.length > 0) {
             return roleCategories.filter(cat => selectedAccount.allowedCategories!.includes(cat));
         }
         return roleCategories;
-    }, [userRole, selectedAccount]);
+    }, [userRole, selectedAccount, expenseCategories]);
 
     const fetchData = async () => {
         setLoading(true);
@@ -139,8 +160,10 @@ export default function ExpensePage() {
             if (!selectedAccount.allowedCategories.includes(category)) {
                 setCategory(selectedAccount.allowedCategories[0]);
             }
+        } else if (allowedCategories.length > 0 && !allowedCategories.includes(category)) {
+            setCategory(allowedCategories[0]);
         }
-    }, [selectedAccount]);
+    }, [selectedAccount, allowedCategories, category]);
 
     const requiresApproval = () => {
         const numAmount = parseFloat(amount) || 0;
@@ -187,8 +210,16 @@ export default function ExpensePage() {
                 }
             }
 
+            // Lấy thông tin danh mục cha từ sub-category
+            const parentCategory = selectedSubCategory?.parentCategoryName || category;
+            const parentCategoryId = selectedSubCategory?.parentCategoryId || "";
+
             await createTransaction({
-                type: "OUT", amount: numAmount, currency, category, fundId: fundId || undefined,
+                type: "OUT", amount: numAmount, currency, 
+                category, // Danh mục con
+                parentCategory, // Danh mục cha (để thống kê)
+                parentCategoryId,
+                fundId: fundId || undefined,
                 accountId, projectId: projectId || undefined, description, date: new Date().toISOString(),
                 status, warning: needsApproval, createdBy: currentUser?.name || currentUser?.displayName || "Unknown",
                 userId: currentUser?.id || currentUser?.uid || "unknown", images: imageUrls,
@@ -391,6 +422,11 @@ export default function ExpensePage() {
                                 >
                                     {allowedCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                                 </select>
+                                {allowedCategories.length === 0 && (
+                                    <p className="text-xs text-yellow-400 mt-1">
+                                        Dự án chưa có danh mục chi. Liên hệ admin để thêm danh mục.
+                                    </p>
+                                )}
                             </div>
                         </div>
 

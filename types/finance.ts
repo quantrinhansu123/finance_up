@@ -43,7 +43,9 @@ export interface Transaction {
     amount: number;
     currency: Currency;
     type: TransactionType;
-    category: string; // "Tax", "Logistics", "SIM", "Office", "Ads", "Salary", etc.
+    category: string; // Danh mục con (sub-category name)
+    parentCategory?: string; // NEW: Danh mục cha (master category name)
+    parentCategoryId?: string; // NEW: ID danh mục cha
     description?: string;
     date: string; // ISO Date
     status: TransactionStatus;
@@ -118,6 +120,31 @@ export const PROJECT_ROLE_PERMISSIONS: Record<ProjectRole, ProjectPermission[]> 
     ]
 };
 
+// Danh mục LỚN (Parent) - Admin tạo, dùng chung cho tất cả dự án
+export interface MasterCategory {
+    id: string;
+    name: string;
+    type: "INCOME" | "EXPENSE";
+    description?: string;
+    isActive: boolean;
+    createdAt: number;
+    createdBy: string;
+}
+
+// Danh mục CON (Sub-category) - Tạo trong từng dự án, thuộc danh mục lớn
+export interface ProjectSubCategory {
+    id: string;
+    name: string;
+    parentCategoryId: string; // ID của MasterCategory
+    parentCategoryName?: string; // Tên danh mục cha (để hiển thị)
+    type: "INCOME" | "EXPENSE";
+    projectId: string;
+    description?: string;
+    isActive: boolean;
+    createdAt: number;
+    createdBy: string;
+}
+
 export interface Project {
     id: string;
     name: string;
@@ -135,6 +162,10 @@ export interface Project {
     // NEW: Default settings for project
     defaultCurrency?: Currency; // Default currency for transactions
     allowedCategories?: string[]; // Categories allowed for this project
+    
+    // NEW: Dynamic sub-categories (danh mục con của dự án)
+    incomeSubCategories?: ProjectSubCategory[]; // Danh mục thu con
+    expenseSubCategories?: ProjectSubCategory[]; // Danh mục chi con
     
     createdAt: number;
     createdBy?: string; // Owner user ID

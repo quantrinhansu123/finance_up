@@ -284,7 +284,8 @@ export default function DashboardPage() {
                 ? convertCurrency(tx.amount, tx.currency, "USD", exchangeRates)
                 : tx.amount; // Keep original if filtering by currency
             const dateKey = d.toISOString().split('T')[0];
-            const cat = tx.category || "Khác";
+            // Sử dụng parentCategory để nhóm thống kê, fallback về category nếu không có
+            const cat = tx.parentCategory || tx.category || "Khác";
 
             if (tx.status === "PENDING") {
                 pending++;

@@ -189,6 +189,7 @@ export default function FinanceLayout({
                 ...(userRole === "ADMIN" ? [
                     { name: "Tài khoản", href: "/finance/accounts", icon: <CreditCard size={18} /> },
                     { name: "Quỹ/Nhóm", href: "/finance/funds", icon: <PiggyBank size={18} /> },
+                    { name: "Danh mục", href: "/finance/categories", icon: <ScrollText size={18} /> },
                     { name: "Doanh thu", href: "/finance/revenue", icon: <TrendingUp size={18} /> },
                     { name: "Chi phí cố định", href: "/finance/fixed-costs", icon: <Pin size={18} /> },
                 ] : [])

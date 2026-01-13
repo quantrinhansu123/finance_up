@@ -13,7 +13,7 @@ import { useRouter } from "next/navigation";
 import {
     BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend
 } from "recharts";
-import { Users, Plus, Landmark, Shield, ChevronDown, Check, X } from "lucide-react";
+import { Users, Plus, Landmark, Shield, ChevronDown, Check, X, LayoutGrid, Tag } from "lucide-react";
 import { 
     PROJECT_ROLE_LABELS, 
     PROJECT_ROLE_COLORS, 
@@ -26,13 +26,19 @@ import {
     hasProjectPermission,
     Role
 } from "@/lib/permissions";
+import ProjectSubCategoriesTab from "@/components/finance/ProjectSubCategoriesTab";
 
 const COLORS = ["#4ade80", "#f87171", "#60a5fa", "#fbbf24", "#a78bfa"];
+
+type TabType = "overview" | "categories";
 
 export default function ProjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
     const resolvedParams = use(params);
     const projectId = resolvedParams.id;
     const router = useRouter();
+
+    // Tab state
+    const [activeTab, setActiveTab] = useState<TabType>("overview");
 
     const [project, setProject] = useState<Project | null>(null);
     const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -136,8 +142,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                 let inTotal = 0;
                 let outTotal = 0;
                 const monthly: Record<string, { in: number, out: number }> = {};
-                const expenseCategories: Record<string, number> = {}; // Chi theo danh mục
-                const incomeCategories: Record<string, number> = {}; // Thu theo nguồn
+                const expenseCategories: Record<string, number> = {}; // Chi theo danh mục cha
+                const incomeCategories: Record<string, number> = {}; // Thu theo danh mục cha
                 const memberTxStats: Record<string, { in: number, out: number, count: number }> = {};
 
                 projectTxs.forEach(tx => {
@@ -150,22 +156,22 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                     if (!memberTxStats[creator]) memberTxStats[creator] = { in: 0, out: 0, count: 0 };
                     memberTxStats[creator].count++;
 
-                    const cat = tx.category || tx.source || "Khác";
+                    // Sử dụng parentCategory để nhóm thống kê, fallback về category
+                    const cat = tx.parentCategory || tx.category || tx.source || "Khác";
 
                     if (tx.type === "IN") {
                         inTotal += amountUSD;
                         if (!monthly[monthKey]) monthly[monthKey] = { in: 0, out: 0 };
                         monthly[monthKey].in += amountUSD;
                         memberTxStats[creator].in += amountUSD;
-                        // Thu theo nguồn
-                        const source = tx.source || tx.category || "Khác";
-                        incomeCategories[source] = (incomeCategories[source] || 0) + amountUSD;
+                        // Thu theo danh mục cha
+                        incomeCategories[cat] = (incomeCategories[cat] || 0) + amountUSD;
                     } else {
                         outTotal += amountUSD;
                         if (!monthly[monthKey]) monthly[monthKey] = { in: 0, out: 0 };
                         monthly[monthKey].out += amountUSD;
                         memberTxStats[creator].out += amountUSD;
-                        // Chi theo danh mục
+                        // Chi theo danh mục cha
                         expenseCategories[cat] = (expenseCategories[cat] || 0) + amountUSD;
                     }
                 });
@@ -184,14 +190,14 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                     .slice(-6);
                 setMonthlyData(mData);
 
-                // Format income data (Thu theo nguồn)
+                // Format income data (Thu theo danh mục cha)
                 const iData = Object.entries(incomeCategories)
                     .map(([name, value]) => ({ name, value }))
                     .sort((a, b) => b.value - a.value)
                     .slice(0, 5);
                 setIncomeData(iData);
 
-                // Format expense data (Chi theo danh mục)
+                // Format expense data (Chi theo danh mục cha)
                 const cData = Object.entries(expenseCategories)
                     .map(([name, value]) => ({ name, value }))
                     .sort((a, b) => b.value - a.value)
@@ -491,6 +497,45 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                 </div>
             </div>
 
+            {/* Tabs */}
+            <div className="flex items-center gap-2 border-b border-white/10 pb-1">
+                <button
+                    onClick={() => setActiveTab("overview")}
+                    className={`flex items-center gap-2 px-4 py-2.5 rounded-t-lg font-medium transition-all ${
+                        activeTab === "overview"
+                            ? "bg-white/10 text-white border-b-2 border-blue-500"
+                            : "text-[var(--muted)] hover:text-white hover:bg-white/5"
+                    }`}
+                >
+                    <LayoutGrid size={18} />
+                    Tổng quan
+                </button>
+                <button
+                    onClick={() => setActiveTab("categories")}
+                    className={`flex items-center gap-2 px-4 py-2.5 rounded-t-lg font-medium transition-all ${
+                        activeTab === "categories"
+                            ? "bg-white/10 text-white border-b-2 border-blue-500"
+                            : "text-[var(--muted)] hover:text-white hover:bg-white/5"
+                    }`}
+                >
+                    <Tag size={18} />
+                    Danh mục
+                    <span className="text-xs bg-white/10 px-1.5 py-0.5 rounded">
+                        {(project.incomeSubCategories?.length || 0) + (project.expenseSubCategories?.length || 0)}
+                    </span>
+                </button>
+            </div>
+
+            {/* Tab Content */}
+            {activeTab === "categories" ? (
+                <ProjectSubCategoriesTab
+                    project={project}
+                    onProjectUpdate={(updatedProject) => setProject(updatedProject)}
+                    canEdit={canEdit || userRole === "ADMIN"}
+                    currentUserId={currentUser?.uid || currentUser?.id || ""}
+                />
+            ) : (
+            <>
             {/* Members Section */}
             <div className="glass-card rounded-xl overflow-hidden p-6">
                 <div className="flex justify-between items-center mb-4">
@@ -798,6 +843,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                     </table>
                 </div>
             </div>
+            </>
+            )}
 
             {/* Member Management Modal with Role Selection */}
             {isMemberModalOpen && (

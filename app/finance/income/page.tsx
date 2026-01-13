@@ -64,6 +64,27 @@ export default function IncomePage() {
         return hasProjectPermission(userId, selectedProject, "create_income", currentUser);
     }, [selectedProject, currentUser]);
 
+    // Lấy danh mục thu con từ dự án đã chọn
+    const incomeSubCategories = useMemo(() => {
+        if (!selectedProject?.incomeSubCategories || selectedProject.incomeSubCategories.length === 0) {
+            return [];
+        }
+        return selectedProject.incomeSubCategories.filter(cat => cat.isActive);
+    }, [selectedProject]);
+
+    // Fallback danh mục nếu chưa có sub-categories
+    const incomeCategories = useMemo(() => {
+        if (incomeSubCategories.length === 0) {
+            return INCOME_SOURCES;
+        }
+        return incomeSubCategories.map(cat => cat.name);
+    }, [incomeSubCategories]);
+
+    // Lấy thông tin danh mục cha từ danh mục con đã chọn
+    const selectedSubCategory = useMemo(() => {
+        return incomeSubCategories.find(cat => cat.name === source);
+    }, [incomeSubCategories, source]);
+
     const fetchData = async () => {
         setLoading(true);
         try {
@@ -89,6 +110,15 @@ export default function IncomePage() {
     useEffect(() => { if (!loading) fetchTransactions(); }, [filterDate, filterProject]);
     useEffect(() => { if (projectId && selectedAccount?.projectId && selectedAccount.projectId !== projectId) setAccountId(""); }, [projectId]);
 
+    useEffect(() => {
+        // Reset source khi chọn dự án mới
+        if (projectId && incomeCategories.length > 0) {
+            if (!incomeCategories.includes(source)) {
+                setSource(incomeCategories[0]);
+            }
+        }
+    }, [projectId, incomeCategories, source]);
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault(); 
         
@@ -104,8 +134,17 @@ export default function IncomePage() {
             const currency = selectedAccount?.currency || "USD";
             const imageUrls: string[] = [];
             if (files.length > 0) { for (const file of files.slice(0, 2)) { imageUrls.push(await uploadImage(file)); } }
+            
+            // Lấy thông tin danh mục cha từ sub-category
+            const parentCategory = selectedSubCategory?.parentCategoryName || source;
+            const parentCategoryId = selectedSubCategory?.parentCategoryId || "";
+            
             await createTransaction({
-                type: "IN", amount: numAmount, currency, category: source, source, accountId,
+                type: "IN", amount: numAmount, currency, 
+                category: source, // Danh mục con
+                parentCategory, // Danh mục cha (để thống kê)
+                parentCategoryId,
+                source, accountId,
                 projectId: projectId || undefined, description, date: new Date().toISOString(),
                 status: "APPROVED", createdBy: currentUser?.name || currentUser?.displayName || "Unknown",
                 userId: currentUser?.id || currentUser?.uid || "unknown", images: imageUrls,
@@ -193,8 +232,13 @@ export default function IncomePage() {
                             <div>
                                 <label className="block text-xs text-white/50 mb-1.5">Nguồn tiền</label>
                                 <select value={source} onChange={e => setSource(e.target.value)} className="w-full p-3 bg-black/30 border border-white/10 rounded-xl text-white focus:border-green-500/50 focus:outline-none">
-                                    {INCOME_SOURCES.map(s => <option key={s} value={s}>{s}</option>)}
+                                    {incomeCategories.map(s => <option key={s} value={s}>{s}</option>)}
                                 </select>
+                                {incomeCategories.length === 0 && (
+                                    <p className="text-xs text-yellow-400 mt-1">
+                                        Dự án chưa có danh mục thu. Liên hệ admin để thêm danh mục.
+                                    </p>
+                                )}
                             </div>
                         </div>
                         <div>

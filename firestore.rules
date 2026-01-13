@@ -15,7 +15,7 @@ service cloud.firestore {
     match /attendanceRecords/{recordId} { allow read, write: if true; }
     match /monthlySalaries/{salaryId} { allow read, write: if true; }
     
-    // --- New Finance Collections ---
+    // --- Finance Collections ---
     match /finance_accounts/{accountId} { allow read, write: if true; }
     match /finance_transactions/{txId} { allow read, write: if true; }
     match /finance_fixed_costs/{costId} { allow read, write: if true; }
@@ -23,5 +23,8 @@ service cloud.firestore {
     match /finance_funds/{fundId} { allow read, write: if true; }
     match /finance_revenues/{revenueId} { allow read, write: if true; }
     match /finance_logs/{logId} { allow read, write: if true; }
+    
+    // --- Master Categories (Danh mục gốc - Admin quản lý) ---
+    match /finance_master_categories/{categoryId} { allow read, write: if true; }
   }
 }
