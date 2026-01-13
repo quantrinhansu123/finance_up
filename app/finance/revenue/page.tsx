@@ -10,7 +10,7 @@ export default function RevenuePage() {
     const [revenues, setRevenues] = useState<MonthlyRevenue[]>([]);
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [userRole, setUserRole] = useState<Role>("STAFF");
+    const [userRole, setUserRole] = useState<Role>("USER");
 
     // Form
     const [month, setMonth] = useState(new Date().getMonth() + 1);

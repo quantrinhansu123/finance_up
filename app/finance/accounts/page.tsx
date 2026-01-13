@@ -19,7 +19,7 @@ export default function AccountsPage() {
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [editingAccount, setEditingAccount] = useState<Account | null>(null);
     const [loading, setLoading] = useState(true);
-    const [userRole, setUserRole] = useState<Role>("STAFF");
+    const [userRole, setUserRole] = useState<Role>("USER");
     const [rates, setRates] = useState<any>({});
     const [searchTerm, setSearchTerm] = useState("");
     const [filterCurrency, setFilterCurrency] = useState("");

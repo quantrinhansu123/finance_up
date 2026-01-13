@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import {
-    BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, AreaChart, Area
+    BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, AreaChart, Area, CartesianGrid
 } from "recharts";
 import { getTransactions, getAccounts, getRevenues, getFixedCosts, getProjects } from "@/lib/finance";
 import { Transaction, Account, Currency, MonthlyRevenue, Fund, FixedCost, Project } from "@/types/finance";
@@ -11,6 +11,7 @@ import { getExchangeRates, convertCurrency } from "@/lib/currency";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import Link from "next/link";
+import { BarChart3 } from "lucide-react";
 
 const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884d8", "#82ca9d"];
 const FUND_COLORS: Record<string, string> = {
@@ -48,6 +49,29 @@ export default function DashboardPage() {
     const [revenues, setRevenues] = useState<MonthlyRevenue[]>([]);
     const [funds, setFunds] = useState<Fund[]>([]);
     const [accounts, setAccounts] = useState<Account[]>([]);
+
+    // Helper functions for date filtering
+    const isToday = (date: Date) => {
+        const today = new Date();
+        return date.toDateString() === today.toDateString();
+    };
+
+    const isThisMonth = (date: Date) => {
+        const now = new Date();
+        return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+    };
+
+    const isThisQuarter = (date: Date) => {
+        const now = new Date();
+        const currentQuarter = Math.floor(now.getMonth() / 3);
+        const dateQuarter = Math.floor(date.getMonth() / 3);
+        return dateQuarter === currentQuarter && date.getFullYear() === now.getFullYear();
+    };
+
+    const isThisYear = (date: Date) => {
+        const now = new Date();
+        return date.getFullYear() === now.getFullYear();
+    };
     const [fixedCosts, setFixedCosts] = useState<FixedCost[]>([]);
     const [projects, setProjects] = useState<Project[]>([]);
     const [userRole, setUserRole] = useState<Role>("USER");
@@ -909,6 +933,152 @@ export default function DashboardPage() {
                         </div>
                     )}
                 </div>
+            </div>
+
+            {/* Project Expense Comparison by Category */}
+            <div className="glass-card p-6 rounded-xl border border-white/5">
+                <h3 className="text-lg font-bold mb-6">📊 So sánh Chi phí theo Danh mục giữa các Dự án ({getPeriodLabel()})</h3>
+                
+                {(() => {
+                    // Prepare data for project expense comparison
+                    const projectExpenseByCategory: Record<string, Record<string, number>> = {};
+                    const allCategories = new Set<string>();
+                    
+                    // Group expenses by project and parent category
+                    transactions
+                        .filter(tx => tx.type === "OUT")
+                        .filter(tx => !filterProject || tx.projectId === filterProject)
+                        .filter(tx => {
+                            if (viewPeriod === "day") return isToday(new Date(tx.date));
+                            if (viewPeriod === "month") return isThisMonth(new Date(tx.date));
+                            if (viewPeriod === "quarter") return isThisQuarter(new Date(tx.date));
+                            if (viewPeriod === "year") return isThisYear(new Date(tx.date));
+                            return true;
+                        })
+                        .forEach(tx => {
+                            const project = projects.find(p => p.id === tx.projectId);
+                            if (!project) return;
+                            
+                            const category = tx.parentCategory || tx.category || "Khác";
+                            allCategories.add(category);
+                            
+                            if (!projectExpenseByCategory[project.name]) {
+                                projectExpenseByCategory[project.name] = {};
+                            }
+                            
+                            const convertedAmount = filterCurrency === "ALL" || filterCurrency === tx.currency 
+                                ? tx.amount 
+                                : convertCurrency(tx.amount, tx.currency, filterCurrency, rates);
+                            
+                            projectExpenseByCategory[project.name][category] = 
+                                (projectExpenseByCategory[project.name][category] || 0) + convertedAmount;
+                        });
+                    
+                    // Prepare chart data
+                    const chartData = Array.from(allCategories).map(category => {
+                        const dataPoint: any = { category };
+                        Object.keys(projectExpenseByCategory).forEach(projectName => {
+                            dataPoint[projectName] = projectExpenseByCategory[projectName][category] || 0;
+                        });
+                        return dataPoint;
+                    }).filter(item => {
+                        // Only show categories that have expenses
+                        return Object.keys(projectExpenseByCategory).some(project => item[project] > 0);
+                    }).sort((a, b) => {
+                        // Sort by total expense desc
+                        const totalA = Object.keys(projectExpenseByCategory).reduce((sum, project) => sum + (a[project] || 0), 0);
+                        const totalB = Object.keys(projectExpenseByCategory).reduce((sum, project) => sum + (b[project] || 0), 0);
+                        return totalB - totalA;
+                    });
+                    
+                    const projectNames = Object.keys(projectExpenseByCategory);
+                    const projectColors = ["#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#f97316", "#84cc16", "#ec4899"];
+                    
+                    return chartData.length > 0 ? (
+                        <div className="space-y-6">
+                            {/* Bar Chart */}
+                            <div className="h-80">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={chartData} layout="vertical">
+                                        <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                                        <XAxis type="number" stroke="#9CA3AF" />
+                                        <YAxis 
+                                            type="category" 
+                                            dataKey="category" 
+                                            stroke="#9CA3AF" 
+                                            width={120}
+                                            tick={{ fontSize: 12 }}
+                                        />
+                                        <Tooltip
+                                            contentStyle={{ 
+                                                backgroundColor: '#1f2937', 
+                                                border: '1px solid #374151', 
+                                                borderRadius: '8px',
+                                                color: '#fff'
+                                            }}
+                                            formatter={(value: number) => [
+                                                filterCurrency === "ALL" ? formatCurrency(value) : formatCurrency(value, filterCurrency),
+                                                "Chi phí"
+                                            ]}
+                                        />
+                                        <Legend />
+                                        {projectNames.map((projectName, idx) => (
+                                            <Bar 
+                                                key={projectName}
+                                                dataKey={projectName} 
+                                                fill={projectColors[idx % projectColors.length]}
+                                                radius={[0, 4, 4, 0]}
+                                            />
+                                        ))}
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </div>
+                            
+                            {/* Summary Table */}
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm">
+                                    <thead>
+                                        <tr className="border-b border-white/10">
+                                            <th className="text-left p-3 text-[var(--muted)] font-medium">Danh mục</th>
+                                            {projectNames.map(projectName => (
+                                                <th key={projectName} className="text-right p-3 text-[var(--muted)] font-medium">
+                                                    {projectName}
+                                                </th>
+                                            ))}
+                                            <th className="text-right p-3 text-[var(--muted)] font-medium">Tổng</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {chartData.map((item, idx) => {
+                                            const total = projectNames.reduce((sum, project) => sum + (item[project] || 0), 0);
+                                            return (
+                                                <tr key={item.category} className="border-b border-white/5 hover:bg-white/5">
+                                                    <td className="p-3 font-medium text-white">{item.category}</td>
+                                                    {projectNames.map(projectName => (
+                                                        <td key={projectName} className="p-3 text-right text-red-400">
+                                                            {item[projectName] > 0 
+                                                                ? (filterCurrency === "ALL" ? formatCurrency(item[projectName]) : formatCurrency(item[projectName], filterCurrency))
+                                                                : "-"
+                                                            }
+                                                        </td>
+                                                    ))}
+                                                    <td className="p-3 text-right font-bold text-red-400">
+                                                        {filterCurrency === "ALL" ? formatCurrency(total) : formatCurrency(total, filterCurrency)}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="text-center py-8 text-[var(--muted)]">
+                            <BarChart3 size={40} className="mx-auto mb-3 opacity-50" />
+                            <p>Chưa có dữ liệu chi phí để so sánh</p>
+                        </div>
+                    );
+                })()}
             </div>
 
             {/* Project Summary with Chart */}
