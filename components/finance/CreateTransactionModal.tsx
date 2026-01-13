@@ -313,7 +313,7 @@ export default function CreateTransactionModal({ isOpen, onClose, onSuccess, cur
                             </div>
                         )}
 
-                        {currentUser?.role === "STAFF" && accessibleProjects.length === 0 && (
+                        {currentUser?.role === "USER" && accessibleProjects.length === 0 && (
                             <p className="text-xs text-yellow-400 mt-2">⚠️ Bạn chưa được gán vào dự án nào. Liên hệ Admin.</p>
                         )}
                     </div>
