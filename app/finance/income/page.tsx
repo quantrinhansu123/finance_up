@@ -57,13 +57,18 @@ export default function IncomePage() {
             filtered = filtered.filter(acc => acc.projectId === projectId);
         }
         
-        // Then filter by assignedUserIds - only show accounts user is assigned to
+        // Admin can use all accounts in the project, no need to check assignedUserIds
+        if (userRole === "ADMIN") {
+            return filtered;
+        }
+        
+        // For non-admin: filter by assignedUserIds - only show accounts user is assigned to
         if (userId) {
             filtered = filtered.filter(acc => !acc.assignedUserIds || acc.assignedUserIds.length === 0 || acc.assignedUserIds.includes(userId));
         }
         
         return filtered;
-    }, [currentUser, accounts, accessibleProjects, projectId]);
+    }, [currentUser, accounts, accessibleProjects, projectId, userRole]);
     const selectedAccount = useMemo(() => accounts.find(a => a.id === accountId), [accounts, accountId]);
 
     // Kiểm tra quyền tạo thu cho dự án đã chọn
