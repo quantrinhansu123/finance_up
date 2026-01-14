@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { getProjects, createProject, getTransactions, deleteProject } from "@/lib/finance";
+import { getProjects, createProject, updateProject, getTransactions, deleteProject } from "@/lib/finance";
 import { Project } from "@/types/finance";
 import { useRouter } from "next/navigation";
 import { getUserRole, getAccessibleProjects, hasProjectPermission, Role } from "@/lib/permissions";
-import { Users, Trash2, Search, ChevronLeft, ChevronRight, ShieldX } from "lucide-react";
+import { Users, Trash2, Search, ChevronLeft, ChevronRight, ShieldX, Plus, Eye, Save, X, Edit2 } from "lucide-react";
 import CurrencyInput from "@/components/finance/CurrencyInput";
 
 const ITEMS_PER_PAGE = 10;
@@ -17,6 +17,7 @@ export default function ProjectsPage() {
     const [userRole, setUserRole] = useState<Role>("USER");
     const router = useRouter();
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [selectedProject, setSelectedProject] = useState<Project | null>(null);
     const [loading, setLoading] = useState(true);
 
     // Filters & Pagination
@@ -98,6 +99,27 @@ export default function ProjectsPage() {
         }
     };
 
+    const openCreateModal = () => {
+        setSelectedProject(null);
+        setName("");
+        setDesc("");
+        setStatus("ACTIVE");
+        setBudget("");
+        setCurrency("USD");
+        setIsModalOpen(true);
+    };
+
+    const openEditModal = (project: Project, e: React.MouseEvent) => {
+        e.stopPropagation();
+        setSelectedProject(project);
+        setName(project.name);
+        setDesc(project.description || "");
+        setStatus(project.status);
+        setBudget(project.budget?.toString() || "");
+        setCurrency(project.currency as any || "USD");
+        setIsModalOpen(true);
+    };
+
     useEffect(() => {
         fetchData();
     }, []);
@@ -105,29 +127,36 @@ export default function ProjectsPage() {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        // Chỉ ADMIN mới được tạo dự án mới
         if (userRole !== "ADMIN") {
-            alert("Bạn không có quyền tạo dự án mới");
+            alert("Bạn không có quyền thực hiện thao tác này");
             return;
         }
 
         try {
-            await createProject({
-                name,
-                description: desc,
-                status,
-                budget: budget ? parseFloat(budget) : 0,
-                currency,
-                totalRevenue: 0,
-                totalExpense: 0,
-                memberIds: [],
-                createdAt: Date.now()
-            });
+            if (selectedProject) {
+                // UPDATE
+                await updateProject(selectedProject.id, {
+                    name,
+                    description: desc,
+                    status,
+                    budget: budget ? parseFloat(budget) : 0,
+                    currency,
+                });
+            } else {
+                // CREATE
+                await createProject({
+                    name,
+                    description: desc,
+                    status,
+                    budget: budget ? parseFloat(budget) : 0,
+                    currency,
+                    totalRevenue: 0,
+                    totalExpense: 0,
+                    memberIds: [],
+                    createdAt: Date.now()
+                });
+            }
             setIsModalOpen(false);
-            setName("");
-            setDesc("");
-            setBudget("");
-            setCurrency("USD");
             fetchData();
         } catch (error) {
             console.error(error);
@@ -206,10 +235,10 @@ export default function ProjectsPage() {
                 <div className="flex gap-4">
                     {canCreateProject && (
                         <button
-                            onClick={() => setIsModalOpen(true)}
-                            className="glass-button px-6 py-3 rounded-xl font-medium"
+                            onClick={openCreateModal}
+                            className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-xs font-medium transition-colors border-none"
                         >
-                            + Tạo dự án mới
+                            <Plus size={14} /> Tạo dự án mới
                         </button>
                     )}
                 </div>
@@ -262,7 +291,7 @@ export default function ProjectsPage() {
                             <th className="p-4 border-b border-white/10 text-right">Expense</th>
                             <th className="p-4 border-b border-white/10 text-center">Status</th>
                             <th className="p-4 border-b border-white/10 text-right">Profit</th>
-                            <th className="p-4 border-b border-white/10 text-right w-16">Action</th>
+                            <th className="p-4 border-b border-white/10 text-center w-24">Actions</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-white/5">
@@ -307,16 +336,34 @@ export default function ProjectsPage() {
                                 <td className="p-4 text-right font-bold text-white">
                                     ${(project.totalRevenue - project.totalExpense).toLocaleString()}
                                 </td>
-                                <td className="p-4 text-right">
-                                    {/* Chỉ ADMIN mới thấy nút xóa */}
-                                    {userRole === "ADMIN" && (
+                                <td className="p-4">
+                                    <div className="flex items-center gap-1 justify-center">
                                         <button
-                                            onClick={(e) => handleDelete(project.id, e)}
-                                            className="text-red-500 hover:bg-red-500/10 p-2 rounded-lg transition-colors"
+                                            onClick={(e) => { e.stopPropagation(); router.push(`/finance/projects/${project.id}`); }}
+                                            className="p-1.5 rounded hover:bg-white/10 text-[var(--muted)] hover:text-blue-400 transition-colors"
+                                            title="Xem chi tiết"
                                         >
-                                            <Trash2 size={16} />
+                                            <Eye size={14} />
                                         </button>
-                                    )}
+                                        {userRole === "ADMIN" && (
+                                            <>
+                                                <button
+                                                    onClick={(e) => openEditModal(project, e)}
+                                                    className="p-1.5 rounded hover:bg-white/10 text-[var(--muted)] hover:text-yellow-400 transition-colors"
+                                                    title="Sửa"
+                                                >
+                                                    <Edit2 size={14} />
+                                                </button>
+                                                <button
+                                                    onClick={(e) => handleDelete(project.id, e)}
+                                                    className="p-1.5 rounded hover:bg-red-500/20 text-[var(--muted)] hover:text-red-400 transition-colors"
+                                                    title="Xóa"
+                                                >
+                                                    <Trash2 size={14} />
+                                                </button>
+                                            </>
+                                        )}
+                                    </div>
                                 </td>
                             </tr>
                         ))}
@@ -358,8 +405,8 @@ export default function ProjectsPage() {
                                         key={pageNum}
                                         onClick={() => setCurrentPage(pageNum)}
                                         className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${currentPage === pageNum
-                                                ? "bg-blue-500 text-white"
-                                                : "hover:bg-white/5 text-[var(--muted)]"
+                                            ? "bg-blue-500 text-white"
+                                            : "hover:bg-white/5 text-[var(--muted)]"
                                             }`}
                                     >
                                         {pageNum}
@@ -380,10 +427,15 @@ export default function ProjectsPage() {
 
             {
                 isModalOpen && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
                         <div className="glass-card w-full max-w-md p-6 rounded-2xl relative max-h-[90vh] overflow-y-auto">
-                            <button onClick={() => setIsModalOpen(false)} className="absolute top-4 right-4 text-[var(--muted)]">✕</button>
-                            <h2 className="text-2xl font-bold mb-6">Tạo dự án mới</h2>
+                            <button onClick={() => setIsModalOpen(false)} className="absolute top-4 right-4 text-[var(--muted)] hover:text-white transition-colors">
+                                <X size={20} />
+                            </button>
+                            <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
+                                {selectedProject ? <Edit2 size={24} className="text-yellow-400" /> : <Plus size={24} className="text-blue-400" />}
+                                {selectedProject ? "Sửa dự án" : "Tạo dự án mới"}
+                            </h2>
                             <form onSubmit={handleSubmit} className="space-y-4">
                                 <div>
                                     <label className="block text-sm font-medium text-[var(--muted)] mb-1">Tên dự án</label>
@@ -421,7 +473,10 @@ export default function ProjectsPage() {
                                     </div>
                                 </div>
 
-                                <button type="submit" className="glass-button w-full p-3 rounded-xl font-bold mt-4">Tạo dự án</button>
+                                <button type="submit" className="flex items-center justify-center gap-2 w-full p-3 rounded-xl font-bold bg-blue-600 hover:bg-blue-500 text-white mt-4 border-none transition-all">
+                                    <Save size={18} />
+                                    {selectedProject ? "Cập nhật dự án" : "Tạo dự án ngay"}
+                                </button>
                             </form>
                         </div>
                     </div>

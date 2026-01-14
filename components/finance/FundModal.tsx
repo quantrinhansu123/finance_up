@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Fund } from "@/types/finance";
 import { createFund, updateFund, deleteFund } from "@/lib/finance";
 import CurrencyInput from "./CurrencyInput";
+import { Save, Trash2, Plus, Edit2, X } from "lucide-react";
 
 interface FundModalProps {
     isOpen: boolean;
@@ -87,12 +88,15 @@ export default function FundModal({ isOpen, onClose, onSuccess, fund }: FundModa
             <div className="glass-card w-full max-w-md p-6 rounded-2xl relative">
                 <button
                     onClick={onClose}
-                    className="absolute top-4 right-4 text-[var(--muted)] hover:text-white"
+                    className="absolute top-4 right-4 text-[var(--muted)] hover:text-white transition-colors"
                 >
-                    ✕
+                    <X size={20} />
                 </button>
 
-                <h2 className="text-2xl font-bold mb-6">{fund ? "Chỉnh sửa Quỹ" : "Tạo Quỹ Mới"}</h2>
+                <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
+                    {fund ? <Edit2 size={24} className="text-yellow-400" /> : <Plus size={24} className="text-blue-400" />}
+                    {fund ? "Chỉnh sửa Quỹ" : "Tạo Quỹ Mới"}
+                </h2>
 
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
@@ -140,17 +144,23 @@ export default function FundModal({ isOpen, onClose, onSuccess, fund }: FundModa
                                 type="button"
                                 onClick={handleDelete}
                                 disabled={loading}
-                                className="glass-button px-4 rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500/20"
+                                className="glass-button px-4 rounded-xl bg-red-500/10 text-red-500 hover:bg-red-500/20 flex items-center justify-center gap-2 transition-colors"
                             >
+                                <Trash2 size={18} />
                                 Xóa
                             </button>
                         )}
                         <button
                             type="submit"
                             disabled={loading}
-                            className="glass-button flex-1 p-3 rounded-xl font-bold bg-blue-600 hover:bg-blue-500 text-white"
+                            className="glass-button flex-1 p-3 rounded-xl font-bold bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center gap-2 transition-all"
                         >
-                            {loading ? "Đang lưu..." : (fund ? "Lưu thay đổi" : "Tạo Quỹ")}
+                            {loading ? "Đang xử lý..." : (
+                                <>
+                                    <Save size={18} />
+                                    {fund ? "Lưu thay đổi" : "Tạo Quỹ ngay"}
+                                </>
+                            )}
                         </button>
                     </div>
                 </form>

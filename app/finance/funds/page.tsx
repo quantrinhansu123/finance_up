@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { Fund, Transaction } from "@/types/finance";
-import { getTransactions, getFunds } from "@/lib/finance";
+import { getTransactions, getFunds, deleteFund } from "@/lib/finance";
 import FundModal from "@/components/finance/FundModal";
+import { Plus, Edit2, History, X, Save, Trash2, Calendar } from "lucide-react";
 
 export default function FundsPage() {
     const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
@@ -70,6 +71,18 @@ export default function FundsPage() {
         setDetailFund(fund);
     };
 
+    const handleDelete = async (e: React.MouseEvent, id: string) => {
+        e.stopPropagation();
+        if (!confirm("Bạn có chắc muốn xóa quỹ này? Hành động này không thể hoàn tác.")) return;
+        try {
+            await deleteFund(id);
+            fetchData();
+        } catch (error) {
+            console.error("Delete failed:", error);
+            alert("Xóa thất bại");
+        }
+    };
+
     return (
         <div className="space-y-8">
             <div className="flex items-center justify-between flex-wrap gap-4">
@@ -78,17 +91,20 @@ export default function FundsPage() {
                     <p className="text-[var(--muted)]">Quản lý ngân sách và phân bổ chi phí</p>
                 </div>
                 <div className="flex gap-3">
-                    <input
-                        type="month"
-                        value={selectedMonth}
-                        onChange={e => setSelectedMonth(e.target.value)}
-                        className="glass-input px-4 py-2 rounded-xl"
-                    />
+                    <div className="relative">
+                        <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
+                        <input
+                            type="month"
+                            value={selectedMonth}
+                            onChange={e => setSelectedMonth(e.target.value)}
+                            className="glass-input pl-10 pr-4 py-2 rounded-lg text-xs"
+                        />
+                    </div>
                     <button
                         onClick={handleCreate}
-                        className="glass-button px-6 py-2 rounded-xl font-medium bg-blue-600 hover:bg-blue-500 text-white border-none"
+                        className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-xs font-medium transition-colors border-none"
                     >
-                        + Tạo Quỹ
+                        <Plus size={14} /> Tạo Quỹ
                     </button>
                 </div>
             </div>
@@ -103,7 +119,7 @@ export default function FundsPage() {
                                 <th className="p-4 border-b border-white/10 text-right">Đã chi (Tháng)</th>
                                 <th className="p-4 border-b border-white/10 text-right">% Sử dụng</th>
                                 <th className="p-4 border-b border-white/10">Từ khóa</th>
-                                <th className="p-4 border-b border-white/10 text-center">Hành động</th>
+                                <th className="p-4 border-b border-white/10 text-center w-24">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-white/5">
@@ -171,13 +187,30 @@ export default function FundsPage() {
                                                     )}
                                                 </div>
                                             </td>
-                                            <td className="p-4 text-center">
-                                                <button
-                                                    onClick={(e) => handleEdit(e, fund)}
-                                                    className="text-blue-400 hover:text-blue-300 hover:bg-blue-400/10 p-2 rounded transition-all"
-                                                >
-                                                    Sửa
-                                                </button>
+                                            <td className="p-4">
+                                                <div className="flex items-center gap-1 justify-center">
+                                                    <button
+                                                        onClick={(e) => handleEdit(e, fund)}
+                                                        className="p-1.5 rounded hover:bg-white/10 text-[var(--muted)] hover:text-yellow-400 transition-colors"
+                                                        title="Sửa"
+                                                    >
+                                                        <Edit2 size={14} />
+                                                    </button>
+                                                    <button
+                                                        onClick={(e) => handleDelete(e, fund.id)}
+                                                        className="p-1.5 rounded hover:bg-red-500/20 text-[var(--muted)] hover:text-red-400 transition-colors"
+                                                        title="Xóa"
+                                                    >
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); setDetailFund(fund); }}
+                                                        className="p-1.5 rounded hover:bg-white/10 text-[var(--muted)] hover:text-blue-400 transition-colors"
+                                                        title="Xem lịch sử"
+                                                    >
+                                                        <History size={14} />
+                                                    </button>
+                                                </div>
                                             </td>
                                         </tr>
                                     );
@@ -190,9 +223,11 @@ export default function FundsPage() {
 
             {/* Fund Detail Transaction Modal */}
             {detailFund && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
                     <div className="glass-card w-full max-w-2xl p-6 rounded-2xl relative max-h-[80vh] flex flex-col">
-                        <button onClick={() => setDetailFund(null)} className="absolute top-4 right-4 text-[var(--muted)] hover:text-white">✕</button>
+                        <button onClick={() => setDetailFund(null)} className="absolute top-4 right-4 text-[var(--muted)] hover:text-white transition-colors">
+                            <X size={20} />
+                        </button>
 
                         <div className="mb-6">
                             <h2 className="text-2xl font-bold text-white mb-1">{detailFund.name}</h2>

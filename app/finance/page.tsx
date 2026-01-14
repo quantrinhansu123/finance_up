@@ -99,14 +99,16 @@ export default function DashboardPage() {
 
     // NEW: Balance by currency (không quy đổi)
     const [balanceByCurrency, setBalanceByCurrency] = useState<Record<Currency, number>>({} as any);
+    const [periodInByCurrency, setPeriodInByCurrency] = useState<Record<string, number>>({ VND: 0, USD: 0, KHR: 0, TRY: 0 });
+    const [periodOutByCurrency, setPeriodOutByCurrency] = useState<Record<string, number>>({ VND: 0, USD: 0, KHR: 0, TRY: 0 });
 
     // Fund Expenses
     const [fundExpenses, setFundExpenses] = useState<Record<string, number>>({});
 
     // Category Stats
-    const [categoryTotals, setCategoryTotals] = useState<Record<string, { in: number, out: number }>>({});
+    const [categoryTotals, setCategoryTotals] = useState<Record<string, { in: number, out: number, originalsIn: Record<string, number>, originalsOut: Record<string, number> }>>({});
     const [dailyCategoryStats, setDailyCategoryStats] = useState<any[]>([]);
-    
+
     // Project Stats
     const [projectStats, setProjectStats] = useState<Record<string, { in: number, out: number, budget: number }>>({});
 
@@ -140,11 +142,11 @@ export default function DashboardPage() {
     const accessibleProjects = useMemo(() => {
         if (!currentUser) return [];
         if (userRole === "ADMIN") return projects;
-        
+
         const userId = currentUser?.uid || currentUser?.id;
         if (!userId) return [];
-        
-        return getAccessibleProjects(currentUser, projects).filter(p => 
+
+        return getAccessibleProjects(currentUser, projects).filter(p =>
             hasProjectPermission(userId, p, "view_reports", currentUser)
         );
     }, [currentUser, userRole, projects]);
@@ -153,12 +155,12 @@ export default function DashboardPage() {
     const dateRange = useMemo(() => {
         const now = new Date();
         const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        
+
         // Custom date range takes priority
         if (customDateFrom && customDateTo) {
             return { from: new Date(customDateFrom), to: new Date(customDateTo + "T23:59:59") };
         }
-        
+
         switch (dateRangePreset) {
             case "today":
                 return { from: today, to: new Date(today.getTime() + 24 * 60 * 60 * 1000 - 1) };
@@ -260,13 +262,13 @@ export default function DashboardPage() {
                     const accessibleProjectIds = userAccessibleProjects.map(p => p.id);
 
                     // Filter transactions theo dự án có quyền
-                    filteredTxs = txs.filter(tx => 
+                    filteredTxs = txs.filter(tx =>
                         (tx.projectId && accessibleProjectIds.includes(tx.projectId)) ||
                         tx.userId === userId
                     );
 
                     // Filter accounts theo dự án có quyền
-                    filteredAccs = accs.filter(acc => 
+                    filteredAccs = accs.filter(acc =>
                         (acc.projectId && accessibleProjectIds.includes(acc.projectId)) ||
                         !acc.projectId
                     );
@@ -319,11 +321,11 @@ export default function DashboardPage() {
     }, [viewPeriod, filterProject, filterCurrency, dateRange]);
 
     const calculateMetrics = (
-        txs: Transaction[], 
-        exchangeRates: any, 
-        period: ViewPeriod, 
-        revs: MonthlyRevenue[], 
-        fundsData: Fund[], 
+        txs: Transaction[],
+        exchangeRates: any,
+        period: ViewPeriod,
+        revs: MonthlyRevenue[],
+        fundsData: Fund[],
         projectsData: Project[],
         projectFilter: string,
         currencyFilter: Currency | "ALL",
@@ -333,14 +335,14 @@ export default function DashboardPage() {
         let pIn = 0;
         let pOut = 0;
         let pending = 0;
-        const monthlyStats: Record<string, { in: number, out: number }> = {};
+        const monthlyStats: Record<string, { in: number, out: number, originalsIn: Record<string, number>, originalsOut: Record<string, number> }> = {};
         const catStats: Record<string, number> = {};
         const fundStats: Record<string, number> = {};
         const highValue: Transaction[] = [];
         const pendingList: Transaction[] = [];
-        
-        const catTotals: Record<string, { in: number, out: number }> = {};
-        const dailyStats: Record<string, Record<string, { in: number, out: number }>> = {};
+
+        const catTotals: Record<string, { in: number, out: number, originalsIn: Record<string, number>, originalsOut: Record<string, number> }> = {};
+        const dailyStats: Record<string, Record<string, { in: number, out: number, originalsIn: Record<string, number>, originalsOut: Record<string, number> }>> = {};
         const projStats: Record<string, { in: number, out: number, budget: number }> = {};
 
         // Currency breakdown
@@ -353,12 +355,12 @@ export default function DashboardPage() {
         fundsData.forEach(f => {
             fundStats[f.name] = 0;
         });
-        
+
         projectsData.forEach(p => {
-            projStats[p.id] = { 
-                in: 0, 
-                out: 0, 
-                budget: p.budget || 0 
+            projStats[p.id] = {
+                in: 0,
+                out: 0,
+                budget: p.budget || 0
             };
         });
 
@@ -380,7 +382,7 @@ export default function DashboardPage() {
 
         filteredTxs.forEach(tx => {
             const d = new Date(tx.date);
-            const amountUSD = currencyFilter === "ALL" 
+            const amountUSD = currencyFilter === "ALL"
                 ? convertCurrency(tx.amount, tx.currency, "USD", exchangeRates)
                 : tx.amount; // Keep original if filtering by currency
             const dateKey = d.toISOString().split('T')[0];
@@ -421,11 +423,16 @@ export default function DashboardPage() {
                 if (inPeriod) {
                     if (tx.type === "IN") pIn += amountUSD;
                     else pOut += amountUSD;
-                    
-                    if (!catTotals[cat]) catTotals[cat] = { in: 0, out: 0 };
-                    if (tx.type === "IN") catTotals[cat].in += amountUSD;
-                    else catTotals[cat].out += amountUSD;
-                    
+
+                    if (!catTotals[cat]) catTotals[cat] = { in: 0, out: 0, originalsIn: {}, originalsOut: {} };
+                    if (tx.type === "IN") {
+                        catTotals[cat].in += amountUSD;
+                        catTotals[cat].originalsIn[tx.currency] = (catTotals[cat].originalsIn[tx.currency] || 0) + tx.amount;
+                    } else {
+                        catTotals[cat].out += amountUSD;
+                        catTotals[cat].originalsOut[tx.currency] = (catTotals[cat].originalsOut[tx.currency] || 0) + tx.amount;
+                    }
+
                     if (tx.projectId && projStats[tx.projectId]) {
                         if (tx.type === "IN") projStats[tx.projectId].in += amountUSD;
                         else projStats[tx.projectId].out += amountUSD;
@@ -443,20 +450,30 @@ export default function DashboardPage() {
                         });
                     }
                 }
-                
+
                 if (inPeriod) {
                     if (!dailyStats[dateKey]) dailyStats[dateKey] = {};
-                    if (!dailyStats[dateKey][cat]) dailyStats[dateKey][cat] = { in: 0, out: 0 };
-                    if (tx.type === "IN") dailyStats[dateKey][cat].in += amountUSD;
-                    else dailyStats[dateKey][cat].out += amountUSD;
+                    if (!dailyStats[dateKey][cat]) dailyStats[dateKey][cat] = { in: 0, out: 0, originalsIn: {}, originalsOut: {} };
+                    if (tx.type === "IN") {
+                        dailyStats[dateKey][cat].in += amountUSD;
+                        dailyStats[dateKey][cat].originalsIn[tx.currency] = (dailyStats[dateKey][cat].originalsIn[tx.currency] || 0) + tx.amount;
+                    } else {
+                        dailyStats[dateKey][cat].out += amountUSD;
+                        dailyStats[dateKey][cat].originalsOut[tx.currency] = (dailyStats[dateKey][cat].originalsOut[tx.currency] || 0) + tx.amount;
+                    }
                 }
             }
 
             if (tx.status === "APPROVED") {
                 const monthKey = `${d.getMonth() + 1}/${d.getFullYear()}`;
-                if (!monthlyStats[monthKey]) monthlyStats[monthKey] = { in: 0, out: 0 };
-                if (tx.type === "IN") monthlyStats[monthKey].in += amountUSD;
-                else monthlyStats[monthKey].out += amountUSD;
+                if (!monthlyStats[monthKey]) monthlyStats[monthKey] = { in: 0, out: 0, originalsIn: {}, originalsOut: {} };
+                if (tx.type === "IN") {
+                    monthlyStats[monthKey].in += amountUSD;
+                    monthlyStats[monthKey].originalsIn[tx.currency] = (monthlyStats[monthKey].originalsIn[tx.currency] || 0) + tx.amount;
+                } else {
+                    monthlyStats[monthKey].out += amountUSD;
+                    monthlyStats[monthKey].originalsOut[tx.currency] = (monthlyStats[monthKey].originalsOut[tx.currency] || 0) + tx.amount;
+                }
 
                 if (tx.type === "OUT" && inPeriod) {
                     catStats[cat] = (catStats[cat] || 0) + amountUSD;
@@ -471,6 +488,8 @@ export default function DashboardPage() {
 
         setPeriodIn(pIn);
         setPeriodOut(pOut);
+        setPeriodInByCurrency(currencyIn);
+        setPeriodOutByCurrency(currencyOut);
         setPendingCount(pending);
         setFundExpenses(fundStats);
         setHighValueTxs(highValue.slice(0, 5));
@@ -478,16 +497,20 @@ export default function DashboardPage() {
         setCategoryTotals(catTotals);
         setProjectStats(projStats);
         setSalaryReport(salaryData.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
-        
+
         // Currency breakdown for chart
         const currencies: Currency[] = ["VND", "USD", "KHR", "TRY"];
+        const targetCurrency = currencyFilter === "ALL" ? "USD" : currencyFilter;
         const currencyData = currencies
             .filter(c => currencyIn[c] > 0 || currencyOut[c] > 0)
             .map(c => ({
                 currency: c,
-                in: currencyIn[c],
-                out: currencyOut[c],
-                net: currencyIn[c] - currencyOut[c]
+                in: convertCurrency(currencyIn[c], c, targetCurrency, exchangeRates),
+                out: convertCurrency(currencyOut[c], c, targetCurrency, exchangeRates),
+                net: convertCurrency(currencyIn[c] - currencyOut[c], c, targetCurrency, exchangeRates),
+                originalIn: currencyIn[c],
+                originalOut: currencyOut[c],
+                originalNet: currencyIn[c] - currencyOut[c]
             }));
         setCurrencyBreakdown(currencyData);
 
@@ -499,7 +522,9 @@ export default function DashboardPage() {
         const cData = Object.entries(monthlyStats).map(([key, val]) => ({
             name: key,
             income: val.in,
-            expense: val.out
+            expense: val.out,
+            originalsIn: val.originalsIn,
+            originalsOut: val.originalsOut
         })).sort((a, b) => {
             const [m1, y1] = a.name.split('/').map(Number);
             const [m2, y2] = b.name.split('/').map(Number);
@@ -507,8 +532,13 @@ export default function DashboardPage() {
         }).slice(-6);
         setChartData(cData);
 
-        const pData = Object.entries(catStats)
-            .map(([name, value]) => ({ name, value }))
+        const pData = Object.entries(catTotals)
+            .filter(([_, val]) => val.out > 0)
+            .map(([name, val]) => ({
+                name,
+                value: val.out,
+                originals: val.originalsOut
+            }))
             .sort((a, b) => b.value - a.value)
             .slice(0, 5);
         setCatData(pData);
@@ -523,7 +553,7 @@ export default function DashboardPage() {
         Object.entries(dailyStats).forEach(([date, cats]) => {
             let dateLabel = "";
             const d = new Date(date);
-            
+
             if (period === "day") {
                 dateLabel = d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
             } else if (period === "month") {
@@ -533,11 +563,12 @@ export default function DashboardPage() {
             } else {
                 dateLabel = d.toLocaleDateString('vi-VN', { month: 'short', year: '2-digit' });
             }
-            
+
             const dateObj: any = { date: dateLabel };
             topCategories.forEach(cat => {
                 const catData = (cats as any)[cat];
                 dateObj[cat] = catData ? catData.out : 0;
+                dateObj[`${cat}_originals`] = catData ? catData.originalsOut : {};
             });
             trendData[date] = dateObj;
         });
@@ -545,7 +576,7 @@ export default function DashboardPage() {
         const trendArray = Object.entries(trendData)
             .sort((a, b) => a[0].localeCompare(b[0]))
             .map(([, data]) => data);
-        
+
         setCategoryTrendData(trendArray);
 
         // Salary Ratios
@@ -558,7 +589,7 @@ export default function DashboardPage() {
         if (currentMonthRev && currentMonthRev.amount > 0) {
             const revUSD = convertCurrency(currentMonthRev.amount, currentMonthRev.currency, "USD", exchangeRates);
             const salaryByType: Record<string, number> = { "Marketing": 0, "Sale": 0, "Vận hành": 0 };
-            
+
             filteredTxs.forEach(tx => {
                 const d = new Date(tx.date);
                 const inPeriod = d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
@@ -612,7 +643,7 @@ export default function DashboardPage() {
                     <h1 className="text-3xl font-bold text-white">Dashboard</h1>
                     <p className="text-[var(--muted)]">Tổng quan tài chính</p>
                 </div>
-                
+
                 <div className="glass-card p-8 rounded-xl text-center">
                     <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-yellow-500/20 flex items-center justify-center">
                         <svg className="w-8 h-8 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -629,13 +660,13 @@ export default function DashboardPage() {
                         </p>
                     </div>
                     <div className="flex justify-center gap-3">
-                        <Link 
+                        <Link
                             href="/finance/projects"
                             className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
                         >
                             Xem dự án của tôi
                         </Link>
-                        <Link 
+                        <Link
                             href="/finance/profile"
                             className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors"
                         >
@@ -672,11 +703,10 @@ export default function DashboardPage() {
                             <button
                                 key={item.key}
                                 onClick={() => handlePresetChange(item.key)}
-                                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                                    dateRangePreset === item.key && !customDateFrom
-                                        ? "bg-white/20 text-white"
-                                        : "text-[var(--muted)] hover:text-white"
-                                }`}
+                                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${dateRangePreset === item.key && !customDateFrom
+                                    ? "bg-white/20 text-white"
+                                    : "text-[var(--muted)] hover:text-white"
+                                    }`}
                             >
                                 {item.label}
                             </button>
@@ -687,14 +717,13 @@ export default function DashboardPage() {
                     <div className="relative">
                         <button
                             onClick={() => setShowDatePicker(!showDatePicker)}
-                            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-all ${
-                                customDateFrom && customDateTo
-                                    ? "bg-blue-500/20 text-blue-400 border border-blue-500/30"
-                                    : "bg-white/5 text-[var(--muted)] hover:text-white border border-white/10"
-                            }`}
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-all ${customDateFrom && customDateTo
+                                ? "bg-blue-500/20 text-blue-400 border border-blue-500/30"
+                                : "bg-white/5 text-[var(--muted)] hover:text-white border border-white/10"
+                                }`}
                         >
                             <Calendar size={14} />
-                            {customDateFrom && customDateTo 
+                            {customDateFrom && customDateTo
                                 ? `${new Date(customDateFrom).toLocaleDateString('vi-VN')} - ${new Date(customDateTo).toLocaleDateString('vi-VN')}`
                                 : "Chọn ngày"
                             }
@@ -705,7 +734,7 @@ export default function DashboardPage() {
                             <div className="absolute top-full right-0 mt-2 p-4 bg-[#1a1a1a] border border-white/10 rounded-xl shadow-xl z-50 min-w-[280px]">
                                 <div className="flex items-center justify-between mb-3">
                                     <span className="text-sm font-medium text-white">Chọn khoảng thời gian</span>
-                                    <button 
+                                    <button
                                         onClick={() => setShowDatePicker(false)}
                                         className="text-[var(--muted)] hover:text-white"
                                     >
@@ -753,7 +782,7 @@ export default function DashboardPage() {
                             </div>
                         )}
                     </div>
-                    
+
                     {/* Project Filter */}
                     <select
                         value={filterProject}
@@ -791,37 +820,75 @@ export default function DashboardPage() {
                     <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
                         <span className="text-6xl">💰</span>
                     </div>
-                    <p className="text-[var(--muted)] text-sm font-medium uppercase">Tổng số dư</p>
-                    <h3 className="text-2xl font-bold text-white mt-1">{formatCurrency(totalBalance)}</h3>
-                    <div className="mt-3 pt-3 border-t border-white/10 space-y-1">
+                    <p className="text-[var(--muted)] text-sm font-medium uppercase mb-3">Tổng số dư</p>
+                    <div className="space-y-2">
                         {Object.entries(balanceByCurrency)
                             .filter(([_, balance]) => balance !== 0)
                             .map(([currency, balance]) => (
-                                <div key={currency} className="flex items-center justify-between text-xs">
-                                    <span className="flex items-center gap-1">
-                                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: CURRENCY_COLORS[currency] || "#888" }} />
-                                        <span className="text-white/50">{currency}</span>
+                                <div key={currency} className="flex items-center justify-between">
+                                    <span className="flex items-center gap-2">
+                                        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: CURRENCY_COLORS[currency] || "#888" }} />
+                                        <span className="font-medium text-white/70">{currency}</span>
                                     </span>
-                                    <span className={`font-medium ${balance >= 0 ? 'text-white' : 'text-red-400'}`}>
+                                    <span className={`text-xl font-bold ${balance >= 0 ? 'text-white' : 'text-red-400'}`}>
                                         {new Intl.NumberFormat('vi-VN').format(balance)}
                                     </span>
                                 </div>
                             ))}
+                        {Object.values(balanceByCurrency).every(v => v === 0) && (
+                            <div className="text-xl font-bold text-white/30">0</div>
+                        )}
                     </div>
                 </div>
 
-                <div className="glass-card p-6 rounded-xl border border-white/5">
-                    <p className="text-[var(--muted)] text-sm font-medium uppercase">Tiền vào ({getDateRangeLabel()})</p>
-                    <h3 className="text-3xl font-bold text-green-400 mt-1">
-                        +{filterCurrency === "ALL" ? formatCurrency(periodIn) : formatCurrency(periodIn, filterCurrency)}
-                    </h3>
+                <div className="glass-card p-6 rounded-xl border border-white/5 relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                        <span className="text-6xl">📈</span>
+                    </div>
+                    <p className="text-[var(--muted)] text-sm font-medium uppercase mb-3">Tiền vào ({getDateRangeLabel()})</p>
+                    <div className="space-y-2">
+                        {Object.entries(periodInByCurrency)
+                            .filter(([_, amount]) => amount !== 0)
+                            .map(([currency, amount]) => (
+                                <div key={currency} className="flex items-center justify-between">
+                                    <span className="flex items-center gap-2">
+                                        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: CURRENCY_COLORS[currency] || "#888" }} />
+                                        <span className="font-medium text-white/70">{currency}</span>
+                                    </span>
+                                    <span className="text-xl font-bold text-green-400">
+                                        +{new Intl.NumberFormat('vi-VN').format(amount)}
+                                    </span>
+                                </div>
+                            ))}
+                        {Object.values(periodInByCurrency).every(v => v === 0) && (
+                            <div className="text-xl font-bold text-green-400/30">0</div>
+                        )}
+                    </div>
                 </div>
 
-                <div className="glass-card p-6 rounded-xl border border-white/5">
-                    <p className="text-[var(--muted)] text-sm font-medium uppercase">Tiền ra ({getDateRangeLabel()})</p>
-                    <h3 className="text-3xl font-bold text-red-400 mt-1">
-                        -{filterCurrency === "ALL" ? formatCurrency(periodOut) : formatCurrency(periodOut, filterCurrency)}
-                    </h3>
+                <div className="glass-card p-6 rounded-xl border border-white/5 relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                        <span className="text-6xl">📉</span>
+                    </div>
+                    <p className="text-[var(--muted)] text-sm font-medium uppercase mb-3">Tiền ra ({getDateRangeLabel()})</p>
+                    <div className="space-y-2">
+                        {Object.entries(periodOutByCurrency)
+                            .filter(([_, amount]) => amount !== 0)
+                            .map(([currency, amount]) => (
+                                <div key={currency} className="flex items-center justify-between">
+                                    <span className="flex items-center gap-2">
+                                        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: CURRENCY_COLORS[currency] || "#888" }} />
+                                        <span className="font-medium text-white/70">{currency}</span>
+                                    </span>
+                                    <span className="text-xl font-bold text-red-400">
+                                        -{new Intl.NumberFormat('vi-VN').format(amount)}
+                                    </span>
+                                </div>
+                            ))}
+                        {Object.values(periodOutByCurrency).every(v => v === 0) && (
+                            <div className="text-xl font-bold text-red-400/30">0</div>
+                        )}
+                    </div>
                 </div>
 
                 <Link href="/finance/approvals" className="glass-card p-6 rounded-xl hover:bg-white/5 transition-colors cursor-pointer border-l-4 border-yellow-500 shadow-lg shadow-yellow-900/10">
@@ -837,61 +904,84 @@ export default function DashboardPage() {
                     <h3 className="text-sm font-bold">💳 Tài khoản</h3>
                     <Link href="/finance/accounts" className="text-xs text-[var(--muted)] hover:text-white">Quản lý →</Link>
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-                    {accounts
-                        .filter(acc => !filterCurrency || filterCurrency === "ALL" || acc.currency === filterCurrency)
-                        .filter(acc => !filterProject || !acc.projectId || acc.projectId === filterProject)
-                        .map(acc => {
-                            const sameCurrencyAccounts = accounts.filter(a => a.currency === acc.currency);
-                            const maxBalance = Math.max(...sameCurrencyAccounts.map(a => a.balance), acc.balance * 1.5);
-                            const accountTxs = transactions.filter(tx => tx.accountId === acc.id && tx.status === "APPROVED");
-                            const now = new Date();
-                            let accPeriodIn = 0, accPeriodOut = 0, lastMonthBalance = acc.openingBalance || 0;
+                <div className="flex flex-wrap gap-x-8 gap-y-6">
+                    {Object.entries(
+                        accounts
+                            .filter(acc => !filterCurrency || filterCurrency === "ALL" || acc.currency === filterCurrency)
+                            .filter(acc => !filterProject || !acc.projectId || acc.projectId === filterProject)
+                            .reduce((groups, acc) => {
+                                const project = projects.find(p => p.id === acc.projectId);
+                                const groupName = project ? project.name : "Văn phòng / Cá nhân";
+                                if (!groups[groupName]) groups[groupName] = [];
+                                groups[groupName].push(acc);
+                                return groups;
+                            }, {} as Record<string, typeof accounts>)
+                    ).map(([projectName, projectAccounts]) => (
+                        <div key={projectName} className="flex flex-col gap-3 border border-white/5 rounded-xl p-4 bg-white/[0.02]">
+                            <div className="flex items-center justify-between pb-2 border-b border-white/5">
+                                <h4 className="text-[10px] font-bold text-white/50 uppercase tracking-wider flex items-center gap-2">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                                    {projectName}
+                                </h4>
+                                <span className="text-[9px] text-white/30 px-2 py-0.5 rounded-full border border-white/5 bg-white/5">
+                                    {projectAccounts.length} TK
+                                </span>
+                            </div>
+                            <div className="flex flex-wrap gap-3">
+                                {projectAccounts.map(acc => {
+                                    const sameCurrencyAccounts = accounts.filter(a => a.currency === acc.currency);
+                                    const maxBalance = Math.max(...sameCurrencyAccounts.map(a => a.balance), acc.balance * 1.5);
+                                    const accountTxs = transactions.filter(tx => tx.accountId === acc.id && tx.status === "APPROVED");
+                                    const now = new Date();
+                                    let accPeriodIn = 0, accPeriodOut = 0, lastMonthBalance = acc.openingBalance || 0;
 
-                            accountTxs.forEach(tx => {
-                                const d = new Date(tx.date);
-                                const isThisMonth = d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-                                if (isThisMonth) {
-                                    if (tx.type === "IN") accPeriodIn += tx.amount;
-                                    else accPeriodOut += tx.amount;
-                                }
-                                if (d < new Date(now.getFullYear(), now.getMonth(), 1)) {
-                                    if (tx.type === "IN") lastMonthBalance += tx.amount;
-                                    else lastMonthBalance -= tx.amount;
-                                }
-                            });
+                                    accountTxs.forEach(tx => {
+                                        const d = new Date(tx.date);
+                                        const isThisMonth = d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+                                        if (isThisMonth) {
+                                            if (tx.type === "IN") accPeriodIn += tx.amount;
+                                            else accPeriodOut += tx.amount;
+                                        }
+                                        if (d < new Date(now.getFullYear(), now.getMonth(), 1)) {
+                                            if (tx.type === "IN") lastMonthBalance += tx.amount;
+                                            else lastMonthBalance -= tx.amount;
+                                        }
+                                    });
 
-                            const netChange = accPeriodIn - accPeriodOut;
-                            const changePercent = lastMonthBalance > 0 ? ((acc.balance - lastMonthBalance) / lastMonthBalance * 100).toFixed(1) : "0.0";
-                            const trend = netChange >= 0 ? "up" : "down";
-                            const progressPercent = maxBalance > 0 ? Math.min((acc.balance / maxBalance) * 100, 100) : 0;
+                                    const netChange = accPeriodIn - accPeriodOut;
+                                    const changePercent = lastMonthBalance > 0 ? ((acc.balance - lastMonthBalance) / lastMonthBalance * 100).toFixed(1) : "0.0";
+                                    const trend = netChange >= 0 ? "up" : "down";
+                                    const progressPercent = maxBalance > 0 ? Math.min((acc.balance / maxBalance) * 100, 100) : 0;
 
-                            return (
-                                <div key={acc.id} className="relative bg-white/5 rounded-lg p-3 border border-white/10 hover:border-white/20 transition-all">
-                                    {acc.isLocked && (
-                                        <svg className="absolute top-1.5 right-1.5 w-3 h-3 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
-                                            <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
-                                        </svg>
-                                    )}
-                                    <div className="text-[10px] text-[var(--muted)] truncate mb-1">{acc.name}</div>
-                                    <div className="text-base font-bold text-white leading-tight">
-                                        {acc.balance.toLocaleString()} <span className="text-[10px]" style={{ color: CURRENCY_COLORS[acc.currency] }}>{acc.currency}</span>
-                                    </div>
-                                    <div className="h-1 bg-white/10 rounded-full overflow-hidden my-2">
-                                        <div className="h-full transition-all" style={{ width: `${progressPercent}%`, backgroundColor: CURRENCY_COLORS[acc.currency] }} />
-                                    </div>
-                                    <div className="flex items-center justify-between text-[10px]">
-                                        <span className={trend === "up" ? "text-green-400" : "text-red-400"}>
-                                            {trend === "up" ? "↑" : "↓"} {changePercent}%
-                                        </span>
-                                        <span className="text-green-400">+{(accPeriodIn/1000).toFixed(0)}k</span>
-                                        <span className="text-red-400">-{(accPeriodOut/1000).toFixed(0)}k</span>
-                                    </div>
-                                </div>
-                            );
-                        })}
+                                    return (
+                                        <div key={acc.id} className="relative bg-white/5 rounded-lg p-3 border border-white/10 hover:border-white/20 transition-all min-w-[180px] flex-shrink-0">
+                                            {acc.isLocked && (
+                                                <svg className="absolute top-1.5 right-1.5 w-3 h-3 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                                                </svg>
+                                            )}
+                                            <div className="text-[10px] text-[var(--muted)] truncate mb-1">{acc.name}</div>
+                                            <div className="text-base font-bold text-white leading-tight">
+                                                {acc.balance.toLocaleString()} <span className="text-[10px]" style={{ color: CURRENCY_COLORS[acc.currency] }}>{acc.currency}</span>
+                                            </div>
+                                            <div className="h-1 bg-white/10 rounded-full overflow-hidden my-2">
+                                                <div className="h-full transition-all" style={{ width: `${progressPercent}%`, backgroundColor: CURRENCY_COLORS[acc.currency] }} />
+                                            </div>
+                                            <div className="flex items-center justify-between text-[10px]">
+                                                <span className={trend === "up" ? "text-green-400" : "text-red-400"}>
+                                                    {trend === "up" ? "↑" : "↓"} {changePercent}%
+                                                </span>
+                                                <span className="text-green-400">+{(accPeriodIn / 1000).toFixed(0)}k</span>
+                                                <span className="text-red-400">-{(accPeriodOut / 1000).toFixed(0)}k</span>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    ))}
                     {accounts.length === 0 && (
-                        <div className="col-span-full text-center text-[var(--muted)] py-2 text-xs">Chưa có tài khoản</div>
+                        <div className="text-center text-[var(--muted)] py-2 text-xs">Chưa có tài khoản</div>
                     )}
                 </div>
             </div>
@@ -899,24 +989,117 @@ export default function DashboardPage() {
             {/* Currency Breakdown Chart */}
             {currencyBreakdown.length > 0 && (
                 <div className="glass-card p-6 rounded-xl border border-white/5">
-                    <h3 className="text-lg font-bold mb-4">💵 Thu Chi theo Loại tiền ({getPeriodLabel()})</h3>
-                    <div className="h-64">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={currencyBreakdown}>
-                                <XAxis dataKey="currency" stroke="#525252" />
-                                <YAxis stroke="#525252" />
-                                <Tooltip
-                                    contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: '8px' }}
-                                    formatter={(value: number, name: string) => [
-                                        new Intl.NumberFormat('vi-VN').format(value),
-                                        name === "in" ? "Thu" : name === "out" ? "Chi" : "Ròng"
-                                    ]}
-                                />
-                                <Legend formatter={(value) => value === "in" ? "Thu" : value === "out" ? "Chi" : "Ròng"} />
-                                <Bar dataKey="in" name="in" fill="#4ade80" radius={[4, 4, 0, 0]} />
-                                <Bar dataKey="out" name="out" fill="#f87171" radius={[4, 4, 0, 0]} />
-                            </BarChart>
-                        </ResponsiveContainer>
+                    <h3 className="text-lg font-bold mb-6">💵 Phân bổ Thu - Chi theo Loại tiền ({getPeriodLabel()} - Quy đổi {filterCurrency === "ALL" ? "USD" : filterCurrency})</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        {/* Income Pie Chart */}
+                        <div className="flex flex-col">
+                            <p className="text-center text-sm font-medium text-[var(--muted)] mb-4">Thu vào theo Tiền tệ</p>
+                            <div className="h-48 mb-6">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <PieChart>
+                                        <Pie
+                                            data={currencyBreakdown.filter(d => d.in > 0).sort((a, b) => b.in - a.in)}
+                                            dataKey="in"
+                                            nameKey="currency"
+                                            cx="50%"
+                                            cy="50%"
+                                            innerRadius={0}
+                                            outerRadius={80}
+                                            paddingAngle={0}
+                                        >
+                                            {currencyBreakdown.filter(d => d.in > 0).sort((a, b) => b.in - a.in).map((entry, index) => (
+                                                <Cell key={`cell-in-${index}`} fill={CURRENCY_COLORS[entry.currency] || "#888"} />
+                                            ))}
+                                        </Pie>
+                                        <Tooltip
+                                            contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: '8px', color: '#fff' }}
+                                            itemStyle={{ color: '#fff' }}
+                                            labelStyle={{ color: '#fff' }}
+                                            formatter={(value: number, name: string, props: any) => {
+                                                const data = props.payload?.payload;
+                                                if (!data) return [formatCurrency(value, filterCurrency === "ALL" ? "USD" : filterCurrency), "Thu"];
+                                                return [
+                                                    `${new Intl.NumberFormat('vi-VN').format(data.originalIn || 0)} ${data.currency} (${formatCurrency(value, filterCurrency === "ALL" ? "USD" : filterCurrency)})`,
+                                                    "Thu"
+                                                ];
+                                            }}
+                                        />
+                                    </PieChart>
+                                </ResponsiveContainer>
+                            </div>
+                            {/* List Legend */}
+                            <div className="space-y-2 border-t border-white/10 pt-4 flex-grow">
+                                {currencyBreakdown.filter(d => d.in > 0).sort((a, b) => b.in - a.in).map((item) => (
+                                    <div key={item.currency} className="flex items-center justify-between text-sm">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: CURRENCY_COLORS[item.currency] }} />
+                                            <span className="text-white/80">{item.currency}</span>
+                                        </div>
+                                        <span className="font-bold text-green-400">
+                                            {new Intl.NumberFormat('vi-VN').format(item.originalIn)} <span className="text-[10px] opacity-70 font-normal">({formatCurrency(item.in, filterCurrency === "ALL" ? "USD" : filterCurrency)})</span>
+                                        </span>
+                                    </div>
+                                ))}
+                                {currencyBreakdown.filter(d => d.in > 0).length === 0 && (
+                                    <div className="text-[var(--muted)] text-sm text-center py-4">Chưa có dữ liệu thu</div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Expense Pie Chart */}
+                        <div className="flex flex-col">
+                            <p className="text-center text-sm font-medium text-[var(--muted)] mb-4">Chi ra theo Tiền tệ</p>
+                            <div className="h-48 mb-6">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <PieChart>
+                                        <Pie
+                                            data={currencyBreakdown.filter(d => d.out > 0).sort((a, b) => b.out - a.out)}
+                                            dataKey="out"
+                                            nameKey="currency"
+                                            cx="50%"
+                                            cy="50%"
+                                            innerRadius={0}
+                                            outerRadius={80}
+                                            paddingAngle={0}
+                                        >
+                                            {currencyBreakdown.filter(d => d.out > 0).sort((a, b) => b.out - a.out).map((entry, index) => (
+                                                <Cell key={`cell-out-${index}`} fill={CURRENCY_COLORS[entry.currency] || "#888"} />
+                                            ))}
+                                        </Pie>
+                                        <Tooltip
+                                            contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: '8px', color: '#fff' }}
+                                            itemStyle={{ color: '#fff' }}
+                                            labelStyle={{ color: '#fff' }}
+                                            formatter={(value: number, name: string, props: any) => {
+                                                const data = props.payload?.payload;
+                                                if (!data) return [formatCurrency(value, filterCurrency === "ALL" ? "USD" : filterCurrency), "Chi"];
+                                                return [
+                                                    `${new Intl.NumberFormat('vi-VN').format(data.originalOut || 0)} ${data.currency} (${formatCurrency(value, filterCurrency === "ALL" ? "USD" : filterCurrency)})`,
+                                                    "Chi"
+                                                ];
+                                            }}
+                                        />
+                                    </PieChart>
+                                </ResponsiveContainer>
+                            </div>
+                            {/* List Legend */}
+                            <div className="space-y-2 border-t border-white/10 pt-4 flex-grow">
+                                {currencyBreakdown.filter(d => d.out > 0).sort((a, b) => b.out - a.out).map((item) => (
+                                    <div key={item.currency} className="flex items-center justify-between text-sm">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: CURRENCY_COLORS[item.currency] }} />
+                                            <span className="text-white/80">{item.currency}</span>
+                                        </div>
+                                        <span className="font-bold text-red-400">
+                                            {new Intl.NumberFormat('vi-VN').format(item.originalOut)} <span className="text-[10px] opacity-70 font-normal">({formatCurrency(item.out, filterCurrency === "ALL" ? "USD" : filterCurrency)})</span>
+                                        </span>
+                                    </div>
+                                ))}
+                                {currencyBreakdown.filter(d => d.out > 0).length === 0 && (
+                                    <div className="text-[var(--muted)] text-sm text-center py-4">Chưa có dữ liệu chi</div>
+                                )}
+                            </div>
+                        </div>
                     </div>
                 </div>
             )}
@@ -932,7 +1115,23 @@ export default function DashboardPage() {
                                 <Pie data={catData} cx="50%" cy="50%" outerRadius={80} dataKey="value">
                                     {catData.map((_, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
                                 </Pie>
-                                <Tooltip formatter={(value: number) => filterCurrency === "ALL" ? formatCurrency(value) : formatCurrency(value, filterCurrency)} />
+                                <Tooltip
+                                    contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: '8px', color: '#fff' }}
+                                    itemStyle={{ color: '#fff' }}
+                                    labelStyle={{ color: '#fff' }}
+                                    formatter={(value: number, name: string, props: any) => {
+                                        const data = props.payload?.payload;
+                                        if (!data) return [formatCurrency(value, filterCurrency === "ALL" ? "USD" : filterCurrency), "Chi phí"];
+                                        const originals = data.originals;
+                                        const originalStr = Object.entries(originals || {})
+                                            .map(([curr, amt]) => `${new Intl.NumberFormat('vi-VN').format(amt as number)} ${curr}`)
+                                            .join(' + ');
+                                        return [
+                                            `${originalStr || '0'} (${filterCurrency === "ALL" ? formatCurrency(value) : formatCurrency(value, filterCurrency)})`,
+                                            "Chi phí"
+                                        ];
+                                    }}
+                                />
                             </PieChart>
                         </ResponsiveContainer>
                     </div>
@@ -959,14 +1158,30 @@ export default function DashboardPage() {
                         <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
                                 <Pie
-                                    data={Object.entries(categoryTotals).filter(([_, d]) => d.in > 0).map(([n, d]) => ({ name: n, value: d.in })).sort((a, b) => b.value - a.value).slice(0, 5)}
+                                    data={Object.entries(categoryTotals).filter(([_, d]) => d.in > 0).map(([n, d]) => ({ name: n, value: d.in, originals: d.originalsIn })).sort((a, b) => b.value - a.value).slice(0, 5)}
                                     cx="50%" cy="50%" outerRadius={80} dataKey="value"
                                 >
                                     {Object.entries(categoryTotals).filter(([_, d]) => d.in > 0).slice(0, 5).map((_, i) => (
                                         <Cell key={`cell-in-${i}`} fill={["#4ade80", "#22d3ee", "#a78bfa", "#fbbf24", "#f472b6"][i % 5]} />
                                     ))}
                                 </Pie>
-                                <Tooltip formatter={(value: number) => filterCurrency === "ALL" ? formatCurrency(value) : formatCurrency(value, filterCurrency)} />
+                                <Tooltip
+                                    contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: '8px', color: '#fff' }}
+                                    itemStyle={{ color: '#fff' }}
+                                    labelStyle={{ color: '#fff' }}
+                                    formatter={(value: number, name: string, props: any) => {
+                                        const data = props.payload?.payload;
+                                        if (!data) return [formatCurrency(value, filterCurrency === "ALL" ? "USD" : filterCurrency), "Thu nhập"];
+                                        const originals = data.originals;
+                                        const originalStr = Object.entries(originals || {})
+                                            .map(([curr, amt]) => `${new Intl.NumberFormat('vi-VN').format(amt as number)} ${curr}`)
+                                            .join(' + ');
+                                        return [
+                                            `${originalStr || '0'} (${filterCurrency === "ALL" ? formatCurrency(value) : formatCurrency(value, filterCurrency)})`,
+                                            "Thu nhập"
+                                        ];
+                                    }}
+                                />
                             </PieChart>
                         </ResponsiveContainer>
                     </div>
@@ -987,25 +1202,6 @@ export default function DashboardPage() {
                 </div>
             </div>
 
-            {/* Income vs Expense Monthly Chart */}
-            <div className="glass-card p-6 rounded-xl border border-white/5">
-                <h3 className="text-lg font-bold mb-4">📈 Thu – Chi theo tháng (6 tháng gần nhất)</h3>
-                <div className="h-64">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={chartData}>
-                            <XAxis dataKey="name" stroke="#525252" />
-                            <YAxis stroke="#525252" />
-                            <Tooltip
-                                contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: '8px' }}
-                                formatter={(value: number) => filterCurrency === "ALL" ? formatCurrency(value) : formatCurrency(value, filterCurrency)}
-                            />
-                            <Legend />
-                            <Bar dataKey="income" name="Thu" fill="#4ade80" radius={[4, 4, 0, 0]} />
-                            <Bar dataKey="expense" name="Chi" fill="#f87171" radius={[4, 4, 0, 0]} />
-                        </BarChart>
-                    </ResponsiveContainer>
-                </div>
-            </div>
 
             {/* Category Trend Area Chart */}
             <div className="glass-card p-6 rounded-xl border border-white/5">
@@ -1018,14 +1214,14 @@ export default function DashboardPage() {
                             <defs>
                                 {catData.slice(0, 5).map((cat, index) => (
                                     <linearGradient key={`gradient-${cat.name}`} id={`color-${index}`} x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor={COLORS[index % COLORS.length]} stopOpacity={0.8}/>
-                                        <stop offset="95%" stopColor={COLORS[index % COLORS.length]} stopOpacity={0.1}/>
+                                        <stop offset="5%" stopColor={COLORS[index % COLORS.length]} stopOpacity={0.8} />
+                                        <stop offset="95%" stopColor={COLORS[index % COLORS.length]} stopOpacity={0.1} />
                                     </linearGradient>
                                 ))}
                             </defs>
-                            <XAxis 
-                                dataKey="date" 
-                                stroke="#525252" 
+                            <XAxis
+                                dataKey="date"
+                                stroke="#525252"
                                 tick={{ fontSize: 11 }}
                                 angle={-45}
                                 textAnchor="end"
@@ -1033,8 +1229,19 @@ export default function DashboardPage() {
                             />
                             <YAxis stroke="#525252" />
                             <Tooltip
-                                contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: '8px' }}
-                                formatter={(value: number) => filterCurrency === "ALL" ? formatCurrency(value) : formatCurrency(value, filterCurrency)}
+                                contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: '8px', color: '#fff' }}
+                                itemStyle={{ color: '#fff' }}
+                                labelStyle={{ color: '#fff' }}
+                                formatter={(value: number, name: string, props: any) => {
+                                    const originals = props.payload[`${name}_originals`];
+                                    const originalStr = Object.entries(originals || {})
+                                        .map(([curr, amt]) => `${new Intl.NumberFormat('vi-VN').format(amt as number)} ${curr}`)
+                                        .join(' + ');
+                                    return [
+                                        `${originalStr} (${filterCurrency === "ALL" ? formatCurrency(value) : formatCurrency(value, filterCurrency)})`,
+                                        name
+                                    ];
+                                }}
                             />
                             <Legend />
                             {catData.slice(0, 5).map((cat, index) => (
@@ -1088,12 +1295,12 @@ export default function DashboardPage() {
             {/* Project Expense Comparison by Category */}
             <div className="glass-card p-6 rounded-xl border border-white/5">
                 <h3 className="text-lg font-bold mb-6">📊 So sánh Chi phí theo Danh mục giữa các Dự án ({getPeriodLabel()})</h3>
-                
+
                 {(() => {
                     // Prepare data for project expense comparison
-                    const projectExpenseByCategory: Record<string, Record<string, number>> = {};
+                    const projectExpenseByCategory: Record<string, Record<string, { total: number, originals: Record<string, number> }>> = {};
                     const allCategories = new Set<string>();
-                    
+
                     // Group expenses by project and parent category
                     transactions
                         .filter(tx => tx.type === "OUT")
@@ -1108,27 +1315,32 @@ export default function DashboardPage() {
                         .forEach(tx => {
                             const project = projects.find(p => p.id === tx.projectId);
                             if (!project) return;
-                            
+
                             const category = tx.parentCategory || tx.category || "Khác";
                             allCategories.add(category);
-                            
+
                             if (!projectExpenseByCategory[project.name]) {
                                 projectExpenseByCategory[project.name] = {};
                             }
-                            
-                            const convertedAmount = filterCurrency === "ALL" || filterCurrency === tx.currency 
-                                ? tx.amount 
-                                : convertCurrency(tx.amount, tx.currency, filterCurrency, rates);
-                            
-                            projectExpenseByCategory[project.name][category] = 
-                                (projectExpenseByCategory[project.name][category] || 0) + convertedAmount;
+                            if (!projectExpenseByCategory[project.name][category]) {
+                                projectExpenseByCategory[project.name][category] = { total: 0, originals: {} };
+                            }
+
+                            const convertedAmount = filterCurrency === "ALL"
+                                ? convertCurrency(tx.amount, tx.currency, "USD", rates)
+                                : tx.amount;
+
+                            projectExpenseByCategory[project.name][category].total += convertedAmount;
+                            projectExpenseByCategory[project.name][category].originals[tx.currency] =
+                                (projectExpenseByCategory[project.name][category].originals[tx.currency] || 0) + tx.amount;
                         });
-                    
-                    // Prepare chart data
+
                     const chartData = Array.from(allCategories).map(category => {
                         const dataPoint: any = { category };
                         Object.keys(projectExpenseByCategory).forEach(projectName => {
-                            dataPoint[projectName] = projectExpenseByCategory[projectName][category] || 0;
+                            const stats = projectExpenseByCategory[projectName][category];
+                            dataPoint[projectName] = stats ? stats.total : 0;
+                            dataPoint[`${projectName}_originals`] = stats ? stats.originals : {};
                         });
                         return dataPoint;
                     }).filter(item => {
@@ -1140,10 +1352,10 @@ export default function DashboardPage() {
                         const totalB = Object.keys(projectExpenseByCategory).reduce((sum, project) => sum + (b[project] || 0), 0);
                         return totalB - totalA;
                     });
-                    
+
                     const projectNames = Object.keys(projectExpenseByCategory);
                     const projectColors = ["#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#f97316", "#84cc16", "#ec4899"];
-                    
+
                     return chartData.length > 0 ? (
                         <div className="space-y-6">
                             {/* Bar Chart */}
@@ -1152,30 +1364,36 @@ export default function DashboardPage() {
                                     <BarChart data={chartData} layout="vertical">
                                         <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                                         <XAxis type="number" stroke="#9CA3AF" />
-                                        <YAxis 
-                                            type="category" 
-                                            dataKey="category" 
-                                            stroke="#9CA3AF" 
+                                        <YAxis
+                                            type="category"
+                                            dataKey="category"
+                                            stroke="#9CA3AF"
                                             width={120}
                                             tick={{ fontSize: 12 }}
                                         />
                                         <Tooltip
-                                            contentStyle={{ 
-                                                backgroundColor: '#1f2937', 
-                                                border: '1px solid #374151', 
+                                            contentStyle={{
+                                                backgroundColor: '#1f2937',
+                                                border: '1px solid #374151',
                                                 borderRadius: '8px',
                                                 color: '#fff'
                                             }}
-                                            formatter={(value: number) => [
-                                                filterCurrency === "ALL" ? formatCurrency(value) : formatCurrency(value, filterCurrency),
-                                                "Chi phí"
-                                            ]}
+                                            formatter={(value: number, name: string, props: any) => {
+                                                const originals = props.payload[`${name}_originals`];
+                                                const originalStr = Object.entries(originals || {})
+                                                    .map(([curr, amt]) => `${new Intl.NumberFormat('vi-VN').format(amt as number)} ${curr}`)
+                                                    .join(' + ');
+                                                return [
+                                                    `${originalStr} (${filterCurrency === "ALL" ? formatCurrency(value) : formatCurrency(value, filterCurrency)})`,
+                                                    name
+                                                ];
+                                            }}
                                         />
                                         <Legend />
                                         {projectNames.map((projectName, idx) => (
-                                            <Bar 
+                                            <Bar
                                                 key={projectName}
-                                                dataKey={projectName} 
+                                                dataKey={projectName}
                                                 fill={projectColors[idx % projectColors.length]}
                                                 radius={[0, 4, 4, 0]}
                                             />
@@ -1183,7 +1401,7 @@ export default function DashboardPage() {
                                     </BarChart>
                                 </ResponsiveContainer>
                             </div>
-                            
+
                             {/* Summary Table */}
                             <div className="overflow-x-auto">
                                 <table className="w-full text-sm">
@@ -1206,7 +1424,7 @@ export default function DashboardPage() {
                                                     <td className="p-3 font-medium text-white">{item.category}</td>
                                                     {projectNames.map(projectName => (
                                                         <td key={projectName} className="p-3 text-right text-red-400">
-                                                            {item[projectName] > 0 
+                                                            {item[projectName] > 0
                                                                 ? (filterCurrency === "ALL" ? formatCurrency(item[projectName]) : formatCurrency(item[projectName], filterCurrency))
                                                                 : "-"
                                                             }
@@ -1244,11 +1462,11 @@ export default function DashboardPage() {
                         </button>
                     )}
                 </div>
-                
+
                 {/* Project Chart */}
                 <div className="h-56 mb-6">
                     <ResponsiveContainer width="100%" height="100%">
-                        <BarChart 
+                        <BarChart
                             data={projects
                                 .filter(p => !filterProject || p.id === filterProject)
                                 .filter(p => projectStats[p.id] && (projectStats[p.id].in > 0 || projectStats[p.id].out > 0))
@@ -1296,7 +1514,7 @@ export default function DashboardPage() {
                                     const remaining = stats.budget - stats.out;
                                     const percentUsed = stats.budget > 0 ? (stats.out / stats.budget * 100) : 0;
                                     const isOverBudget = stats.out > stats.budget;
-                                    
+
                                     return (
                                         <tr key={project.id} className="hover:bg-white/5 transition-colors">
                                             <td className="p-4">
@@ -1326,7 +1544,7 @@ export default function DashboardPage() {
                                                             {percentUsed.toFixed(1)}%
                                                         </span>
                                                         <div className="w-20 h-2 bg-white/10 rounded-full overflow-hidden">
-                                                            <div 
+                                                            <div
                                                                 className={`h-full transition-all ${isOverBudget ? "bg-red-500" : percentUsed > 80 ? "bg-yellow-500" : "bg-green-500"}`}
                                                                 style={{ width: `${Math.min(percentUsed, 100)}%` }}
                                                             />
@@ -1376,93 +1594,93 @@ export default function DashboardPage() {
                         .filter(([date, categories]) => {
                             if (!dailySearchTerm) return true;
                             const searchLower = dailySearchTerm.toLowerCase();
-                            return Object.keys(categories).some(cat => 
+                            return Object.keys(categories).some(cat =>
                                 cat.toLowerCase().includes(searchLower)
                             );
                         })
                         .slice(0, showAllDays ? undefined : 10)
                         .map(([date, categories]) => {
-                        const dailyTotal = Object.values(categories as Record<string, { in: number, out: number }>)
-                            .reduce((sum, data) => sum + data.in + data.out, 0);
-                        const dailyIn = Object.values(categories as Record<string, { in: number, out: number }>)
-                            .reduce((sum, data) => sum + data.in, 0);
-                        const dailyOut = Object.values(categories as Record<string, { in: number, out: number }>)
-                            .reduce((sum, data) => sum + data.out, 0);
-                        const dailyDiff = dailyIn - dailyOut;
-                        
-                        return (
-                            <details key={date} className="bg-white/5 rounded-lg border border-white/10 group">
-                                <summary className="p-4 cursor-pointer hover:bg-white/5 transition-all list-none">
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-3">
-                                            <span className="text-2xl group-open:rotate-90 transition-transform">▶</span>
-                                            <div>
-                                                <div className="font-bold text-white">
-                                                    {new Date(date).toLocaleDateString('vi-VN', { weekday: 'short', day: 'numeric', month: 'short' })}
-                                                </div>
-                                                <div className="text-xs text-[var(--muted)]">
-                                                    {Object.keys(categories).length} hạng mục
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-4">
-                                            <div className="text-right">
-                                                <div className="text-xs text-[var(--muted)]">Thu</div>
-                                                <div className="text-sm font-bold text-green-400">
-                                                    {dailyIn > 0 ? (filterCurrency === "ALL" ? formatCurrency(dailyIn) : formatCurrency(dailyIn, filterCurrency)) : "-"}
-                                                </div>
-                                            </div>
-                                            <div className="text-right">
-                                                <div className="text-xs text-[var(--muted)]">Chi</div>
-                                                <div className="text-sm font-bold text-red-400">
-                                                    {dailyOut > 0 ? (filterCurrency === "ALL" ? formatCurrency(dailyOut) : formatCurrency(dailyOut, filterCurrency)) : "-"}
-                                                </div>
-                                            </div>
-                                            <div className="text-right min-w-[100px]">
-                                                <div className="text-xs text-[var(--muted)]">Biến động</div>
-                                                <div className={`text-sm font-bold ${dailyDiff >= 0 ? "text-green-400" : "text-red-400"}`}>
-                                                    {dailyDiff >= 0 ? "↑" : "↓"} {filterCurrency === "ALL" ? formatCurrency(Math.abs(dailyDiff)) : formatCurrency(Math.abs(dailyDiff), filterCurrency)}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </summary>
-                                <div className="px-4 pb-4 pt-2 border-t border-white/10">
-                                    <div className="space-y-2">
-                                        {Object.entries(categories as Record<string, { in: number, out: number }>)
-                                            .filter(([cat]) => {
-                                                if (!dailySearchTerm) return true;
-                                                return cat.toLowerCase().includes(dailySearchTerm.toLowerCase());
-                                            })
-                                            .sort((a, b) => (b[1].out) - (a[1].out))
-                                            .map(([cat, data]) => {
-                                                const catDiff = data.in - data.out;
-                                                return (
-                                                    <div key={cat} className="flex items-center justify-between p-2 rounded hover:bg-white/5">
-                                                        <span className="text-sm text-white">{cat}</span>
-                                                        <div className="flex items-center gap-3">
-                                                            {data.in > 0 && (
-                                                                <span className="text-xs text-green-400">
-                                                                    +{filterCurrency === "ALL" ? formatCurrency(data.in) : formatCurrency(data.in, filterCurrency)}
-                                                                </span>
-                                                            )}
-                                                            {data.out > 0 && (
-                                                                <span className="text-xs text-red-400">
-                                                                    -{filterCurrency === "ALL" ? formatCurrency(data.out) : formatCurrency(data.out, filterCurrency)}
-                                                                </span>
-                                                            )}
-                                                            <span className={`text-xs font-bold min-w-[80px] text-right ${catDiff >= 0 ? "text-green-400" : "text-red-400"}`}>
-                                                                {catDiff >= 0 ? "↑" : "↓"} {filterCurrency === "ALL" ? formatCurrency(Math.abs(catDiff)) : formatCurrency(Math.abs(catDiff), filterCurrency)}
-                                                            </span>
-                                                        </div>
+                            const dailyTotal = Object.values(categories as Record<string, { in: number, out: number }>)
+                                .reduce((sum, data) => sum + data.in + data.out, 0);
+                            const dailyIn = Object.values(categories as Record<string, { in: number, out: number }>)
+                                .reduce((sum, data) => sum + data.in, 0);
+                            const dailyOut = Object.values(categories as Record<string, { in: number, out: number }>)
+                                .reduce((sum, data) => sum + data.out, 0);
+                            const dailyDiff = dailyIn - dailyOut;
+
+                            return (
+                                <details key={date} className="bg-white/5 rounded-lg border border-white/10 group">
+                                    <summary className="p-4 cursor-pointer hover:bg-white/5 transition-all list-none">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-3">
+                                                <span className="text-2xl group-open:rotate-90 transition-transform">▶</span>
+                                                <div>
+                                                    <div className="font-bold text-white">
+                                                        {new Date(date).toLocaleDateString('vi-VN', { weekday: 'short', day: 'numeric', month: 'short' })}
                                                     </div>
-                                                );
-                                            })}
+                                                    <div className="text-xs text-[var(--muted)]">
+                                                        {Object.keys(categories).length} hạng mục
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-4">
+                                                <div className="text-right">
+                                                    <div className="text-xs text-[var(--muted)]">Thu</div>
+                                                    <div className="text-sm font-bold text-green-400">
+                                                        {dailyIn > 0 ? (filterCurrency === "ALL" ? formatCurrency(dailyIn) : formatCurrency(dailyIn, filterCurrency)) : "-"}
+                                                    </div>
+                                                </div>
+                                                <div className="text-right">
+                                                    <div className="text-xs text-[var(--muted)]">Chi</div>
+                                                    <div className="text-sm font-bold text-red-400">
+                                                        {dailyOut > 0 ? (filterCurrency === "ALL" ? formatCurrency(dailyOut) : formatCurrency(dailyOut, filterCurrency)) : "-"}
+                                                    </div>
+                                                </div>
+                                                <div className="text-right min-w-[100px]">
+                                                    <div className="text-xs text-[var(--muted)]">Biến động</div>
+                                                    <div className={`text-sm font-bold ${dailyDiff >= 0 ? "text-green-400" : "text-red-400"}`}>
+                                                        {dailyDiff >= 0 ? "↑" : "↓"} {filterCurrency === "ALL" ? formatCurrency(Math.abs(dailyDiff)) : formatCurrency(Math.abs(dailyDiff), filterCurrency)}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </summary>
+                                    <div className="px-4 pb-4 pt-2 border-t border-white/10">
+                                        <div className="space-y-2">
+                                            {Object.entries(categories as Record<string, { in: number, out: number }>)
+                                                .filter(([cat]) => {
+                                                    if (!dailySearchTerm) return true;
+                                                    return cat.toLowerCase().includes(dailySearchTerm.toLowerCase());
+                                                })
+                                                .sort((a, b) => (b[1].out) - (a[1].out))
+                                                .map(([cat, data]) => {
+                                                    const catDiff = data.in - data.out;
+                                                    return (
+                                                        <div key={cat} className="flex items-center justify-between p-2 rounded hover:bg-white/5">
+                                                            <span className="text-sm text-white">{cat}</span>
+                                                            <div className="flex items-center gap-3">
+                                                                {data.in > 0 && (
+                                                                    <span className="text-xs text-green-400">
+                                                                        +{filterCurrency === "ALL" ? formatCurrency(data.in) : formatCurrency(data.in, filterCurrency)}
+                                                                    </span>
+                                                                )}
+                                                                {data.out > 0 && (
+                                                                    <span className="text-xs text-red-400">
+                                                                        -{filterCurrency === "ALL" ? formatCurrency(data.out) : formatCurrency(data.out, filterCurrency)}
+                                                                    </span>
+                                                                )}
+                                                                <span className={`text-xs font-bold min-w-[80px] text-right ${catDiff >= 0 ? "text-green-400" : "text-red-400"}`}>
+                                                                    {catDiff >= 0 ? "↑" : "↓"} {filterCurrency === "ALL" ? formatCurrency(Math.abs(catDiff)) : formatCurrency(Math.abs(catDiff), filterCurrency)}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                        </div>
                                     </div>
-                                </div>
-                            </details>
-                        );
-                    })}
+                                </details>
+                            );
+                        })}
                     {dailyCategoryStats.length === 0 && (
                         <div className="text-center text-[var(--muted)] py-8">
                             Chưa có dữ liệu
@@ -1597,11 +1815,10 @@ export default function DashboardPage() {
                                             </span>
                                         </td>
                                         <td className="p-4">
-                                            <span className={`px-2 py-1 rounded text-xs ${
-                                                tx.status === "APPROVED" ? "bg-green-500/20 text-green-400" :
+                                            <span className={`px-2 py-1 rounded text-xs ${tx.status === "APPROVED" ? "bg-green-500/20 text-green-400" :
                                                 tx.status === "PENDING" ? "bg-yellow-500/20 text-yellow-400" :
-                                                "bg-red-500/20 text-red-400"
-                                            }`}>
+                                                    "bg-red-500/20 text-red-400"
+                                                }`}>
                                                 {tx.status === "APPROVED" ? "Đã duyệt" : tx.status === "PENDING" ? "Chờ duyệt" : "Từ chối"}
                                             </span>
                                         </td>

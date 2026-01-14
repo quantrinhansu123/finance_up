@@ -42,7 +42,7 @@ export default function FinanceLayout({
     const [user, setUser] = useState<any>(null);
     const [projects, setProjects] = useState<Project[]>([]);
     const [sidebarOpen, setSidebarOpen] = useState(false);
-    
+
     // Default all groups to collapsed
     const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({
         "Tổng quan": true,
@@ -101,7 +101,7 @@ export default function FinanceLayout({
         };
 
         const accessibleProjects = getAccessibleProjects(user, projects);
-        
+
         // Kiểm tra xem user có quyền nào trong ít nhất 1 dự án
         let canCreateIncome = false;
         let canCreateExpense = false;
@@ -115,7 +115,7 @@ export default function FinanceLayout({
             if (hasProjectPermission(userId, project, "view_transactions", user)) canViewTransactions = true;
             if (hasProjectPermission(userId, project, "approve_transactions", user)) canApprove = true;
             if (hasProjectPermission(userId, project, "view_reports", user)) canViewReports = true;
-            
+
             // Nếu đã có tất cả quyền thì không cần check tiếp
             if (canCreateIncome && canCreateExpense && canViewTransactions && canApprove && canViewReports) break;
         }
@@ -190,7 +190,6 @@ export default function FinanceLayout({
                     { name: "Tài khoản", href: "/finance/accounts", icon: <CreditCard size={18} /> },
                     { name: "Quỹ/Nhóm", href: "/finance/funds", icon: <PiggyBank size={18} /> },
                     { name: "Danh mục", href: "/finance/categories", icon: <ScrollText size={18} /> },
-                    { name: "Doanh thu", href: "/finance/revenue", icon: <TrendingUp size={18} /> },
                     { name: "Chi phí cố định", href: "/finance/fixed-costs", icon: <Pin size={18} /> },
                 ] : [])
             ]
@@ -219,7 +218,7 @@ export default function FinanceLayout({
                     Dolab<span className="text-blue-500">.</span>
                 </h1>
                 {/* Close button - mobile only */}
-                <button 
+                <button
                     onClick={() => setSidebarOpen(false)}
                     className="lg:hidden p-1 rounded hover:bg-white/10 transition-colors"
                 >
@@ -250,7 +249,7 @@ export default function FinanceLayout({
                     if (group.items.length === 0) return null;
                     const isCollapsed = collapsedGroups[group.title];
                     const hasActiveItem = group.items.some(item => pathname === item.href);
-                    
+
                     // Group icons mapping
                     const groupIcons: Record<string, React.ReactNode> = {
                         "Tổng quan": <LayoutDashboard size={16} />,
@@ -263,17 +262,15 @@ export default function FinanceLayout({
                         <div key={group.title} className="mb-1">
                             <button
                                 onClick={() => toggleGroup(group.title)}
-                                className={`w-full flex items-center gap-2 px-3 py-2.5 text-xs font-bold uppercase tracking-wider rounded-xl transition-all duration-200 ${
-                                    hasActiveItem 
-                                        ? "bg-gradient-to-r from-blue-600/30 to-purple-600/20 text-white border border-blue-500/30 shadow-lg shadow-blue-500/10" 
+                                className={`w-full flex items-center gap-2 px-3 py-2.5 text-xs font-bold uppercase tracking-wider rounded-xl transition-all duration-200 ${hasActiveItem
+                                        ? "bg-gradient-to-r from-blue-600/30 to-purple-600/20 text-white border border-blue-500/30 shadow-lg shadow-blue-500/10"
                                         : "text-white/60 hover:text-white hover:bg-white/5"
-                                }`}
+                                    }`}
                             >
-                                <span className={`p-1.5 rounded-lg transition-all ${
-                                    hasActiveItem 
-                                        ? "bg-blue-500 text-white shadow-md shadow-blue-500/50" 
+                                <span className={`p-1.5 rounded-lg transition-all ${hasActiveItem
+                                        ? "bg-blue-500 text-white shadow-md shadow-blue-500/50"
                                         : "bg-white/10 text-white/60"
-                                }`}>
+                                    }`}>
                                     {groupIcons[group.title]}
                                 </span>
                                 <span className="flex-1 text-left">{group.title}</span>
@@ -281,10 +278,9 @@ export default function FinanceLayout({
                                     <ChevronRight size={14} />
                                 </span>
                             </button>
-                            
-                            <div className={`overflow-hidden transition-all duration-300 ease-out ${
-                                isCollapsed ? "max-h-0 opacity-0" : "max-h-[500px] opacity-100"
-                            }`}>
+
+                            <div className={`overflow-hidden transition-all duration-300 ease-out ${isCollapsed ? "max-h-0 opacity-0" : "max-h-[500px] opacity-100"
+                                }`}>
                                 <div className="mt-1.5 ml-4 space-y-0.5 border-l-2 border-white/10 pl-2">
                                     {group.items.map((item) => {
                                         const isActive = pathname === item.href;
@@ -292,11 +288,10 @@ export default function FinanceLayout({
                                             <Link
                                                 key={item.href}
                                                 href={item.href}
-                                                className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all duration-200 ${
-                                                    isActive
+                                                className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all duration-200 ${isActive
                                                         ? "bg-white/10 text-white font-medium border-l-2 border-blue-400 -ml-[2px] pl-[14px]"
                                                         : "text-white/50 hover:bg-white/5 hover:text-white"
-                                                }`}
+                                                    }`}
                                             >
                                                 <span className={`flex-shrink-0 ${isActive ? "text-blue-400" : ""}`}>{item.icon}</span>
                                                 <span className="truncate">{item.name}</span>
@@ -326,7 +321,7 @@ export default function FinanceLayout({
         <div className="flex h-screen w-full font-sans overflow-hidden text-white bg-[#121212]">
             {/* Mobile Header */}
             <div className="lg:hidden fixed top-0 left-0 right-0 h-12 bg-[#121212] border-b border-white/5 flex items-center justify-between px-4 z-40">
-                <button 
+                <button
                     onClick={() => setSidebarOpen(true)}
                     className="p-1.5 rounded-lg hover:bg-white/10 transition-colors"
                 >
@@ -340,7 +335,7 @@ export default function FinanceLayout({
 
             {/* Mobile Overlay */}
             {sidebarOpen && (
-                <div 
+                <div
                     className="lg:hidden fixed inset-0 bg-black/60 z-40"
                     onClick={() => setSidebarOpen(false)}
                 />
@@ -352,9 +347,8 @@ export default function FinanceLayout({
             </aside>
 
             {/* Sidebar - Mobile (Slide-in) */}
-            <aside className={`lg:hidden fixed top-0 left-0 h-full w-64 bg-[#121212] flex flex-col border-r border-white/5 z-50 transform transition-transform duration-300 ${
-                sidebarOpen ? "translate-x-0" : "-translate-x-full"
-            }`}>
+            <aside className={`lg:hidden fixed top-0 left-0 h-full w-64 bg-[#121212] flex flex-col border-r border-white/5 z-50 transform transition-transform duration-300 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"
+                }`}>
                 <SidebarContent />
             </aside>
 

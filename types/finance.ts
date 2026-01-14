@@ -5,7 +5,7 @@ export type TransactionType = "IN" | "OUT";
 export type TransactionStatus = "PENDING" | "APPROVED" | "REJECTED";
 
 // Expense categories for fixed costs and reporting
-export type ExpenseCategory = 
+export type ExpenseCategory =
     | "Lương nhân sự"
     | "Thuê văn phòng"
     | "Cước vận chuyển"
@@ -13,6 +13,7 @@ export type ExpenseCategory =
     | "Vận hành"
     | "SIM"
     | "Thuế"
+    | "Chi phí cố định"
     | "Khác";
 
 export interface Account {
@@ -25,16 +26,16 @@ export interface Account {
     projectId?: string; // Added: Assigned to project
     departmentId?: string; // NEW: Assigned to department
     isLocked: boolean; // Added: Lock feature
-    
+
     // NEW: Currency restriction - account can only spend its own currency
     restrictCurrency: boolean; // If true, can only create transactions in account's currency
-    
+
     // NEW: Category restriction - limit which categories this account can spend on
     allowedCategories?: string[]; // If set, only these categories are allowed
-    
+
     // NEW: Assigned users - only these users can use this account
     assignedUserIds?: string[];
-    
+
     createdAt: number;
 }
 
@@ -92,7 +93,7 @@ export interface ProjectMember {
     addedBy?: string;
 }
 
-export type ProjectPermission = 
+export type ProjectPermission =
     | "view_transactions"      // Xem giao dịch
     | "create_income"          // Tạo khoản thu
     | "create_expense"         // Tạo khoản chi
@@ -104,8 +105,8 @@ export type ProjectPermission =
 // Default permissions for each project role
 export const PROJECT_ROLE_PERMISSIONS: Record<ProjectRole, ProjectPermission[]> = {
     OWNER: [
-        "view_transactions", "create_income", "create_expense", 
-        "approve_transactions", "manage_accounts", "manage_members", 
+        "view_transactions", "create_income", "create_expense",
+        "approve_transactions", "manage_accounts", "manage_members",
         "view_reports"
     ],
     MANAGER: [
@@ -155,18 +156,18 @@ export interface Project {
     totalRevenue: number;
     totalExpense: number;
     memberIds?: string[]; // Added: List of User UIDs (backward compatible)
-    
+
     // NEW: Project members with roles
     members?: ProjectMember[];
-    
+
     // NEW: Default settings for project
     defaultCurrency?: Currency; // Default currency for transactions
     allowedCategories?: string[]; // Categories allowed for this project
-    
+
     // NEW: Dynamic sub-categories (danh mục con của dự án)
     incomeSubCategories?: ProjectSubCategory[]; // Danh mục thu con
     expenseSubCategories?: ProjectSubCategory[]; // Danh mục chi con
-    
+
     createdAt: number;
     createdBy?: string; // Owner user ID
 }
@@ -181,13 +182,13 @@ export interface FixedCost {
     lastGenerated?: string; // "YYYY-MM"
     description?: string;
     accountId?: string; // Added: Link to Account for auto-payment
-    
+
     // NEW: Category for grouping in reports
     category: ExpenseCategory;
-    
+
     // NEW: Project assignment
     projectId?: string;
-    
+
     // NEW: Payment tracking
     lastPaymentDate?: string; // ISO date of last payment
     nextPaymentDate?: string; // ISO date of next expected payment

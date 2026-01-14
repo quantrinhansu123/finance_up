@@ -6,12 +6,24 @@ import { FixedCost, Currency, Account } from "@/types/finance";
 import { doc, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import CurrencyInput from "@/components/finance/CurrencyInput";
+import { Plus, Eye, Edit2, Trash2, Zap, X, Save } from "lucide-react";
+
+const CURRENCY_COLORS: Record<string, string> = {
+    "VND": "#ef4444",
+    "USD": "#3b82f6",
+    "KHR": "#22c55e",
+    "TRY": "#f59e0b"
+};
 
 export default function FixedCostsPage() {
     const [costs, setCosts] = useState<FixedCost[]>([]);
     const [accounts, setAccounts] = useState<Account[]>([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+    const [selectedCost, setSelectedCost] = useState<FixedCost | null>(null);
     const [loading, setLoading] = useState(true);
+    const [deleteLoading, setDeleteLoading] = useState(false);
 
     // Form State
     const [name, setName] = useState("");
@@ -19,21 +31,7 @@ export default function FixedCostsPage() {
     const [currency, setCurrency] = useState<Currency>("USD");
     const [cycle, setCycle] = useState<FixedCost["cycle"]>("MONTHLY");
     const [selectedAccountId, setSelectedAccountId] = useState("");
-    const [category, setCategory] = useState<string>("Khác");
 
-    const [deleteLoading, setDeleteLoading] = useState(false);
-
-    // Fixed cost categories
-    const FIXED_COST_CATEGORIES = [
-        "Lương nhân sự",
-        "Thuê văn phòng",
-        "Cước vận chuyển",
-        "Marketing/Ads",
-        "Vận hành",
-        "SIM",
-        "Thuế",
-        "Khác"
-    ];
 
     const fetchData = async () => {
         setLoading(true);
@@ -51,24 +49,59 @@ export default function FixedCostsPage() {
         }
     };
 
+    const openCreateModal = () => {
+        setSelectedCost(null);
+        setName("");
+        setAmount("");
+        setCurrency("USD");
+        setCycle("MONTHLY");
+        setSelectedAccountId("");
+        setIsModalOpen(true);
+    };
+
+    const openEditModal = (cost: FixedCost) => {
+        setSelectedCost(cost);
+        setName(cost.name);
+        setAmount(cost.amount.toString());
+        setCurrency(cost.currency);
+        setCycle(cost.cycle);
+        setSelectedAccountId(cost.accountId || "");
+        setIsEditModalOpen(true);
+    };
+
+    const openViewModal = (cost: FixedCost) => {
+        setSelectedCost(cost);
+        setIsViewModalOpen(true);
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            await createFixedCost({
-                name,
-                amount: parseFloat(amount),
-                currency,
-                cycle,
-                status: "ON",
-                description: "",
-                accountId: selectedAccountId || undefined,
-                category: category as any, // NEW: Category field
-            });
-            setIsModalOpen(false);
-            setName("");
-            setAmount("");
-            setSelectedAccountId("");
-            setCategory("Khác");
+            if (selectedCost) {
+                // UPDATE
+                const updates = {
+                    name,
+                    amount: parseFloat(amount),
+                    currency,
+                    cycle,
+                    accountId: selectedAccountId || undefined,
+                };
+                await handleUpdate(selectedCost.id, updates);
+                setIsEditModalOpen(false);
+            } else {
+                // CREATE
+                await createFixedCost({
+                    name,
+                    amount: parseFloat(amount),
+                    currency,
+                    cycle,
+                    status: "ON",
+                    description: "",
+                    accountId: selectedAccountId || undefined,
+                    category: "Chi phí cố định" as any,
+                });
+                setIsModalOpen(false);
+            }
             fetchData();
         } catch (error) {
             console.error(error);
@@ -78,11 +111,21 @@ export default function FixedCostsPage() {
     // Inline Updates
     const handleUpdate = async (id: string, updates: Partial<FixedCost>) => {
         try {
+            let finalUpdates = { ...updates };
+
+            // Sync currency if account is changed
+            if (updates.accountId) {
+                const account = accounts.find(a => a.id === updates.accountId);
+                if (account) {
+                    finalUpdates.currency = account.currency;
+                }
+            }
+
             // Optimistic Update
-            setCosts(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
+            setCosts(prev => prev.map(c => c.id === id ? { ...c, ...finalUpdates } : c));
 
             const ref = doc(db, "finance_fixed_costs", id);
-            await updateDoc(ref, updates);
+            await updateDoc(ref, finalUpdates);
         } catch (error) {
             console.error("Update failed", error);
             fetchData(); // Revert on failure
@@ -130,7 +173,7 @@ export default function FixedCostsPage() {
                     type: "OUT",
                     amount: cost.amount,
                     currency: cost.currency,
-                    category: cost.name,
+                    category: "Chi phí cố định" as any,
                     accountId: cost.accountId || "unknown", // Use assigned account or unknown
                     description: `Chi phí cố định: ${cost.name} (${cost.cycle})`,
                     date: new Date().toISOString(),
@@ -174,15 +217,16 @@ export default function FixedCostsPage() {
                     <button
                         onClick={generateTransactions}
                         disabled={loading}
-                        className="glass-button px-4 py-3 rounded-xl font-medium bg-white/5 hover:bg-white/10 flex items-center gap-2"
+                        className="glass-button px-4 py-2 rounded-lg font-medium bg-white/5 hover:bg-white/10 flex items-center gap-2 text-xs transition-colors"
                     >
-                        ⚡ Tạo giao dịch tháng này
+                        <Zap size={14} className="text-yellow-400" />
+                        Tạo giao dịch tháng này
                     </button>
                     <button
-                        onClick={() => setIsModalOpen(true)}
-                        className="glass-button px-6 py-3 rounded-xl font-medium bg-blue-600 hover:bg-blue-500 text-white border-none"
+                        onClick={openCreateModal}
+                        className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-xs font-medium transition-colors border-none"
                     >
-                        + Thêm Chi Phí
+                        <Plus size={14} /> Thêm Chi Phí
                     </button>
                 </div>
             </div>
@@ -193,7 +237,6 @@ export default function FixedCostsPage() {
                         <thead className="bg-[#1a1a1a] text-[var(--muted)] uppercase text-xs font-semibold tracking-wider">
                             <tr>
                                 <th className="p-4 border-b border-white/10">Tên khoản chi</th>
-                                <th className="p-4 border-b border-white/10">Hạng mục</th>
                                 <th className="p-4 border-b border-white/10">Số tiền</th>
                                 <th className="p-4 border-b border-white/10">Chu kỳ</th>
                                 <th className="p-4 border-b border-white/10">Tài khoản trả</th>
@@ -206,59 +249,26 @@ export default function FixedCostsPage() {
                                 <tr key={cost.id} className="hover:bg-white/5 transition-colors">
                                     {/* Tên khoản chi */}
                                     <td className="p-4">
-                                        <input
-                                            value={cost.name}
-                                            onChange={(e) => handleUpdate(cost.id, { name: e.target.value })}
-                                            className="bg-transparent text-white w-full focus:outline-none focus:border-b border-blue-500"
-                                        />
-                                    </td>
-                                    {/* Hạng mục */}
-                                    <td className="p-4">
-                                        <select
-                                            value={cost.category || "Khác"}
-                                            onChange={(e) => handleUpdate(cost.id, { category: e.target.value as any })}
-                                            className="bg-[#1a1a1a] text-white text-xs px-2 py-1 rounded focus:outline-none border border-white/10"
-                                        >
-                                            {FIXED_COST_CATEGORIES.map(cat => (
-                                                <option key={cat} value={cat} className="bg-[#1a1a1a] text-white">{cat}</option>
-                                            ))}
-                                        </select>
+                                        <div className="font-bold text-white">{cost.name}</div>
                                     </td>
                                     {/* Số tiền */}
                                     <td className="p-4">
-                                        <div className="flex items-center gap-2">
-                                            <CurrencyInput
-                                                value={cost.amount}
-                                                onChange={(val) => handleUpdate(cost.id, { amount: parseFloat(val) })}
-                                                currency={cost.currency}
-                                                className="w-32 bg-transparent border-none p-0 text-right"
-                                            />
+                                        <div className="text-white">
+                                            {new Intl.NumberFormat('vi-VN').format(cost.amount)}
+                                            <span className="text-[10px] ml-1 opacity-60" style={{ color: CURRENCY_COLORS[cost.currency] }}>{cost.currency}</span>
                                         </div>
                                     </td>
                                     {/* Chu kỳ */}
                                     <td className="p-4">
-                                        <select
-                                            value={cost.cycle}
-                                            onChange={(e) => handleUpdate(cost.id, { cycle: e.target.value as FixedCost["cycle"] })}
-                                            className="bg-[#1a1a1a] text-white text-xs px-2 py-1 rounded focus:outline-none border border-white/10"
-                                        >
-                                            <option value="MONTHLY" className="bg-[#1a1a1a] text-white">Hàng tháng</option>
-                                            <option value="QUARTERLY" className="bg-[#1a1a1a] text-white">Hàng quý</option>
-                                            <option value="YEARLY" className="bg-[#1a1a1a] text-white">Hàng năm</option>
-                                        </select>
+                                        <span className="text-xs px-2 py-1 bg-white/5 rounded-full text-white/70">
+                                            {cost.cycle === "MONTHLY" ? "Hàng tháng" : cost.cycle === "QUARTERLY" ? "Hàng quý" : "Hàng năm"}
+                                        </span>
                                     </td>
                                     {/* Tài khoản trả */}
                                     <td className="p-4">
-                                        <select
-                                            value={cost.accountId || ""}
-                                            onChange={(e) => handleUpdate(cost.id, { accountId: e.target.value })}
-                                            className="bg-[#1a1a1a] text-white text-xs px-2 py-1 rounded focus:outline-none border border-white/10 max-w-[150px]"
-                                        >
-                                            <option value="" className="bg-[#1a1a1a] text-white">Chưa gán</option>
-                                            {accounts.map(acc => (
-                                                <option key={acc.id} value={acc.id} className="bg-[#1a1a1a] text-white">{acc.name} ({acc.currency})</option>
-                                            ))}
-                                        </select>
+                                        <div className="text-xs text-white/60">
+                                            {accounts.find(a => a.id === cost.accountId)?.name || "Chưa gán"}
+                                        </div>
                                     </td>
                                     {/* Trạng thái */}
                                     <td className="p-4 text-center">
@@ -273,100 +283,169 @@ export default function FixedCostsPage() {
                                     </td>
                                     {/* Hành động */}
                                     <td className="p-4">
-                                        <button
-                                            onClick={() => handleDelete(cost.id)}
-                                            className="text-red-400 hover:text-red-300 text-xs px-2 py-1 bg-red-400/10 rounded"
-                                        >
-                                            Xóa
-                                        </button>
+                                        <div className="flex items-center gap-1 justify-center">
+                                            <button
+                                                onClick={() => openViewModal(cost)}
+                                                className="p-1.5 rounded hover:bg-white/10 text-[var(--muted)] hover:text-blue-400 transition-colors"
+                                                title="Xem chi tiết"
+                                            >
+                                                <Eye size={14} />
+                                            </button>
+                                            <button
+                                                onClick={() => openEditModal(cost)}
+                                                className="p-1.5 rounded hover:bg-white/10 text-[var(--muted)] hover:text-yellow-400 transition-colors"
+                                                title="Sửa"
+                                            >
+                                                <Edit2 size={14} />
+                                            </button>
+                                            <button
+                                                onClick={() => handleDelete(cost.id)}
+                                                className="p-1.5 rounded hover:bg-red-500/20 text-[var(--muted)] hover:text-red-400 transition-colors"
+                                                title="Xóa"
+                                            >
+                                                <Trash2 size={14} />
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                             ))}
                             {costs.length === 0 && (
-                                <tr><td colSpan={7} className="p-8 text-center text-[var(--muted)]">Chưa có chi phí cố định nào</td></tr>
+                                <tr><td colSpan={6} className="p-8 text-center text-[var(--muted)]">Chưa có chi phí cố định nào</td></tr>
                             )}
                         </tbody>
                     </table>
                 </div>
             </div >
 
-            {
-                isModalOpen && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-                        <div className="glass-card w-full max-w-md p-6 rounded-2xl relative">
-                            <button onClick={() => setIsModalOpen(false)} className="absolute top-4 right-4 text-[var(--muted)] hover:text-white">✕</button>
-                            <h2 className="text-2xl font-bold mb-6">Thêm Chi Phí Cố Định</h2>
-                            <form onSubmit={handleSubmit} className="space-y-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-[var(--muted)] mb-1">Tên khoản chi</label>
-                                    <input value={name} onChange={e => setName(e.target.value)} placeholder="VD: Tiền thuê nhà" className="glass-input w-full p-2 rounded-lg" required />
-                                </div>
+            {/* Create/Edit Modal */}
+            {(isModalOpen || isEditModalOpen) && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+                    <div className="glass-card w-full max-w-md p-6 rounded-2xl relative">
+                        <button onClick={() => { setIsModalOpen(false); setIsEditModalOpen(false); }} className="absolute top-4 right-4 text-[var(--muted)] hover:text-white transition-colors">
+                            <X size={20} />
+                        </button>
+                        <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
+                            {selectedCost ? <Edit2 size={24} className="text-yellow-400" /> : <Plus size={24} className="text-blue-400" />}
+                            {selectedCost ? "Sửa Chi Phí Cố Định" : "Thêm Chi Phí Cố Định"}
+                        </h2>
+                        <form onSubmit={handleSubmit} className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-[var(--muted)] mb-1">Tên khoản chi</label>
+                                <input value={name} onChange={e => setName(e.target.value)} placeholder="VD: Tiền thuê nhà" className="glass-input w-full p-2 rounded-lg" required />
+                            </div>
 
-                                <div className="grid grid-cols-1 gap-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-[var(--muted)] mb-1">Số tiền & Tiền tệ</label>
-                                        <div className="flex gap-2">
-                                            <div className="flex-1">
-                                                <CurrencyInput
-                                                    value={amount}
-                                                    onChange={setAmount}
-                                                    currency={currency}
-                                                    required
-                                                />
-                                            </div>
-                                            <select
-                                                value={currency}
-                                                onChange={e => setCurrency(e.target.value as Currency)}
-                                                className="glass-input p-2 rounded-lg bg-[#1a1a1a] text-white border border-white/10 w-24"
-                                            >
-                                                <option value="VND" className="bg-[#1a1a1a] text-white">🇻🇳 VND</option>
-                                                <option value="USD" className="bg-[#1a1a1a] text-white">🇺🇸 USD</option>
-                                                <option value="KHR" className="bg-[#1a1a1a] text-white">🇰🇭 KHR</option>
-                                                <option value="TRY" className="bg-[#1a1a1a] text-white">🇹🇷 TRY</option>
-                                            </select>
+                            <div className="grid grid-cols-1 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-[var(--muted)] mb-1">Số tiền & Tiền tệ</label>
+                                    <div className="flex gap-2">
+                                        <div className="flex-1">
+                                            <CurrencyInput
+                                                value={amount}
+                                                onChange={setAmount}
+                                                currency={currency}
+                                                required
+                                            />
                                         </div>
-                                    </div>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-[var(--muted)] mb-1">Chu kỳ lặp lại</label>
-                                        <select value={cycle} onChange={e => setCycle(e.target.value as any)} className="glass-input w-full p-2 rounded-lg bg-[#1a1a1a] text-white border border-white/10">
-                                            <option value="MONTHLY" className="bg-[#1a1a1a] text-white">Hàng tháng</option>
-                                            <option value="QUARTERLY" className="bg-[#1a1a1a] text-white">Hàng quý</option>
-                                            <option value="YEARLY" className="bg-[#1a1a1a] text-white">Hàng năm</option>
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-[var(--muted)] mb-1">Hạng mục</label>
-                                        <select value={category} onChange={e => setCategory(e.target.value)} className="glass-input w-full p-2 rounded-lg bg-[#1a1a1a] text-white border border-white/10">
-                                            {FIXED_COST_CATEGORIES.map(cat => (
-                                                <option key={cat} value={cat} className="bg-[#1a1a1a] text-white">{cat}</option>
-                                            ))}
+                                        <select
+                                            value={currency}
+                                            onChange={e => setCurrency(e.target.value as Currency)}
+                                            disabled={!!selectedAccountId}
+                                            className={`glass-input p-2 rounded-lg bg-[#1a1a1a] text-white border border-white/10 w-24 ${selectedAccountId ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                        >
+                                            <option value="VND" className="bg-[#1a1a1a] text-white">🇻🇳 VND</option>
+                                            <option value="USD" className="bg-[#1a1a1a] text-white">🇺🇸 USD</option>
+                                            <option value="KHR" className="bg-[#1a1a1a] text-white">🇰🇭 KHR</option>
+                                            <option value="TRY" className="bg-[#1a1a1a] text-white">🇹🇷 TRY</option>
                                         </select>
                                     </div>
                                 </div>
+                            </div>
 
+                            <div className="grid grid-cols-1 gap-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-[var(--muted)] mb-1">Tài khoản thanh toán mặc định</label>
-                                    <select
-                                        value={selectedAccountId}
-                                        onChange={e => setSelectedAccountId(e.target.value)}
-                                        className="glass-input w-full p-2 rounded-lg bg-[#1a1a1a] text-white border border-white/10"
-                                    >
-                                        <option value="" className="bg-[#1a1a1a] text-white">Chọn tài khoản (Tùy chọn)</option>
-                                        {accounts.map(acc => (
-                                            <option key={acc.id} value={acc.id} className="bg-[#1a1a1a] text-white">{acc.name} ({acc.currency})</option>
-                                        ))}
+                                    <label className="block text-sm font-medium text-[var(--muted)] mb-1">Chu kỳ lặp lại</label>
+                                    <select value={cycle} onChange={e => setCycle(e.target.value as any)} className="glass-input w-full p-2 rounded-lg bg-[#1a1a1a] text-white border border-white/10">
+                                        <option value="MONTHLY" className="bg-[#1a1a1a] text-white">Hàng tháng</option>
+                                        <option value="QUARTERLY" className="bg-[#1a1a1a] text-white">Hàng quý</option>
+                                        <option value="YEARLY" className="bg-[#1a1a1a] text-white">Hàng năm</option>
                                     </select>
                                 </div>
+                            </div>
 
-                                <button type="submit" className="glass-button w-full p-3 rounded-xl font-bold bg-blue-600 hover:bg-blue-500 text-white mt-4 border-none">Lưu</button>
-                            </form>
-                        </div>
+                            <div>
+                                <label className="block text-sm font-medium text-[var(--muted)] mb-1">Tài khoản thanh toán mặc định</label>
+                                <select
+                                    value={selectedAccountId}
+                                    onChange={e => {
+                                        const accId = e.target.value;
+                                        setSelectedAccountId(accId);
+                                        const account = accounts.find(a => a.id === accId);
+                                        if (account) {
+                                            setCurrency(account.currency);
+                                        }
+                                    }}
+                                    className="glass-input w-full p-2 rounded-lg bg-[#1a1a1a] text-white border border-white/10"
+                                >
+                                    <option value="" className="bg-[#1a1a1a] text-white">Chọn tài khoản (Tùy chọn)</option>
+                                    {accounts.map(acc => (
+                                        <option key={acc.id} value={acc.id} className="bg-[#1a1a1a] text-white">{acc.name} ({acc.currency})</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <button type="submit" className="flex items-center justify-center gap-2 w-full p-3 rounded-xl font-bold bg-blue-600 hover:bg-blue-500 text-white mt-4 border-none transition-all">
+                                <Save size={18} />
+                                {selectedCost ? "Cập nhật thay đổi" : "Lưu chi phí"}
+                            </button>
+                        </form>
                     </div>
-                )
-            }
+                </div>
+            )}
+
+            {/* View Modal */}
+            {isViewModalOpen && selectedCost && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+                    <div className="glass-card w-full max-w-md p-6 rounded-2xl relative">
+                        <button onClick={() => setIsViewModalOpen(false)} className="absolute top-4 right-4 text-[var(--muted)] hover:text-white transition-colors">
+                            <X size={20} />
+                        </button>
+                        <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
+                            <Eye size={24} className="text-blue-400" />
+                            Chi Tiết Chi Phí
+                        </h2>
+                        <div className="space-y-4 text-sm">
+                            <div className="flex justify-between border-b border-white/5 pb-2">
+                                <span className="text-[var(--muted)]">Tên khoản chi:</span>
+                                <span className="text-white font-bold">{selectedCost.name}</span>
+                            </div>
+                            <div className="flex justify-between border-b border-white/5 pb-2">
+                                <span className="text-[var(--muted)]">Số tiền:</span>
+                                <span className="text-white font-bold">{new Intl.NumberFormat('vi-VN').format(selectedCost.amount)} {selectedCost.currency}</span>
+                            </div>
+                            <div className="flex justify-between border-b border-white/5 pb-2">
+                                <span className="text-[var(--muted)]">Chu kỳ:</span>
+                                <span className="text-white">{selectedCost.cycle === "MONTHLY" ? "Hàng tháng" : selectedCost.cycle === "QUARTERLY" ? "Hàng quý" : "Hàng năm"}</span>
+                            </div>
+                            <div className="flex justify-between border-b border-white/5 pb-2">
+                                <span className="text-[var(--muted)]">Tài khoản:</span>
+                                <span className="text-white">{accounts.find(a => a.id === selectedCost.accountId)?.name || "Chưa gán"}</span>
+                            </div>
+                            <div className="flex justify-between border-b border-white/5 pb-2">
+                                <span className="text-[var(--muted)]">Trạng thái:</span>
+                                <span className={selectedCost.status === "ON" ? "text-green-500" : "text-gray-400"}>{selectedCost.status === "ON" ? "Đang bật" : "Đang tắt"}</span>
+                            </div>
+                            <div className="flex justify-between border-b border-white/5 pb-2">
+                                <span className="text-[var(--muted)]">Tháng tạo gần nhất:</span>
+                                <span className="text-white">{selectedCost.lastGenerated || "Chưa tạo giao dịch"}</span>
+                            </div>
+                        </div>
+                        <button onClick={() => setIsViewModalOpen(false)} className="glass-button w-full p-3 rounded-xl font-bold bg-white/5 hover:bg-white/10 text-white mt-6 border-none flex items-center justify-center gap-2">
+                            <X size={18} />
+                            Đóng
+                        </button>
+                    </div>
+                </div>
+            )}
         </div >
     );
 }
