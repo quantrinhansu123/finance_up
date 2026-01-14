@@ -5,6 +5,7 @@ import { getFixedCosts, createFixedCost, createTransaction, getAccounts, deleteF
 import { FixedCost, Currency, Account } from "@/types/finance";
 import { doc, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import CurrencyInput from "@/components/finance/CurrencyInput";
 
 export default function FixedCostsPage() {
     const [costs, setCosts] = useState<FixedCost[]>([]);
@@ -226,22 +227,12 @@ export default function FixedCostsPage() {
                                     {/* Số tiền */}
                                     <td className="p-4">
                                         <div className="flex items-center gap-2">
-                                            <input
-                                                type="number"
+                                            <CurrencyInput
                                                 value={cost.amount}
-                                                onChange={(e) => handleUpdate(cost.id, { amount: parseFloat(e.target.value) })}
-                                                className="bg-transparent text-white w-24 focus:outline-none focus:border-b border-blue-500 text-right font-bold"
+                                                onChange={(val) => handleUpdate(cost.id, { amount: parseFloat(val) })}
+                                                currency={cost.currency}
+                                                className="w-32 bg-transparent border-none p-0 text-right"
                                             />
-                                            <select
-                                                value={cost.currency}
-                                                onChange={(e) => handleUpdate(cost.id, { currency: e.target.value as Currency })}
-                                                className="bg-[#1a1a1a] text-[var(--muted)] text-xs focus:outline-none border border-white/10 rounded px-1 py-0.5"
-                                            >
-                                                <option value="VND" className="bg-[#1a1a1a] text-white">VND</option>
-                                                <option value="USD" className="bg-[#1a1a1a] text-white">USD</option>
-                                                <option value="KHR" className="bg-[#1a1a1a] text-white">KHR</option>
-                                                <option value="TRY" className="bg-[#1a1a1a] text-white">TRY</option>
-                                            </select>
                                         </div>
                                     </td>
                                     {/* Chu kỳ */}
@@ -311,19 +302,29 @@ export default function FixedCostsPage() {
                                     <input value={name} onChange={e => setName(e.target.value)} placeholder="VD: Tiền thuê nhà" className="glass-input w-full p-2 rounded-lg" required />
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 gap-4">
                                     <div>
-                                        <label className="block text-sm font-medium text-[var(--muted)] mb-1">Số tiền</label>
-                                        <input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0" className="glass-input w-full p-2 rounded-lg" required />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-[var(--muted)] mb-1">Tiền tệ</label>
-                                        <select value={currency} onChange={e => setCurrency(e.target.value as Currency)} className="glass-input w-full p-2 rounded-lg bg-[#1a1a1a] text-white border border-white/10">
-                                            <option value="VND" className="bg-[#1a1a1a] text-white">🇻🇳 VND</option>
-                                            <option value="USD" className="bg-[#1a1a1a] text-white">🇺🇸 USD</option>
-                                            <option value="KHR" className="bg-[#1a1a1a] text-white">🇰🇭 KHR</option>
-                                            <option value="TRY" className="bg-[#1a1a1a] text-white">🇹🇷 TRY</option>
-                                        </select>
+                                        <label className="block text-sm font-medium text-[var(--muted)] mb-1">Số tiền & Tiền tệ</label>
+                                        <div className="flex gap-2">
+                                            <div className="flex-1">
+                                                <CurrencyInput
+                                                    value={amount}
+                                                    onChange={setAmount}
+                                                    currency={currency}
+                                                    required
+                                                />
+                                            </div>
+                                            <select
+                                                value={currency}
+                                                onChange={e => setCurrency(e.target.value as Currency)}
+                                                className="glass-input p-2 rounded-lg bg-[#1a1a1a] text-white border border-white/10 w-24"
+                                            >
+                                                <option value="VND" className="bg-[#1a1a1a] text-white">🇻🇳 VND</option>
+                                                <option value="USD" className="bg-[#1a1a1a] text-white">🇺🇸 USD</option>
+                                                <option value="KHR" className="bg-[#1a1a1a] text-white">🇰🇭 KHR</option>
+                                                <option value="TRY" className="bg-[#1a1a1a] text-white">🇹🇷 TRY</option>
+                                            </select>
+                                        </div>
                                     </div>
                                 </div>
 

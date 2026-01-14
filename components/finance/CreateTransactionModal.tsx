@@ -7,6 +7,7 @@ import { getCategoriesForRole, Role, getAccessibleProjects, getAccessibleAccount
 import { uploadImage } from "@/lib/upload";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import CurrencyInput from "./CurrencyInput";
 
 interface CreateTransactionModalProps {
     isOpen: boolean;
@@ -24,7 +25,7 @@ const EXPENSE_CATEGORIES = [
     "Cước vận chuyển HCM-HN",
     "SIM",
     "SIM Smart",
-    "SIM CellCard", 
+    "SIM CellCard",
     "SIM MetPhone",
     "Văn phòng",
     "Thuê văn phòng",
@@ -78,25 +79,25 @@ export default function CreateTransactionModal({ isOpen, onClose, onSuccess, cur
     // Filter accounts based on user and SELECTED PROJECT
     const accessibleAccounts = useMemo(() => {
         let filtered = getAccessibleAccounts(currentUser, accounts, accessibleProjectIds);
-        
+
         // Filter by assignedUserIds if set
         const userId = currentUser?.uid || currentUser?.id;
         if (userId) {
-            filtered = filtered.filter(acc => 
-                !acc.assignedUserIds || 
-                acc.assignedUserIds.length === 0 || 
+            filtered = filtered.filter(acc =>
+                !acc.assignedUserIds ||
+                acc.assignedUserIds.length === 0 ||
                 acc.assignedUserIds.includes(userId)
             );
         }
 
         // IMPORTANT: Filter by selected project
         if (projectId) {
-            filtered = filtered.filter(acc => 
+            filtered = filtered.filter(acc =>
                 acc.projectId === projectId || // Account belongs to this project
                 !acc.projectId // Or account is general (no project)
             );
         }
-        
+
         return filtered;
     }, [currentUser, accounts, accessibleProjectIds, projectId]);
 
@@ -114,11 +115,11 @@ export default function CreateTransactionModal({ isOpen, onClose, onSuccess, cur
     const allowedCategories = useMemo(() => {
         const baseCategories = type === "IN" ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
         const roleCategories = getCategoriesForRole(currentUser?.role || "ADMIN", baseCategories);
-        
+
         if (selectedAccount?.allowedCategories && selectedAccount.allowedCategories.length > 0) {
             return roleCategories.filter(cat => selectedAccount.allowedCategories!.includes(cat));
         }
-        
+
         return roleCategories;
     }, [type, currentUser?.role, selectedAccount]);
 
@@ -279,7 +280,7 @@ export default function CreateTransactionModal({ isOpen, onClose, onSuccess, cur
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-4">
-                    
+
                     {/* ========== STEP 1: CHỌN DỰ ÁN ========== */}
                     <div className={`p-4 rounded-xl border-2 transition-all ${projectId ? 'bg-green-500/10 border-green-500/30' : 'bg-blue-500/10 border-blue-500/30'}`}>
                         <label className="block text-sm font-bold mb-2" style={{ color: projectId ? '#4ade80' : '#60a5fa' }}>
@@ -301,7 +302,7 @@ export default function CreateTransactionModal({ isOpen, onClose, onSuccess, cur
                                 </option>
                             ))}
                         </select>
-                        
+
                         {selectedProject && (
                             <div className="mt-2 text-xs text-[var(--muted)]">
                                 {selectedProject.description || "Không có mô tả"}
@@ -338,7 +339,7 @@ export default function CreateTransactionModal({ isOpen, onClose, onSuccess, cur
                                     </option>
                                 ))}
                             </select>
-                            
+
                             {accessibleAccounts.length === 0 && (
                                 <p className="text-xs text-yellow-400 mt-2">⚠️ Không có tài khoản nào cho dự án này.</p>
                             )}
@@ -377,25 +378,18 @@ export default function CreateTransactionModal({ isOpen, onClose, onSuccess, cur
                             {/* Số tiền */}
                             <div>
                                 <label className="block text-sm font-medium text-[var(--muted)] mb-1">Số tiền</label>
-                                <div className="relative">
-                                    <input
-                                        type="number"
-                                        value={amount}
-                                        onChange={(e) => setAmount(e.target.value)}
-                                        className="glass-input w-full p-3 pr-20 rounded-lg text-lg"
-                                        placeholder="0"
-                                        required
-                                    />
-                                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-base font-bold" style={{ color: currency === 'VND' ? '#ef4444' : currency === 'USD' ? '#3b82f6' : '#22c55e' }}>
-                                        {CURRENCY_FLAGS[currency]} {currency}
-                                    </span>
-                                </div>
+                                <CurrencyInput
+                                    value={amount}
+                                    onChange={setAmount}
+                                    currency={currency}
+                                    required
+                                />
                                 {amount && parseFloat(amount) > 0 && (
                                     (currency === "VND" && parseFloat(amount) > 5000000) ||
                                     ((currency === "USD" || currency === "KHR" || currency === "TRY") && parseFloat(amount) > 100)
                                 ) && (
-                                    <p className="text-xs text-yellow-400 mt-1">⚠️ Số tiền lớn - Cần Admin duyệt</p>
-                                )}
+                                        <p className="text-xs text-yellow-400 mt-1">⚠️ Số tiền lớn - Cần Admin duyệt</p>
+                                    )}
                             </div>
 
                             {/* Hạng mục */}
@@ -507,7 +501,7 @@ export default function CreateTransactionModal({ isOpen, onClose, onSuccess, cur
                                 <div className="flex justify-between pt-2 border-t border-white/10">
                                     <span className="text-[var(--muted)]">Trạng thái:</span>
                                     {(currency === "VND" && parseFloat(amount) > 5000000) ||
-                                     ((currency === "USD" || currency === "KHR" || currency === "TRY") && parseFloat(amount) > 100) ? (
+                                        ((currency === "USD" || currency === "KHR" || currency === "TRY") && parseFloat(amount) > 100) ? (
                                         <span className="text-yellow-400 font-medium">⏳ Chờ duyệt</span>
                                     ) : (
                                         <span className="text-green-400 font-medium">✓ Tự động duyệt</span>

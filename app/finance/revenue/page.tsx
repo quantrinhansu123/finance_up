@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { getRevenues, createRevenue } from "@/lib/finance";
 import { MonthlyRevenue, Currency } from "@/types/finance";
 import { canManageRevenue, getUserRole, Role } from "@/lib/permissions";
+import CurrencyInput from "@/components/finance/CurrencyInput";
 
 export default function RevenuePage() {
     // State
@@ -139,7 +140,12 @@ export default function RevenuePage() {
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-[var(--muted)] mb-1">Total Revenue</label>
-                                <input type="number" required value={amount} onChange={e => setAmount(e.target.value)} className="glass-input w-full p-2 rounded-lg" placeholder="0.00" />
+                                <CurrencyInput
+                                    value={amount}
+                                    onChange={setAmount}
+                                    currency={currency}
+                                    required
+                                />
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-[var(--muted)] mb-1">Currency</label>

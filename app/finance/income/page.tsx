@@ -8,6 +8,7 @@ import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { getUserRole, getAccessibleProjects, getAccessibleAccounts, hasProjectPermission, Role } from "@/lib/permissions";
 import { FolderOpen, CreditCard, Wallet, Upload, Check, ChevronRight, AlertCircle, Lock } from "lucide-react";
+import CurrencyInput from "@/components/finance/CurrencyInput";
 
 const INCOME_SOURCES = ["COD VET", "COD JNT", "Khách CK", "Khác"];
 const CURRENCY_FLAGS: Record<string, string> = { "VND": "🇻🇳", "USD": "🇺🇸", "KHR": "🇰🇭", "TRY": "🇹🇷" };
@@ -41,7 +42,7 @@ export default function IncomePage() {
     const accessibleProjects = useMemo(() => {
         const userId = currentUser?.uid || currentUser?.id;
         if (!userId) return [];
-        
+
         const allAccessible = getAccessibleProjects(currentUser, projects);
         // Chỉ hiện dự án mà user có quyền create_income
         return allAccessible.filter(p => hasProjectPermission(userId, p, "create_income", currentUser));
@@ -55,7 +56,7 @@ export default function IncomePage() {
         return filtered;
     }, [currentUser, accounts, accessibleProjects, projectId]);
     const selectedAccount = useMemo(() => accounts.find(a => a.id === accountId), [accounts, accountId]);
-    
+
     // Kiểm tra quyền tạo thu cho dự án đã chọn
     const selectedProject = useMemo(() => projects.find(p => p.id === projectId), [projects, projectId]);
     const canCreateIncome = useMemo(() => {
@@ -120,27 +121,27 @@ export default function IncomePage() {
     }, [projectId, incomeCategories, source]);
 
     const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault(); 
-        
+        e.preventDefault();
+
         // Kiểm tra quyền trước khi submit
         if (!canCreateIncome) {
             alert("Bạn không có quyền tạo khoản thu trong dự án này");
             return;
         }
-        
+
         setSubmitting(true);
         try {
             const numAmount = parseFloat(amount);
             const currency = selectedAccount?.currency || "USD";
             const imageUrls: string[] = [];
             if (files.length > 0) { for (const file of files.slice(0, 2)) { imageUrls.push(await uploadImage(file)); } }
-            
+
             // Lấy thông tin danh mục cha từ sub-category
             const parentCategory = selectedSubCategory?.parentCategoryName || source;
             const parentCategoryId = selectedSubCategory?.parentCategoryId || "";
-            
+
             await createTransaction({
-                type: "IN", amount: numAmount, currency, 
+                type: "IN", amount: numAmount, currency,
                 category: source, // Danh mục con
                 parentCategory, // Danh mục cha (để thống kê)
                 parentCategoryId,
@@ -224,10 +225,12 @@ export default function IncomePage() {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-xs text-white/50 mb-1.5">Số tiền</label>
-                                <div className="relative">
-                                    <input type="number" value={amount} onChange={e => setAmount(e.target.value)} className="w-full p-3 pr-16 bg-black/30 border border-white/10 rounded-xl text-white text-lg font-semibold focus:border-green-500/50 focus:outline-none" placeholder="0" required />
-                                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-bold text-green-400">{selectedAccount?.currency}</span>
-                                </div>
+                                <CurrencyInput
+                                    value={amount}
+                                    onChange={setAmount}
+                                    currency={selectedAccount?.currency}
+                                    required
+                                />
                             </div>
                             <div>
                                 <label className="block text-xs text-white/50 mb-1.5">Nguồn tiền</label>

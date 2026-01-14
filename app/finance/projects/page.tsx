@@ -6,6 +6,7 @@ import { Project } from "@/types/finance";
 import { useRouter } from "next/navigation";
 import { getUserRole, getAccessibleProjects, hasProjectPermission, Role } from "@/lib/permissions";
 import { Users, Trash2, Search, ChevronLeft, ChevronRight, ShieldX } from "lucide-react";
+import CurrencyInput from "@/components/finance/CurrencyInput";
 
 const ITEMS_PER_PAGE = 10;
 
@@ -34,7 +35,7 @@ export default function ProjectsPage() {
     const filteredProjects = useMemo(() => {
         return projects.filter(p => {
             const matchSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                               (p.description || "").toLowerCase().includes(searchTerm.toLowerCase());
+                (p.description || "").toLowerCase().includes(searchTerm.toLowerCase());
             const matchStatus = filterStatus === "ALL" || p.status === filterStatus;
             return matchSearch && matchStatus;
         });
@@ -103,13 +104,13 @@ export default function ProjectsPage() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        
+
         // Chỉ ADMIN mới được tạo dự án mới
         if (userRole !== "ADMIN") {
             alert("Bạn không có quyền tạo dự án mới");
             return;
         }
-        
+
         try {
             await createProject({
                 name,
@@ -137,13 +138,13 @@ export default function ProjectsPage() {
 
     const handleDelete = async (id: string, e: React.MouseEvent) => {
         e.stopPropagation();
-        
+
         // Chỉ ADMIN mới được xóa
         if (userRole !== "ADMIN") {
             alert("Chỉ quản trị viên mới có quyền xóa dự án");
             return;
         }
-        
+
         if (!confirm("Bạn có chắc chắn muốn xóa dự án này?")) return;
         try {
             await deleteProject(id);
@@ -178,12 +179,12 @@ export default function ProjectsPage() {
                         <p className="text-[var(--muted)]">Quản lý dự án và P&L</p>
                     </div>
                 </div>
-                
+
                 <div className="glass-card p-8 rounded-xl text-center">
                     <ShieldX size={48} className="mx-auto text-[var(--muted)] mb-4" />
                     <h3 className="text-xl font-semibold text-white mb-2">Không có quyền truy cập</h3>
                     <p className="text-[var(--muted)]">
-                        Bạn chưa được phân quyền vào bất kỳ dự án nào. 
+                        Bạn chưa được phân quyền vào bất kỳ dự án nào.
                         Vui lòng liên hệ quản trị viên để được cấp quyền.
                     </p>
                 </div>
@@ -218,7 +219,7 @@ export default function ProjectsPage() {
             {userRole !== "ADMIN" && (
                 <div className="glass-card p-4 rounded-xl bg-blue-500/10 border border-blue-500/20">
                     <p className="text-sm text-blue-400">
-                        📋 Bạn chỉ có thể xem các dự án mà bạn được phân quyền tham gia ({projects.length} dự án). 
+                        📋 Bạn chỉ có thể xem các dự án mà bạn được phân quyền tham gia ({projects.length} dự án).
                         Liên hệ quản trị viên để được thêm vào dự án khác.
                     </p>
                 </div>
@@ -326,7 +327,7 @@ export default function ProjectsPage() {
                         )}
                     </tbody>
                 </table>
-                
+
                 {/* Pagination */}
                 {totalPages > 1 && (
                     <div className="flex items-center justify-between p-4 border-t border-white/10">
@@ -356,11 +357,10 @@ export default function ProjectsPage() {
                                     <button
                                         key={pageNum}
                                         onClick={() => setCurrentPage(pageNum)}
-                                        className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${
-                                            currentPage === pageNum 
-                                                ? "bg-blue-500 text-white" 
+                                        className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${currentPage === pageNum
+                                                ? "bg-blue-500 text-white"
                                                 : "hover:bg-white/5 text-[var(--muted)]"
-                                        }`}
+                                            }`}
                                     >
                                         {pageNum}
                                     </button>
@@ -404,13 +404,11 @@ export default function ProjectsPage() {
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
                                         <label className="block text-sm font-medium text-[var(--muted)] mb-1">Ngân sách</label>
-                                        <input 
-                                            type="number" 
-                                            value={budget} 
-                                            onChange={e => setBudget(e.target.value)} 
-                                            className="glass-input w-full p-2 rounded-lg" 
-                                            placeholder="0.00"
-                                            step="0.01"
+                                        <CurrencyInput
+                                            value={budget}
+                                            onChange={setBudget}
+                                            currency={currency}
+                                            placeholder="0"
                                         />
                                     </div>
                                     <div>

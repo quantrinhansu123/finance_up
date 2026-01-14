@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Fund } from "@/types/finance";
 import { createFund, updateFund, deleteFund } from "@/lib/finance";
+import CurrencyInput from "./CurrencyInput";
 
 interface FundModalProps {
     isOpen: boolean;
@@ -106,12 +107,11 @@ export default function FundModal({ isOpen, onClose, onSuccess, fund }: FundModa
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-[var(--muted)] mb-1">Ngân sách mục tiêu (Tháng)</label>
-                        <input
-                            type="number"
+                        <CurrencyInput
                             value={budget}
-                            onChange={e => setBudget(e.target.value)}
-                            placeholder="0.00"
-                            className="glass-input w-full p-2 rounded-lg"
+                            onChange={setBudget}
+                            currency="USD"
+                            placeholder="0"
                         />
                     </div>
                     <div>

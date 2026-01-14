@@ -6,6 +6,7 @@ import { createTransaction, getAccounts, updateAccountBalance, getProjects } fro
 import { Account } from "@/types/finance";
 import { getUserRole, Role, hasProjectPermission } from "@/lib/permissions";
 import { ArrowRightLeft, ShieldX } from "lucide-react";
+import CurrencyInput from "@/components/finance/CurrencyInput";
 
 export default function TransferPage() {
     const router = useRouter();
@@ -29,14 +30,14 @@ export default function TransferPage() {
                 setLoading(false);
                 return;
             }
-            
+
             const parsed = JSON.parse(u);
             setCurrentUser(parsed);
             const role = getUserRole(parsed);
             setUserRole(role);
-            
+
             const userId = parsed.uid || parsed.id;
-            
+
             // Chỉ ADMIN mới được chuyển tiền
             if (role === "ADMIN") {
                 setCanTransfer(true);
@@ -52,7 +53,7 @@ export default function TransferPage() {
                 return;
             }
         };
-        
+
         loadData();
     }, []);
 
@@ -170,7 +171,7 @@ export default function TransferPage() {
             </div>
         );
     }
-    
+
     // Không có tài khoản nào
     if (accounts.length < 2) {
         return (
@@ -253,19 +254,12 @@ export default function TransferPage() {
                     {/* Amount */}
                     <div className="p-4 rounded-xl bg-white/5 border border-white/5">
                         <label className="block text-sm font-medium text-[var(--muted)] mb-1">Số tiền chuyển</label>
-                        <div className="relative">
-                            <input
-                                type="number"
-                                value={amount}
-                                onChange={e => setAmount(e.target.value)}
-                                className="glass-input w-full p-3 rounded-xl text-xl font-bold"
-                                placeholder="0.00"
-                                required
-                            />
-                            <div className="absolute right-4 top-3 font-bold text-[var(--muted)]">
-                                {sourceCurrency || ""}
-                            </div>
-                        </div>
+                        <CurrencyInput
+                            value={amount}
+                            onChange={setAmount}
+                            currency={sourceCurrency}
+                            required
+                        />
                     </div>
 
                     {/* Description */}

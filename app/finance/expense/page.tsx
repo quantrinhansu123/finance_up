@@ -8,6 +8,7 @@ import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { getUserRole, getAccessibleProjects, getAccessibleAccounts, getCategoriesForRole, hasProjectPermission, Role } from "@/lib/permissions";
 import { FolderOpen, CreditCard, Receipt, Upload, Check, ChevronRight, AlertCircle, Lock } from "lucide-react";
+import CurrencyInput from "@/components/finance/CurrencyInput";
 
 const EXPENSE_CATEGORIES = [
     "Thuế", "Long Heng", "Cước vận chuyển", "Cước vận chuyển HN-HCM", "Cước vận chuyển HCM-HN",
@@ -59,7 +60,7 @@ export default function ExpensePage() {
     const accessibleProjects = useMemo(() => {
         const userId = currentUser?.uid || currentUser?.id;
         if (!userId) return [];
-        
+
         const allAccessible = getAccessibleProjects(currentUser, projects);
         // Chỉ hiện dự án mà user có quyền create_expense
         return allAccessible.filter(p => hasProjectPermission(userId, p, "create_expense", currentUser));
@@ -78,7 +79,7 @@ export default function ExpensePage() {
     }, [currentUser, accounts, accessibleProjects, projectId]);
 
     const selectedAccount = useMemo(() => accounts.find(a => a.id === accountId), [accounts, accountId]);
-    
+
     // Kiểm tra quyền tạo chi cho dự án đã chọn
     const selectedProject = useMemo(() => projects.find(p => p.id === projectId), [projects, projectId]);
     const canCreateExpense = useMemo(() => {
@@ -188,13 +189,13 @@ export default function ExpensePage() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        
+
         // Kiểm tra quyền trước khi submit
         if (!canCreateExpense) {
             alert("Bạn không có quyền tạo khoản chi trong dự án này");
             return;
         }
-        
+
         setSubmitting(true);
         try {
             const numAmount = parseFloat(amount);
@@ -215,7 +216,7 @@ export default function ExpensePage() {
             const parentCategoryId = selectedSubCategory?.parentCategoryId || "";
 
             await createTransaction({
-                type: "OUT", amount: numAmount, currency, 
+                type: "OUT", amount: numAmount, currency,
                 category, // Danh mục con
                 parentCategory, // Danh mục cha (để thống kê)
                 parentCategoryId,
@@ -264,20 +265,18 @@ export default function ExpensePage() {
                     { step: 3, label: "Chi tiết", icon: Receipt }
                 ].map((item, idx) => (
                     <div key={item.step} className="flex items-center flex-1">
-                        <div className={`flex items-center gap-2 px-3 py-2 rounded-xl transition-all ${
-                            currentStep === item.step 
-                                ? "bg-red-500/20 text-red-400" 
-                                : currentStep > item.step 
-                                    ? "bg-green-500/20 text-green-400" 
+                        <div className={`flex items-center gap-2 px-3 py-2 rounded-xl transition-all ${currentStep === item.step
+                                ? "bg-red-500/20 text-red-400"
+                                : currentStep > item.step
+                                    ? "bg-green-500/20 text-green-400"
                                     : "text-white/30"
-                        }`}>
-                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                                currentStep === item.step 
-                                    ? "bg-red-500 text-white" 
-                                    : currentStep > item.step 
-                                        ? "bg-green-500 text-white" 
-                                        : "bg-white/10"
                             }`}>
+                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${currentStep === item.step
+                                    ? "bg-red-500 text-white"
+                                    : currentStep > item.step
+                                        ? "bg-green-500 text-white"
+                                        : "bg-white/10"
+                                }`}>
                                 {currentStep > item.step ? <Check size={16} /> : <item.icon size={16} />}
                             </div>
                             <span className="text-sm font-medium hidden sm:block">{item.label}</span>
@@ -290,13 +289,11 @@ export default function ExpensePage() {
             {/* Form */}
             <form onSubmit={handleSubmit} className="space-y-4">
                 {/* Step 1: Project */}
-                <div className={`p-5 rounded-2xl border transition-all ${
-                    projectId ? "bg-green-500/5 border-green-500/20" : "bg-white/5 border-white/10"
-                }`}>
+                <div className={`p-5 rounded-2xl border transition-all ${projectId ? "bg-green-500/5 border-green-500/20" : "bg-white/5 border-white/10"
+                    }`}>
                     <div className="flex items-center gap-3 mb-3">
-                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                            projectId ? "bg-green-500 text-white" : "bg-red-500/20 text-red-400"
-                        }`}>
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${projectId ? "bg-green-500 text-white" : "bg-red-500/20 text-red-400"
+                            }`}>
                             {projectId ? <Check size={20} /> : <FolderOpen size={20} />}
                         </div>
                         <div>
@@ -304,8 +301,8 @@ export default function ExpensePage() {
                             <p className="text-xs text-white/40">Dự án sẽ ghi nhận khoản chi</p>
                         </div>
                     </div>
-                    <select 
-                        value={projectId} 
+                    <select
+                        value={projectId}
                         onChange={e => { setProjectId(e.target.value); setAccountId(""); }}
                         className="w-full p-3 bg-black/30 border border-white/10 rounded-xl text-white focus:border-red-500/50 focus:outline-none transition-colors"
                         required
@@ -322,13 +319,11 @@ export default function ExpensePage() {
 
                 {/* Step 2: Account */}
                 {projectId && (
-                    <div className={`p-5 rounded-2xl border transition-all ${
-                        accountId ? "bg-green-500/5 border-green-500/20" : "bg-white/5 border-white/10"
-                    }`}>
+                    <div className={`p-5 rounded-2xl border transition-all ${accountId ? "bg-green-500/5 border-green-500/20" : "bg-white/5 border-white/10"
+                        }`}>
                         <div className="flex items-center gap-3 mb-3">
-                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                                accountId ? "bg-green-500 text-white" : "bg-red-500/20 text-red-400"
-                            }`}>
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${accountId ? "bg-green-500 text-white" : "bg-red-500/20 text-red-400"
+                                }`}>
                                 {accountId ? <Check size={20} /> : <CreditCard size={20} />}
                             </div>
                             <div>
@@ -336,8 +331,8 @@ export default function ExpensePage() {
                                 <p className="text-xs text-white/40">Tài khoản sẽ trừ tiền</p>
                             </div>
                         </div>
-                        <select 
-                            value={accountId} 
+                        <select
+                            value={accountId}
                             onChange={e => setAccountId(e.target.value)}
                             className="w-full p-3 bg-black/30 border border-white/10 rounded-xl text-white focus:border-red-500/50 focus:outline-none transition-colors"
                             required
@@ -376,21 +371,13 @@ export default function ExpensePage() {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-xs text-white/50 mb-1.5">Số tiền</label>
-                                <div className="relative">
-                                    <input 
-                                        type="number" 
-                                        value={amount} 
-                                        onChange={e => setAmount(e.target.value)}
-                                        className={`w-full p-3 pr-16 bg-black/30 border rounded-xl text-white text-lg font-semibold focus:outline-none transition-colors ${
-                                            isOverBalance ? "border-red-500 focus:border-red-500" : "border-white/10 focus:border-red-500/50"
-                                        }`}
-                                        placeholder="0"
-                                        required 
-                                    />
-                                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-bold text-red-400">
-                                        {selectedAccount?.currency}
-                                    </span>
-                                </div>
+                                <CurrencyInput
+                                    value={amount}
+                                    onChange={setAmount}
+                                    currency={selectedAccount?.currency}
+                                    className={isOverBalance ? "border-red-500 focus:border-red-500" : "border-white/10 focus:border-red-500/50"}
+                                    required
+                                />
                                 {isOverBalance && (
                                     <div className="mt-2 p-3 bg-red-500/10 border border-red-500/30 rounded-xl">
                                         <p className="flex items-center gap-2 text-sm text-red-400 font-medium">
@@ -414,9 +401,9 @@ export default function ExpensePage() {
                             </div>
                             <div>
                                 <label className="block text-xs text-white/50 mb-1.5">Hạng mục</label>
-                                <select 
-                                    value={category} 
-                                    onChange={e => setCategory(e.target.value)} 
+                                <select
+                                    value={category}
+                                    onChange={e => setCategory(e.target.value)}
                                     className="w-full p-3 bg-black/30 border border-white/10 rounded-xl text-white focus:border-red-500/50 focus:outline-none"
                                     required
                                 >
@@ -432,9 +419,9 @@ export default function ExpensePage() {
 
                         <div>
                             <label className="block text-xs text-white/50 mb-1.5">Quỹ chi (tùy chọn)</label>
-                            <select 
-                                value={fundId} 
-                                onChange={e => setFundId(e.target.value)} 
+                            <select
+                                value={fundId}
+                                onChange={e => setFundId(e.target.value)}
                                 className="w-full p-3 bg-black/30 border border-white/10 rounded-xl text-white focus:border-red-500/50 focus:outline-none"
                             >
                                 <option value="">Không chọn</option>
@@ -449,29 +436,29 @@ export default function ExpensePage() {
                                 <span className="text-sm text-white/40">
                                     {files.length > 0 ? `${files.length} file đã chọn` : "Chọn ảnh chứng từ"}
                                 </span>
-                                <input 
-                                    type="file" 
-                                    multiple 
-                                    accept="image/*" 
+                                <input
+                                    type="file"
+                                    multiple
+                                    accept="image/*"
                                     onChange={e => setFiles(Array.from(e.target.files || []).slice(0, 2))}
-                                    className="hidden" 
+                                    className="hidden"
                                 />
                             </label>
                         </div>
 
                         <div>
                             <label className="block text-xs text-white/50 mb-1.5">Ghi chú</label>
-                            <input 
-                                type="text" 
-                                value={description} 
+                            <input
+                                type="text"
+                                value={description}
                                 onChange={e => setDescription(e.target.value)}
                                 className="w-full p-3 bg-black/30 border border-white/10 rounded-xl text-white focus:border-red-500/50 focus:outline-none"
                                 placeholder="Mô tả khoản chi..."
                             />
                         </div>
 
-                        <button 
-                            type="submit" 
+                        <button
+                            type="submit"
                             disabled={submitting || !amount || parseFloat(amount) <= 0}
                             className="w-full p-4 rounded-xl font-bold text-white bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-500 hover:to-orange-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-red-500/25"
                         >
@@ -493,23 +480,23 @@ export default function ExpensePage() {
                 <div className="p-4 border-b border-white/10 flex flex-wrap justify-between items-center gap-3">
                     <h3 className="font-semibold text-white">Lịch sử chi tiền</h3>
                     <div className="flex gap-2 flex-wrap">
-                        <input 
-                            type="date" 
-                            value={filterDate} 
-                            onChange={e => setFilterDate(e.target.value)} 
+                        <input
+                            type="date"
+                            value={filterDate}
+                            onChange={e => setFilterDate(e.target.value)}
                             className="px-3 py-1.5 bg-black/30 border border-white/10 rounded-lg text-sm text-white focus:outline-none"
                         />
-                        <select 
-                            value={filterProject} 
-                            onChange={e => setFilterProject(e.target.value)} 
+                        <select
+                            value={filterProject}
+                            onChange={e => setFilterProject(e.target.value)}
                             className="px-3 py-1.5 bg-black/30 border border-white/10 rounded-lg text-sm text-white focus:outline-none"
                         >
                             <option value="">Tất cả dự án</option>
                             {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                         </select>
-                        <select 
-                            value={filterStatus} 
-                            onChange={e => setFilterStatus(e.target.value)} 
+                        <select
+                            value={filterStatus}
+                            onChange={e => setFilterStatus(e.target.value)}
                             className="px-3 py-1.5 bg-black/30 border border-white/10 rounded-lg text-sm text-white focus:outline-none"
                         >
                             <option value="">Tất cả</option>
@@ -540,10 +527,9 @@ export default function ExpensePage() {
                                     <td className="p-3 text-white/70">{getAccountName(tx.accountId)}</td>
                                     <td className="p-3 text-white/70">{tx.projectId ? getProjectName(tx.projectId) : "-"}</td>
                                     <td className="p-3">
-                                        <span className={`px-2 py-1 rounded-lg text-xs font-medium ${
-                                            tx.status === "APPROVED" ? "bg-green-500/20 text-green-400" :
-                                            tx.status === "PENDING" ? "bg-yellow-500/20 text-yellow-400" : "bg-red-500/20 text-red-400"
-                                        }`}>
+                                        <span className={`px-2 py-1 rounded-lg text-xs font-medium ${tx.status === "APPROVED" ? "bg-green-500/20 text-green-400" :
+                                                tx.status === "PENDING" ? "bg-yellow-500/20 text-yellow-400" : "bg-red-500/20 text-red-400"
+                                            }`}>
                                             {tx.status === "APPROVED" ? "Đã duyệt" : tx.status === "PENDING" ? "Chờ duyệt" : "Từ chối"}
                                         </span>
                                     </td>

@@ -53,3 +53,25 @@ export function convertCurrency(amount: number, from: string, to: string, rates:
     const amountInUSD = amount / rateFrom;
     return amountInUSD * rateTo;
 }
+
+/**
+ * Formats a number to a currency string with thousands separators.
+ * Example: 1000000 -> "1,000,000"
+ */
+export function formatCurrencyVN(value: number | string): string {
+    if (value === "" || value === undefined || value === null) return "";
+    const num = typeof value === "string" ? parseFloat(value.replace(/,/g, "")) : value;
+    if (isNaN(num)) return "";
+    return num.toLocaleString("en-US"); // Using US style (1,000,000) as it's common in VN software
+}
+
+/**
+ * Parses a formatted currency string back to a number.
+ * Example: "1,000,000" -> 1000000
+ */
+export function parseCurrencyVN(value: string): number {
+    if (!value) return 0;
+    const cleanValue = value.replace(/,/g, "");
+    const num = parseFloat(cleanValue);
+    return isNaN(num) ? 0 : num;
+}
