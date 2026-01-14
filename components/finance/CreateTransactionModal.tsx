@@ -85,7 +85,12 @@ export default function CreateTransactionModal({ isOpen, onClose, onSuccess, cur
             filtered = filtered.filter(acc => acc.projectId === projectId);
         }
 
-        // Filter by assignedUserIds if set
+        // Admin can use all accounts in the project, no need to check assignedUserIds
+        if (currentUser?.role === "ADMIN") {
+            return filtered;
+        }
+
+        // For non-admin: filter by assignedUserIds if set
         const userId = currentUser?.uid || currentUser?.id;
         if (userId) {
             filtered = filtered.filter(acc =>
