@@ -1,15 +1,16 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { createTransaction, getAccounts, updateAccountBalance, getProjects } from "@/lib/finance";
-import { Account, Project, Transaction, Fund } from "@/types/finance";
+import { createTransaction, getAccounts, updateAccountBalance, getProjects, updateProject } from "@/lib/finance";
+import { Account, Project, Transaction, Fund, MasterCategory } from "@/types/finance";
 import { uploadImage } from "@/lib/upload";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { getUserRole, getAccessibleProjects, getAccessibleAccounts, getCategoriesForRole, hasProjectPermission, Role } from "@/lib/permissions";
-import { FolderOpen, CreditCard, Receipt, Upload, Check, ChevronRight, AlertCircle, Lock } from "lucide-react";
+import { FolderOpen, CreditCard, Receipt, Upload, Check, ChevronRight, AlertCircle, Lock, Plus } from "lucide-react";
 import CurrencyInput from "@/components/finance/CurrencyInput";
 import SearchableSelect from "@/components/finance/SearchableSelect";
+import SearchableSelectWithAdd from "@/components/finance/SearchableSelectWithAdd";
 import DataTableToolbar from "@/components/finance/DataTableToolbar";
 import { exportToCSV } from "@/lib/export";
 import TransactionDetailModal from "@/components/finance/TransactionDetailModal";
@@ -60,6 +61,11 @@ export default function ExpensePage() {
     // Modal state
     const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
     const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+    const [isAddCategoryModalOpen, setIsAddCategoryModalOpen] = useState(false);
+    const [newCategoryName, setNewCategoryName] = useState("");
+    const [selectedParentCategoryId, setSelectedParentCategoryId] = useState("");
+    const [savingCategory, setSavingCategory] = useState(false);
+    const [masterCategories, setMasterCategories] = useState<MasterCategory[]>([]);
 
     useEffect(() => {
         const u = localStorage.getItem("user") || sessionStorage.getItem("user");
@@ -138,12 +144,19 @@ export default function ExpensePage() {
     }, [expenseSubCategories, category]);
 
     const allowedCategories = useMemo(() => {
+        // If project has subcategories, use them directly without account filtering
+        // This ensures newly created subcategories are immediately available
+        if (expenseSubCategories.length > 0) {
+            return expenseCategories;
+        }
+
+        // Only apply role and account filtering for fallback categories
         const roleCategories = getCategoriesForRole(userRole, expenseCategories);
         if (selectedAccount?.allowedCategories && selectedAccount.allowedCategories.length > 0) {
             return roleCategories.filter(cat => selectedAccount.allowedCategories!.includes(cat));
         }
         return roleCategories;
-    }, [userRole, selectedAccount, expenseCategories]);
+    }, [userRole, selectedAccount, expenseCategories, expenseSubCategories]);
 
     const fetchData = async () => {
         setLoading(true);
@@ -153,6 +166,8 @@ export default function ExpensePage() {
             setProjects(projs);
             const fundsSnap = await getDocs(collection(db, "finance_funds"));
             setFunds(fundsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Fund)));
+            const categoriesSnap = await getDocs(collection(db, "finance_master_categories"));
+            setMasterCategories(categoriesSnap.docs.map(d => ({ id: d.id, ...d.data() } as MasterCategory)).filter(c => c.isActive));
             await fetchTransactions();
         } catch (e) { console.error(e); }
         finally { setLoading(false); }
@@ -277,6 +292,67 @@ export default function ExpensePage() {
             alert(needsApproval ? "⚠️ Khoản chi lớn - Đã chuyển sang CHỜ DUYỆT" : "✓ Đã thêm khoản chi thành công!");
         } catch (error) { console.error(error); alert("Lỗi khi thêm khoản chi"); }
         finally { setSubmitting(false); }
+    };
+
+    const handleAddNewCategory = async () => {
+        if (!newCategoryName.trim()) {
+            alert("Vui lòng nhập tên danh mục");
+            return;
+        }
+
+        if (!selectedParentCategoryId) {
+            alert("Vui lòng chọn danh mục cha");
+            return;
+        }
+
+        if (!selectedProject) {
+            alert("Vui lòng chọn dự án trước");
+            return;
+        }
+
+        setSavingCategory(true);
+        try {
+            const userId = currentUser?.uid || currentUser?.id || "unknown";
+            const parentCategory = masterCategories.find(c => c.id === selectedParentCategoryId);
+
+            const newSubCategory: any = {
+                id: `expense_sub_${Date.now()}`,
+                name: newCategoryName.trim(),
+                parentCategoryId: selectedParentCategoryId,
+                parentCategoryName: parentCategory?.name || "Chi khác",
+                type: "EXPENSE" as const,
+                projectId: selectedProject.id,
+                isActive: true,
+                createdAt: Date.now(),
+                createdBy: userId
+            };
+
+            const updatedExpenseSubCategories = [
+                ...(selectedProject.expenseSubCategories || []),
+                newSubCategory
+            ];
+
+            await updateProject(selectedProject.id, {
+                expenseSubCategories: updatedExpenseSubCategories
+            });
+
+            // Refresh data first
+            await fetchData();
+
+            // Then set category to the newly created one
+            // This ensures the category exists in the list before setting it
+            const newCatName = newCategoryName.trim();
+            setCategory(newCatName);
+            setNewCategoryName("");
+            setSelectedParentCategoryId("");
+            setIsAddCategoryModalOpen(false);
+            alert("Thêm danh mục thành công!");
+        } catch (error) {
+            console.error("Failed to add category", error);
+            alert("Lỗi khi thêm danh mục");
+        } finally {
+            setSavingCategory(false);
+        }
     };
 
     const getAccountName = (id: string) => accounts.find(a => a.id === id)?.name || "-";
@@ -450,17 +526,20 @@ export default function ExpensePage() {
                                     </div>
                                     <div>
                                         <label className="block text-xs text-white/50 mb-1.5">Hạng mục</label>
-                                        <select
+                                        <SearchableSelectWithAdd
+                                            options={allowedCategories.map(cat => ({
+                                                id: cat,
+                                                label: cat
+                                            }))}
                                             value={category}
-                                            onChange={e => setCategory(e.target.value)}
-                                            className="w-full p-3 bg-black/30 border border-white/10 rounded-xl text-white focus:border-red-500/50 focus:outline-none"
-                                            required
-                                        >
-                                            {allowedCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-                                        </select>
+                                            onChange={setCategory}
+                                            onAddNew={() => setIsAddCategoryModalOpen(true)}
+                                            placeholder="Chọn hạng mục..."
+                                            addNewLabel="➕ Thêm hạng mục mới"
+                                        />
                                         {allowedCategories.length === 0 && (
                                             <p className="text-xs text-yellow-400 mt-1">
-                                                Dự án chưa có danh mục chi. Liên hệ admin để thêm danh mục.
+                                                Dự án chưa có danh mục chi. Click "Thêm hạng mục mới" để tạo.
                                             </p>
                                         )}
                                     </div>
@@ -661,6 +740,113 @@ export default function ExpensePage() {
                 accountName={selectedTransaction ? getAccountName(selectedTransaction.accountId) : undefined}
                 projectName={selectedTransaction?.projectId ? getProjectName(selectedTransaction.projectId) : undefined}
             />
+
+            {/* Add New Category Modal */}
+            {isAddCategoryModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+                    <div className="glass-card w-full max-w-md p-6 rounded-2xl relative">
+                        <button
+                            onClick={() => {
+                                setIsAddCategoryModalOpen(false);
+                                setNewCategoryName("");
+                            }}
+                            className="absolute top-4 right-4 text-[var(--muted)] hover:text-white text-xl"
+                        >
+                            ✕
+                        </button>
+
+                        <div className="flex items-center gap-3 mb-6">
+                            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-red-500 to-rose-600 flex items-center justify-center">
+                                <Plus size={24} className="text-white" />
+                            </div>
+                            <div>
+                                <h2 className="text-2xl font-bold text-white">Thêm hạng mục chi mới</h2>
+                                <p className="text-sm text-[var(--muted)]">
+                                    Dự án: {selectedProject?.name}
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-white mb-2">
+                                    Danh mục cha <span className="text-red-400">*</span>
+                                </label>
+                                <select
+                                    value={selectedParentCategoryId}
+                                    onChange={(e) => setSelectedParentCategoryId(e.target.value)}
+                                    className="w-full px-4 py-3 bg-black/30 border border-white/10 rounded-lg text-white focus:border-red-500/50 focus:outline-none"
+                                    required
+                                >
+                                    <option value="">Chọn danh mục cha...</option>
+                                    {masterCategories
+                                        .filter(c => c.type === "EXPENSE")
+                                        .map(cat => (
+                                            <option key={cat.id} value={cat.id}>
+                                                {cat.name}
+                                            </option>
+                                        ))
+                                    }
+                                </select>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-white mb-2">
+                                    Tên hạng mục <span className="text-red-400">*</span>
+                                </label>
+                                <input
+                                    type="text"
+                                    value={newCategoryName}
+                                    onChange={(e) => setNewCategoryName(e.target.value)}
+                                    className="glass-input w-full px-4 py-3 rounded-lg"
+                                    placeholder="VD: Thuê văn phòng, Marketing,..."
+                                    autoFocus
+                                    onKeyDown={(e) => {
+                                        if (e.key === "Enter" && newCategoryName.trim()) {
+                                            handleAddNewCategory();
+                                        }
+                                    }}
+                                />
+                            </div>
+
+                            <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3">
+                                <p className="text-xs text-blue-400">
+                                    💡 Danh mục này sẽ được thêm vào dự án <strong>{selectedProject?.name}</strong> và có thể sử dụng cho các khoản chi sau.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-white/10">
+                            <button
+                                onClick={() => {
+                                    setIsAddCategoryModalOpen(false);
+                                    setNewCategoryName("");
+                                }}
+                                className="px-4 py-2 rounded-lg text-sm font-medium hover:bg-white/10 transition-colors"
+                            >
+                                Hủy
+                            </button>
+                            <button
+                                onClick={handleAddNewCategory}
+                                disabled={savingCategory || !newCategoryName.trim()}
+                                className="glass-button px-6 py-2 rounded-lg text-sm font-bold bg-red-500/20 hover:bg-red-500/30 text-red-400 border-red-500/30 disabled:opacity-50 flex items-center gap-2"
+                            >
+                                {savingCategory ? (
+                                    <>
+                                        <div className="w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin" />
+                                        Đang lưu...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Plus size={16} />
+                                        Thêm mới
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
