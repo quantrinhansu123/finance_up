@@ -11,7 +11,7 @@ import { getExchangeRates, convertCurrency } from "@/lib/currency";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import Link from "next/link";
-import { BarChart3 } from "lucide-react";
+import { BarChart3, Calendar } from "lucide-react";
 
 const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884d8", "#82ca9d"];
 const FUND_COLORS: Record<string, string> = {
@@ -31,6 +31,7 @@ const CURRENCY_COLORS: Record<string, string> = {
 };
 
 type ViewPeriod = "day" | "month" | "quarter" | "year";
+type DateRangePreset = "all" | "today" | "this_week" | "this_month" | "this_year";
 
 // Category mapping for fixed costs
 const FIXED_COST_CATEGORIES = [
@@ -79,6 +80,12 @@ export default function DashboardPage() {
     const [loading, setLoading] = useState(true);
     const [viewPeriod, setViewPeriod] = useState<ViewPeriod>("month");
     const [rates, setRates] = useState<any>({});
+
+    // NEW: Date Range Filter
+    const [dateRangePreset, setDateRangePreset] = useState<DateRangePreset>("all");
+    const [customDateFrom, setCustomDateFrom] = useState("");
+    const [customDateTo, setCustomDateTo] = useState("");
+    const [showDatePicker, setShowDatePicker] = useState(false);
 
     // NEW: Filters
     const [filterProject, setFilterProject] = useState<string>("");
@@ -141,6 +148,67 @@ export default function DashboardPage() {
             hasProjectPermission(userId, p, "view_reports", currentUser)
         );
     }, [currentUser, userRole, projects]);
+
+    // Calculate date range based on preset
+    const dateRange = useMemo(() => {
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        
+        // Custom date range takes priority
+        if (customDateFrom && customDateTo) {
+            return { from: new Date(customDateFrom), to: new Date(customDateTo + "T23:59:59") };
+        }
+        
+        switch (dateRangePreset) {
+            case "today":
+                return { from: today, to: new Date(today.getTime() + 24 * 60 * 60 * 1000 - 1) };
+            case "this_week": {
+                const dayOfWeek = today.getDay();
+                const monday = new Date(today.getTime() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1) * 24 * 60 * 60 * 1000);
+                return { from: monday, to: now };
+            }
+            case "this_month":
+                return { from: new Date(now.getFullYear(), now.getMonth(), 1), to: now };
+            case "this_year":
+                return { from: new Date(now.getFullYear(), 0, 1), to: now };
+            case "all":
+            default:
+                return null; // No filter
+        }
+    }, [dateRangePreset, customDateFrom, customDateTo]);
+
+    // Get label for current date range
+    const getDateRangeLabel = () => {
+        if (customDateFrom && customDateTo) {
+            const from = new Date(customDateFrom);
+            const to = new Date(customDateTo);
+            return `${from.toLocaleDateString('vi-VN')} - ${to.toLocaleDateString('vi-VN')}`;
+        }
+        const labels: Record<DateRangePreset, string> = {
+            all: "Toàn bộ",
+            today: "Hôm nay",
+            this_week: "Tuần này",
+            this_month: "Tháng này",
+            this_year: "Năm nay"
+        };
+        return labels[dateRangePreset];
+    };
+
+    // Clear custom dates when selecting preset
+    const handlePresetChange = (preset: DateRangePreset) => {
+        setDateRangePreset(preset);
+        setCustomDateFrom("");
+        setCustomDateTo("");
+        setShowDatePicker(false);
+    };
+
+    // Apply custom date range
+    const applyCustomDateRange = () => {
+        if (customDateFrom && customDateTo) {
+            setDateRangePreset("all"); // Reset preset when using custom
+            setShowDatePicker(false);
+        }
+    };
 
     // Kiểm tra user có quyền xem dashboard không
     const canViewDashboard = useMemo(() => {
@@ -231,7 +299,7 @@ export default function DashboardPage() {
                 });
                 setFixedCostSummary(fcSummary);
 
-                calculateMetrics(filteredTxs, exchangeRates, viewPeriod, revsData, fundsData, projectsData, "", "ALL");
+                calculateMetrics(filteredTxs, exchangeRates, viewPeriod, revsData, fundsData, projectsData, "", "ALL", null);
 
             } catch (e) {
                 console.error(e);
@@ -246,9 +314,9 @@ export default function DashboardPage() {
     // Recalculate when period or filters change
     useEffect(() => {
         if (transactions.length > 0) {
-            calculateMetrics(transactions, rates, viewPeriod, revenues, funds, projects, filterProject, filterCurrency);
+            calculateMetrics(transactions, rates, viewPeriod, revenues, funds, projects, filterProject, filterCurrency, dateRange);
         }
-    }, [viewPeriod, filterProject, filterCurrency]);
+    }, [viewPeriod, filterProject, filterCurrency, dateRange]);
 
     const calculateMetrics = (
         txs: Transaction[], 
@@ -258,7 +326,8 @@ export default function DashboardPage() {
         fundsData: Fund[], 
         projectsData: Project[],
         projectFilter: string,
-        currencyFilter: Currency | "ALL"
+        currencyFilter: Currency | "ALL",
+        dateRangeFilter: { from: Date, to: Date } | null
     ) => {
         const now = new Date();
         let pIn = 0;
@@ -301,6 +370,13 @@ export default function DashboardPage() {
         if (currencyFilter !== "ALL") {
             filteredTxs = filteredTxs.filter(tx => tx.currency === currencyFilter);
         }
+        // NEW: Filter by date range
+        if (dateRangeFilter) {
+            filteredTxs = filteredTxs.filter(tx => {
+                const txDate = new Date(tx.date);
+                return txDate >= dateRangeFilter.from && txDate <= dateRangeFilter.to;
+            });
+        }
 
         filteredTxs.forEach(tx => {
             const d = new Date(tx.date);
@@ -322,18 +398,14 @@ export default function DashboardPage() {
                 highValue.push(tx);
             }
 
-            // Period Check - NEW: Added "day" option
+            // Period Check - Use dateRange if set, otherwise include all
             let inPeriod = false;
-            if (period === "day") {
-                inPeriod = d.toDateString() === now.toDateString();
-            } else if (period === "month") {
-                inPeriod = d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-            } else if (period === "quarter") {
-                const currentQ = Math.floor(now.getMonth() / 3);
-                const txQ = Math.floor(d.getMonth() / 3);
-                inPeriod = txQ === currentQ && d.getFullYear() === now.getFullYear();
+            if (dateRangeFilter) {
+                // When using date range filter, all filtered transactions are "in period"
+                inPeriod = true;
             } else {
-                inPeriod = d.getFullYear() === now.getFullYear();
+                // No date filter = include all transactions
+                inPeriod = true;
             }
 
             if (tx.status === "APPROVED") {
@@ -582,33 +654,111 @@ export default function DashboardPage() {
                 <div>
                     <h1 className="text-3xl font-bold text-white">Tổng quan Tài chính</h1>
                     <p className="text-[var(--muted)]">
-                        Dữ liệu thời gian thực 
-                        {filterCurrency === "ALL" ? " (Quy đổi USD)" : ` (${filterCurrency})`}
+                        {getDateRangeLabel()}
+                        {filterCurrency === "ALL" ? " • Quy đổi USD" : ` • ${filterCurrency}`}
                         {filterProject && ` • ${projects.find(p => p.id === filterProject)?.name}`}
                     </p>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
-                    {/* Period Selector */}
-                    <div className="flex bg-white/5 rounded-xl p-1">
-                        {(["day", "month", "quarter", "year"] as ViewPeriod[]).map(p => (
+                    {/* Quick Date Presets */}
+                    <div className="flex bg-white/5 rounded-lg p-0.5">
+                        {([
+                            { key: "all", label: "Tất cả" },
+                            { key: "today", label: "Hôm nay" },
+                            { key: "this_week", label: "Tuần" },
+                            { key: "this_month", label: "Tháng" },
+                            { key: "this_year", label: "Năm" }
+                        ] as { key: DateRangePreset, label: string }[]).map(item => (
                             <button
-                                key={p}
-                                onClick={() => setViewPeriod(p)}
-                                className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${viewPeriod === p
-                                    ? "bg-gradient-to-r from-[#FF5E62] to-[#FF9966] text-white shadow-lg"
-                                    : "text-[var(--muted)] hover:text-white"
+                                key={item.key}
+                                onClick={() => handlePresetChange(item.key)}
+                                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                                    dateRangePreset === item.key && !customDateFrom
+                                        ? "bg-white/20 text-white"
+                                        : "text-[var(--muted)] hover:text-white"
                                 }`}
                             >
-                                {p === "day" ? "Ngày" : p === "month" ? "Tháng" : p === "quarter" ? "Quý" : "Năm"}
+                                {item.label}
                             </button>
                         ))}
+                    </div>
+
+                    {/* Date Range Picker */}
+                    <div className="relative">
+                        <button
+                            onClick={() => setShowDatePicker(!showDatePicker)}
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-all ${
+                                customDateFrom && customDateTo
+                                    ? "bg-blue-500/20 text-blue-400 border border-blue-500/30"
+                                    : "bg-white/5 text-[var(--muted)] hover:text-white border border-white/10"
+                            }`}
+                        >
+                            <Calendar size={14} />
+                            {customDateFrom && customDateTo 
+                                ? `${new Date(customDateFrom).toLocaleDateString('vi-VN')} - ${new Date(customDateTo).toLocaleDateString('vi-VN')}`
+                                : "Chọn ngày"
+                            }
+                        </button>
+
+                        {/* Date Picker Dropdown */}
+                        {showDatePicker && (
+                            <div className="absolute top-full right-0 mt-2 p-4 bg-[#1a1a1a] border border-white/10 rounded-xl shadow-xl z-50 min-w-[280px]">
+                                <div className="flex items-center justify-between mb-3">
+                                    <span className="text-sm font-medium text-white">Chọn khoảng thời gian</span>
+                                    <button 
+                                        onClick={() => setShowDatePicker(false)}
+                                        className="text-[var(--muted)] hover:text-white"
+                                    >
+                                        ✕
+                                    </button>
+                                </div>
+                                <div className="space-y-3">
+                                    <div>
+                                        <label className="block text-xs text-[var(--muted)] mb-1">Từ ngày</label>
+                                        <input
+                                            type="date"
+                                            value={customDateFrom}
+                                            onChange={(e) => setCustomDateFrom(e.target.value)}
+                                            className="glass-input w-full px-3 py-2 rounded-lg text-sm"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs text-[var(--muted)] mb-1">Đến ngày</label>
+                                        <input
+                                            type="date"
+                                            value={customDateTo}
+                                            onChange={(e) => setCustomDateTo(e.target.value)}
+                                            className="glass-input w-full px-3 py-2 rounded-lg text-sm"
+                                        />
+                                    </div>
+                                    <div className="flex gap-2 pt-2">
+                                        <button
+                                            onClick={() => {
+                                                setCustomDateFrom("");
+                                                setCustomDateTo("");
+                                            }}
+                                            className="flex-1 px-3 py-2 rounded-lg text-xs bg-white/5 hover:bg-white/10 text-[var(--muted)]"
+                                        >
+                                            Xóa
+                                        </button>
+                                        <button
+                                            onClick={applyCustomDateRange}
+                                            disabled={!customDateFrom || !customDateTo}
+                                            className="flex-1 px-3 py-2 rounded-lg text-xs bg-blue-500 hover:bg-blue-600 text-white disabled:opacity-50"
+                                        >
+                                            Áp dụng
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
                     
                     {/* Project Filter */}
                     <select
                         value={filterProject}
                         onChange={(e) => setFilterProject(e.target.value)}
-                        className="glass-input px-3 py-2 rounded-lg text-sm"
+                        className="glass-input px-3 py-1.5 rounded-lg text-xs"
                     >
                         <option value="">Tất cả dự án</option>
                         {accessibleProjects.map(p => (
@@ -620,16 +770,16 @@ export default function DashboardPage() {
                     <select
                         value={filterCurrency}
                         onChange={(e) => setFilterCurrency(e.target.value as Currency | "ALL")}
-                        className="glass-input px-3 py-2 rounded-lg text-sm"
+                        className="glass-input px-3 py-1.5 rounded-lg text-xs"
                     >
                         <option value="ALL">Tất cả tiền tệ</option>
-                        <option value="VND">🇻🇳 VND</option>
-                        <option value="USD">🇺🇸 USD</option>
-                        <option value="KHR">🇰🇭 KHR</option>
-                        <option value="TRY">🇹🇷 TRY (Lira)</option>
+                        <option value="VND">VND</option>
+                        <option value="USD">USD</option>
+                        <option value="KHR">KHR</option>
+                        <option value="TRY">TRY</option>
                     </select>
 
-                    <Link href="/finance/transactions" className="glass-button px-4 py-2 rounded-lg text-sm">
+                    <Link href="/finance/transactions" className="glass-button px-3 py-1.5 rounded-lg text-xs">
                         Xem giao dịch →
                     </Link>
                 </div>
@@ -661,14 +811,14 @@ export default function DashboardPage() {
                 </div>
 
                 <div className="glass-card p-6 rounded-xl border border-white/5">
-                    <p className="text-[var(--muted)] text-sm font-medium uppercase">Tiền vào ({getPeriodLabel()})</p>
+                    <p className="text-[var(--muted)] text-sm font-medium uppercase">Tiền vào ({getDateRangeLabel()})</p>
                     <h3 className="text-3xl font-bold text-green-400 mt-1">
                         +{filterCurrency === "ALL" ? formatCurrency(periodIn) : formatCurrency(periodIn, filterCurrency)}
                     </h3>
                 </div>
 
                 <div className="glass-card p-6 rounded-xl border border-white/5">
-                    <p className="text-[var(--muted)] text-sm font-medium uppercase">Tiền ra ({getPeriodLabel()})</p>
+                    <p className="text-[var(--muted)] text-sm font-medium uppercase">Tiền ra ({getDateRangeLabel()})</p>
                     <h3 className="text-3xl font-bold text-red-400 mt-1">
                         -{filterCurrency === "ALL" ? formatCurrency(periodOut) : formatCurrency(periodOut, filterCurrency)}
                     </h3>
