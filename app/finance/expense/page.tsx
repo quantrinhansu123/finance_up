@@ -9,6 +9,7 @@ import { db } from "@/lib/firebase";
 import { getUserRole, getAccessibleProjects, getAccessibleAccounts, getCategoriesForRole, hasProjectPermission, Role } from "@/lib/permissions";
 import { FolderOpen, CreditCard, Receipt, Upload, Check, ChevronRight, AlertCircle, Lock } from "lucide-react";
 import CurrencyInput from "@/components/finance/CurrencyInput";
+import SearchableSelect from "@/components/finance/SearchableSelect";
 
 const EXPENSE_CATEGORIES = [
     "Thuế", "Long Heng", "Cước vận chuyển", "Cước vận chuyển HN-HCM", "Cước vận chuyển HCM-HN",
@@ -28,6 +29,7 @@ export default function ExpensePage() {
     const [submitting, setSubmitting] = useState(false);
     const [currentUser, setCurrentUser] = useState<any>(null);
     const [userRole, setUserRole] = useState<Role>("USER");
+    const [showForm, setShowForm] = useState(false);
 
     // Form State
     const [projectId, setProjectId] = useState("");
@@ -69,22 +71,22 @@ export default function ExpensePage() {
     const accessibleAccounts = useMemo(() => {
         let filtered = getAccessibleAccounts(currentUser, accounts, accessibleProjects.map(p => p.id));
         const userId = currentUser?.uid || currentUser?.id;
-        
+
         // Filter by projectId first - only show accounts assigned to selected project
         if (projectId) {
             filtered = filtered.filter(acc => acc.projectId === projectId);
         }
-        
+
         // Admin can use all accounts in the project, no need to check assignedUserIds
         if (userRole === "ADMIN") {
             return filtered;
         }
-        
+
         // For non-admin: filter by assignedUserIds - only show accounts user is assigned to
         if (userId) {
             filtered = filtered.filter(acc => !acc.assignedUserIds || acc.assignedUserIds.length === 0 || acc.assignedUserIds.includes(userId));
         }
-        
+
         return filtered;
     }, [currentUser, accounts, accessibleProjects, projectId, userRole]);
 
@@ -263,227 +265,238 @@ export default function ExpensePage() {
                 </div>
                 <div>
                     <h1 className="text-2xl font-bold text-white">Chi tiền</h1>
-                    <p className="text-sm text-white/50">Nhập khoản chi mới</p>
+                    <p className="text-sm text-white/50">Quản lý khoản chi</p>
                 </div>
+                <button
+                    onClick={() => setShowForm(!showForm)}
+                    className={`ml-auto px-4 py-2 rounded-xl font-bold transition-all flex items-center gap-2 ${showForm ? "bg-white/10 text-white hover:bg-white/20" : "bg-red-600 text-white hover:bg-red-500 shadow-lg shadow-red-500/25"}`}
+                >
+                    {showForm ? "Đóng" : "＋ Tạo khoản chi"}
+                </button>
             </div>
 
-            {/* Progress Steps */}
-            <div className="flex items-center gap-2 p-4 bg-white/5 rounded-2xl">
-                {[
-                    { step: 1, label: "Dự án", icon: FolderOpen },
-                    { step: 2, label: "Tài khoản", icon: CreditCard },
-                    { step: 3, label: "Chi tiết", icon: Receipt }
-                ].map((item, idx) => (
-                    <div key={item.step} className="flex items-center flex-1">
-                        <div className={`flex items-center gap-2 px-3 py-2 rounded-xl transition-all ${currentStep === item.step
-                                ? "bg-red-500/20 text-red-400"
-                                : currentStep > item.step
-                                    ? "bg-green-500/20 text-green-400"
-                                    : "text-white/30"
-                            }`}>
-                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${currentStep === item.step
-                                    ? "bg-red-500 text-white"
+            {showForm && (
+                <div className="space-y-6 animate-in fade-in slide-in-from-top-4 duration-300">
+                    {/* Progress Steps */}
+                    <div className="flex items-center gap-2 p-4 bg-white/5 rounded-2xl">
+                        {[
+                            { step: 1, label: "Dự án", icon: FolderOpen },
+                            { step: 2, label: "Tài khoản", icon: CreditCard },
+                            { step: 3, label: "Chi tiết", icon: Receipt }
+                        ].map((item, idx) => (
+                            <div key={item.step} className="flex items-center flex-1">
+                                <div className={`flex items-center gap-2 px-3 py-2 rounded-xl transition-all ${currentStep === item.step
+                                    ? "bg-red-500/20 text-red-400"
                                     : currentStep > item.step
-                                        ? "bg-green-500 text-white"
-                                        : "bg-white/10"
-                                }`}>
-                                {currentStep > item.step ? <Check size={16} /> : <item.icon size={16} />}
+                                        ? "bg-green-500/20 text-green-400"
+                                        : "text-white/30"
+                                    }`}>
+                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${currentStep === item.step
+                                        ? "bg-red-500 text-white"
+                                        : currentStep > item.step
+                                            ? "bg-green-500 text-white"
+                                            : "bg-white/10"
+                                        }`}>
+                                        {currentStep > item.step ? <Check size={16} /> : <item.icon size={16} />}
+                                    </div>
+                                    <span className="text-sm font-medium hidden sm:block">{item.label}</span>
+                                </div>
+                                {idx < 2 && <ChevronRight className="mx-2 text-white/20" size={16} />}
                             </div>
-                            <span className="text-sm font-medium hidden sm:block">{item.label}</span>
-                        </div>
-                        {idx < 2 && <ChevronRight className="mx-2 text-white/20" size={16} />}
+                        ))}
                     </div>
-                ))}
-            </div>
 
-            {/* Form */}
-            <form onSubmit={handleSubmit} className="space-y-4">
-                {/* Step 1: Project */}
-                <div className={`p-5 rounded-2xl border transition-all ${projectId ? "bg-green-500/5 border-green-500/20" : "bg-white/5 border-white/10"
-                    }`}>
-                    <div className="flex items-center gap-3 mb-3">
-                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${projectId ? "bg-green-500 text-white" : "bg-red-500/20 text-red-400"
+                    {/* Form */}
+                    <form onSubmit={handleSubmit} className="space-y-4">
+                        {/* Step 1: Project */}
+                        <div className={`p-5 rounded-2xl border transition-all ${projectId ? "bg-green-500/5 border-green-500/20" : "bg-white/5 border-white/10"
                             }`}>
-                            {projectId ? <Check size={20} /> : <FolderOpen size={20} />}
+                            <div className="flex items-center gap-3 mb-3">
+                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${projectId ? "bg-green-500 text-white" : "bg-red-500/20 text-red-400"
+                                    }`}>
+                                    {projectId ? <Check size={20} /> : <FolderOpen size={20} />}
+                                </div>
+                                <div>
+                                    <h3 className="font-semibold text-white">Chọn dự án</h3>
+                                    <p className="text-xs text-white/40">Dự án sẽ ghi nhận khoản chi</p>
+                                </div>
+                            </div>
+                            <SearchableSelect
+                                options={accessibleProjects.map(p => ({
+                                    id: p.id,
+                                    label: p.name,
+                                    subLabel: p.status === "ACTIVE" ? "" : p.status
+                                }))}
+                                value={projectId}
+                                onChange={val => { setProjectId(val); setAccountId(""); }}
+                                placeholder="Chọn dự án..."
+                                required
+                            />
+                            {userRole !== "ADMIN" && accessibleProjects.length === 0 && (
+                                <p className="flex items-center gap-2 mt-2 text-xs text-yellow-400">
+                                    <AlertCircle size={14} /> Bạn chưa được gán vào dự án nào
+                                </p>
+                            )}
                         </div>
-                        <div>
-                            <h3 className="font-semibold text-white">Chọn dự án</h3>
-                            <p className="text-xs text-white/40">Dự án sẽ ghi nhận khoản chi</p>
-                        </div>
-                    </div>
-                    <select
-                        value={projectId}
-                        onChange={e => { setProjectId(e.target.value); setAccountId(""); }}
-                        className="w-full p-3 bg-black/30 border border-white/10 rounded-xl text-white focus:border-red-500/50 focus:outline-none transition-colors"
-                        required
-                    >
-                        <option value="">Chọn dự án...</option>
-                        {accessibleProjects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                    </select>
-                    {userRole !== "ADMIN" && accessibleProjects.length === 0 && (
-                        <p className="flex items-center gap-2 mt-2 text-xs text-yellow-400">
-                            <AlertCircle size={14} /> Bạn chưa được gán vào dự án nào
-                        </p>
-                    )}
-                </div>
 
-                {/* Step 2: Account */}
-                {projectId && (
-                    <div className={`p-5 rounded-2xl border transition-all ${accountId ? "bg-green-500/5 border-green-500/20" : "bg-white/5 border-white/10"
-                        }`}>
-                        <div className="flex items-center gap-3 mb-3">
-                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${accountId ? "bg-green-500 text-white" : "bg-red-500/20 text-red-400"
+                        {/* Step 2: Account */}
+                        {projectId && (
+                            <div className={`p-5 rounded-2xl border transition-all ${accountId ? "bg-green-500/5 border-green-500/20" : "bg-white/5 border-white/10"
                                 }`}>
-                                {accountId ? <Check size={20} /> : <CreditCard size={20} />}
-                            </div>
-                            <div>
-                                <h3 className="font-semibold text-white">Chọn tài khoản chi</h3>
-                                <p className="text-xs text-white/40">Tài khoản sẽ trừ tiền</p>
-                            </div>
-                        </div>
-                        <select
-                            value={accountId}
-                            onChange={e => setAccountId(e.target.value)}
-                            className="w-full p-3 bg-black/30 border border-white/10 rounded-xl text-white focus:border-red-500/50 focus:outline-none transition-colors"
-                            required
-                        >
-                            <option value="">Chọn tài khoản...</option>
-                            {accessibleAccounts.map(acc => (
-                                <option key={acc.id} value={acc.id}>
-                                    {CURRENCY_FLAGS[acc.currency]} {acc.name} • {acc.balance.toLocaleString()} {acc.currency}
-                                </option>
-                            ))}
-                        </select>
-                        {selectedAccount && (
-                            <div className="mt-3 p-3 bg-black/20 rounded-xl flex items-center justify-between">
-                                <span className="text-sm text-white/60">Số dư hiện tại</span>
-                                <span className={`font-bold ${selectedAccount.balance >= 0 ? "text-green-400" : "text-red-400"}`}>
-                                    {selectedAccount.balance.toLocaleString()} {selectedAccount.currency}
-                                </span>
-                            </div>
-                        )}
-                    </div>
-                )}
-
-                {/* Step 3: Details */}
-                {accountId && (
-                    <div className="p-5 rounded-2xl bg-white/5 border border-white/10 space-y-4">
-                        <div className="flex items-center gap-3 mb-2">
-                            <div className="w-10 h-10 rounded-xl bg-red-500/20 text-red-400 flex items-center justify-center">
-                                <Receipt size={20} />
-                            </div>
-                            <div>
-                                <h3 className="font-semibold text-white">Nhập chi tiết</h3>
-                                <p className="text-xs text-white/40">Thông tin khoản chi</p>
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-xs text-white/50 mb-1.5">Số tiền</label>
-                                <CurrencyInput
-                                    value={amount}
-                                    onChange={setAmount}
-                                    currency={selectedAccount?.currency}
-                                    className={isOverBalance ? "border-red-500 focus:border-red-500" : "border-white/10 focus:border-red-500/50"}
+                                <div className="flex items-center gap-3 mb-3">
+                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${accountId ? "bg-green-500 text-white" : "bg-red-500/20 text-red-400"
+                                        }`}>
+                                        {accountId ? <Check size={20} /> : <CreditCard size={20} />}
+                                    </div>
+                                    <div>
+                                        <h3 className="font-semibold text-white">Chọn tài khoản chi</h3>
+                                        <p className="text-xs text-white/40">Tài khoản sẽ trừ tiền</p>
+                                    </div>
+                                </div>
+                                <SearchableSelect
+                                    options={accessibleAccounts.map(acc => ({
+                                        id: acc.id,
+                                        label: acc.name,
+                                        subLabel: `${acc.balance.toLocaleString()} ${acc.currency}`,
+                                        icon: CURRENCY_FLAGS[acc.currency]
+                                    }))}
+                                    value={accountId}
+                                    onChange={setAccountId}
+                                    placeholder="Chọn tài khoản..."
                                     required
                                 />
-                                {isOverBalance && (
-                                    <div className="mt-2 p-3 bg-red-500/10 border border-red-500/30 rounded-xl">
-                                        <p className="flex items-center gap-2 text-sm text-red-400 font-medium">
-                                            <AlertCircle size={16} /> Vượt quá số dư tài khoản!
-                                        </p>
-                                        <p className="text-xs text-red-400/70 mt-1">
-                                            Số dư: {selectedAccount?.balance.toLocaleString()} {selectedAccount?.currency} • Thiếu: {Math.abs(remainingBalance).toLocaleString()} {selectedAccount?.currency}
-                                        </p>
+                                {selectedAccount && (
+                                    <div className="mt-3 p-3 bg-black/20 rounded-xl flex items-center justify-between">
+                                        <span className="text-sm text-white/60">Số dư hiện tại</span>
+                                        <span className={`font-bold ${selectedAccount.balance >= 0 ? "text-green-400" : "text-red-400"}`}>
+                                            {selectedAccount.balance.toLocaleString()} {selectedAccount.currency}
+                                        </span>
                                     </div>
                                 )}
-                                {!isOverBalance && requiresApproval() && (
-                                    <p className="flex items-center gap-1 mt-1.5 text-xs text-yellow-400">
-                                        <AlertCircle size={12} /> Số tiền lớn - Cần Admin duyệt
-                                    </p>
-                                )}
-                                {!isOverBalance && amount && parseFloat(amount) > 0 && (
-                                    <p className="mt-1.5 text-xs text-white/40">
-                                        Số dư sau chi: <span className="text-green-400 font-medium">{remainingBalance.toLocaleString()} {selectedAccount?.currency}</span>
-                                    </p>
-                                )}
                             </div>
-                            <div>
-                                <label className="block text-xs text-white/50 mb-1.5">Hạng mục</label>
-                                <select
-                                    value={category}
-                                    onChange={e => setCategory(e.target.value)}
-                                    className="w-full p-3 bg-black/30 border border-white/10 rounded-xl text-white focus:border-red-500/50 focus:outline-none"
-                                    required
+                        )}
+
+                        {/* Step 3: Details */}
+                        {accountId && (
+                            <div className="p-5 rounded-2xl bg-white/5 border border-white/10 space-y-4">
+                                <div className="flex items-center gap-3 mb-2">
+                                    <div className="w-10 h-10 rounded-xl bg-red-500/20 text-red-400 flex items-center justify-center">
+                                        <Receipt size={20} />
+                                    </div>
+                                    <div>
+                                        <h3 className="font-semibold text-white">Nhập chi tiết</h3>
+                                        <p className="text-xs text-white/40">Thông tin khoản chi</p>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-xs text-white/50 mb-1.5">Số tiền</label>
+                                        <CurrencyInput
+                                            value={amount}
+                                            onChange={setAmount}
+                                            currency={selectedAccount?.currency}
+                                            className={isOverBalance ? "border-red-500 focus:border-red-500" : "border-white/10 focus:border-red-500/50"}
+                                            required
+                                        />
+                                        {isOverBalance && (
+                                            <div className="mt-2 p-3 bg-red-500/10 border border-red-500/30 rounded-xl">
+                                                <p className="flex items-center gap-2 text-sm text-red-400 font-medium">
+                                                    <AlertCircle size={16} /> Vượt quá số dư tài khoản!
+                                                </p>
+                                                <p className="text-xs text-red-400/70 mt-1">
+                                                    Số dư: {selectedAccount?.balance.toLocaleString()} {selectedAccount?.currency} • Thiếu: {Math.abs(remainingBalance).toLocaleString()} {selectedAccount?.currency}
+                                                </p>
+                                            </div>
+                                        )}
+                                        {!isOverBalance && requiresApproval() && (
+                                            <p className="flex items-center gap-1 mt-1.5 text-xs text-yellow-400">
+                                                <AlertCircle size={12} /> Số tiền lớn - Cần Admin duyệt
+                                            </p>
+                                        )}
+                                        {!isOverBalance && amount && parseFloat(amount) > 0 && (
+                                            <p className="mt-1.5 text-xs text-white/40">
+                                                Số dư sau chi: <span className="text-green-400 font-medium">{remainingBalance.toLocaleString()} {selectedAccount?.currency}</span>
+                                            </p>
+                                        )}
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs text-white/50 mb-1.5">Hạng mục</label>
+                                        <select
+                                            value={category}
+                                            onChange={e => setCategory(e.target.value)}
+                                            className="w-full p-3 bg-black/30 border border-white/10 rounded-xl text-white focus:border-red-500/50 focus:outline-none"
+                                            required
+                                        >
+                                            {allowedCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                                        </select>
+                                        {allowedCategories.length === 0 && (
+                                            <p className="text-xs text-yellow-400 mt-1">
+                                                Dự án chưa có danh mục chi. Liên hệ admin để thêm danh mục.
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs text-white/50 mb-1.5">Quỹ chi (tùy chọn)</label>
+                                    <select
+                                        value={fundId}
+                                        onChange={e => setFundId(e.target.value)}
+                                        className="w-full p-3 bg-black/30 border border-white/10 rounded-xl text-white focus:border-red-500/50 focus:outline-none"
+                                    >
+                                        <option value="">Không chọn</option>
+                                        {funds.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs text-white/50 mb-1.5">Chứng từ đính kèm</label>
+                                    <label className="flex items-center justify-center gap-2 p-4 border-2 border-dashed border-white/10 rounded-xl cursor-pointer hover:border-white/20 transition-colors">
+                                        <Upload size={20} className="text-white/40" />
+                                        <span className="text-sm text-white/40">
+                                            {files.length > 0 ? `${files.length} file đã chọn` : "Chọn ảnh chứng từ"}
+                                        </span>
+                                        <input
+                                            type="file"
+                                            multiple
+                                            accept="image/*"
+                                            onChange={e => setFiles(Array.from(e.target.files || []).slice(0, 2))}
+                                            className="hidden"
+                                        />
+                                    </label>
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs text-white/50 mb-1.5">Ghi chú</label>
+                                    <input
+                                        type="text"
+                                        value={description}
+                                        onChange={e => setDescription(e.target.value)}
+                                        className="w-full p-3 bg-black/30 border border-white/10 rounded-xl text-white focus:border-red-500/50 focus:outline-none"
+                                        placeholder="Mô tả khoản chi..."
+                                    />
+                                </div>
+
+                                <button
+                                    type="submit"
+                                    disabled={submitting || !amount || parseFloat(amount) <= 0}
+                                    className="w-full p-4 rounded-xl font-bold text-white bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-500 hover:to-orange-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-red-500/25"
                                 >
-                                    {allowedCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-                                </select>
-                                {allowedCategories.length === 0 && (
-                                    <p className="text-xs text-yellow-400 mt-1">
-                                        Dự án chưa có danh mục chi. Liên hệ admin để thêm danh mục.
-                                    </p>
-                                )}
+                                    {submitting ? "Đang lưu..." : "Lưu khoản chi"}
+                                </button>
                             </div>
-                        </div>
+                        )}
 
-                        <div>
-                            <label className="block text-xs text-white/50 mb-1.5">Quỹ chi (tùy chọn)</label>
-                            <select
-                                value={fundId}
-                                onChange={e => setFundId(e.target.value)}
-                                className="w-full p-3 bg-black/30 border border-white/10 rounded-xl text-white focus:border-red-500/50 focus:outline-none"
-                            >
-                                <option value="">Không chọn</option>
-                                {funds.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-                            </select>
-                        </div>
-
-                        <div>
-                            <label className="block text-xs text-white/50 mb-1.5">Chứng từ đính kèm</label>
-                            <label className="flex items-center justify-center gap-2 p-4 border-2 border-dashed border-white/10 rounded-xl cursor-pointer hover:border-white/20 transition-colors">
-                                <Upload size={20} className="text-white/40" />
-                                <span className="text-sm text-white/40">
-                                    {files.length > 0 ? `${files.length} file đã chọn` : "Chọn ảnh chứng từ"}
-                                </span>
-                                <input
-                                    type="file"
-                                    multiple
-                                    accept="image/*"
-                                    onChange={e => setFiles(Array.from(e.target.files || []).slice(0, 2))}
-                                    className="hidden"
-                                />
-                            </label>
-                        </div>
-
-                        <div>
-                            <label className="block text-xs text-white/50 mb-1.5">Ghi chú</label>
-                            <input
-                                type="text"
-                                value={description}
-                                onChange={e => setDescription(e.target.value)}
-                                className="w-full p-3 bg-black/30 border border-white/10 rounded-xl text-white focus:border-red-500/50 focus:outline-none"
-                                placeholder="Mô tả khoản chi..."
-                            />
-                        </div>
-
-                        <button
-                            type="submit"
-                            disabled={submitting || !amount || parseFloat(amount) <= 0}
-                            className="w-full p-4 rounded-xl font-bold text-white bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-500 hover:to-orange-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-red-500/25"
-                        >
-                            {submitting ? "Đang lưu..." : "Lưu khoản chi"}
-                        </button>
-                    </div>
-                )}
-
-                {!projectId && (
-                    <div className="text-center py-12 text-white/30">
-                        <FolderOpen size={48} className="mx-auto mb-3 opacity-50" />
-                        <p>Chọn dự án để bắt đầu</p>
-                    </div>
-                )}
-            </form>
+                        {!projectId && (
+                            <div className="text-center py-12 text-white/30">
+                                <FolderOpen size={48} className="mx-auto mb-3 opacity-50" />
+                                <p>Chọn dự án để bắt đầu</p>
+                            </div>
+                        )}
+                    </form>
+                </div>
+            )}
 
             {/* Transaction History */}
             <div className="rounded-2xl bg-white/5 border border-white/10 overflow-hidden">
@@ -538,7 +551,7 @@ export default function ExpensePage() {
                                     <td className="p-3 text-white/70">{tx.projectId ? getProjectName(tx.projectId) : "-"}</td>
                                     <td className="p-3">
                                         <span className={`px-2 py-1 rounded-lg text-xs font-medium ${tx.status === "APPROVED" ? "bg-green-500/20 text-green-400" :
-                                                tx.status === "PENDING" ? "bg-yellow-500/20 text-yellow-400" : "bg-red-500/20 text-red-400"
+                                            tx.status === "PENDING" ? "bg-yellow-500/20 text-yellow-400" : "bg-red-500/20 text-red-400"
                                             }`}>
                                             {tx.status === "APPROVED" ? "Đã duyệt" : tx.status === "PENDING" ? "Chờ duyệt" : "Từ chối"}
                                         </span>

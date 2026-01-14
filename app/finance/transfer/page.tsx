@@ -9,6 +9,8 @@ import { ArrowRightLeft, ShieldX, Upload, RefreshCw } from "lucide-react";
 import CurrencyInput from "@/components/finance/CurrencyInput";
 import { uploadImage } from "@/lib/upload";
 import { getExchangeRates, convertCurrency } from "@/lib/currency";
+import SearchableSelect from "@/components/finance/SearchableSelect";
+
 
 const CURRENCY_FLAGS: Record<string, string> = { "VND": "🇻🇳", "USD": "🇺🇸", "KHR": "🇰🇭", "TRY": "🇹🇷" };
 
@@ -28,7 +30,7 @@ export default function TransferPage() {
     const [amount, setAmount] = useState("");
     const [description, setDescription] = useState("");
     const [files, setFiles] = useState<File[]>([]);
-    
+
     // Exchange rate options
     const [useCustomRate, setUseCustomRate] = useState(false);
     const [customRate, setCustomRate] = useState("");
@@ -146,8 +148,8 @@ export default function TransferPage() {
 
             // Determine received amount
             const receivedAmount = isDifferentCurrency ? finalReceivedAmount : numAmount;
-            const rateInfo = isDifferentCurrency 
-                ? ` | Tỷ giá: 1 ${fromAcc.currency} = ${effectiveRate.toFixed(4)} ${toAcc.currency}` 
+            const rateInfo = isDifferentCurrency
+                ? ` | Tỷ giá: 1 ${fromAcc.currency} = ${effectiveRate.toFixed(4)} ${toAcc.currency}`
                 : "";
 
             // 1. OUT Transaction (From Source)
@@ -257,37 +259,40 @@ export default function TransferPage() {
                         {/* Source */}
                         <div className="p-4 rounded-xl bg-red-500/5 border border-red-500/20">
                             <label className="block text-sm font-bold text-red-400 mb-2">Tài khoản Nguồn (Gửi)</label>
-                            <select
+                            <SearchableSelect
+                                options={accounts.map(a => ({
+                                    id: a.id,
+                                    label: a.name,
+                                    subLabel: `${a.balance.toLocaleString()} ${a.currency}`,
+                                    icon: CURRENCY_FLAGS[a.currency]
+                                }))}
                                 value={fromAccount}
-                                onChange={e => { setFromAccount(e.target.value); setToAccount(""); }}
-                                className="glass-input w-full p-2 rounded-lg"
+                                onChange={val => { setFromAccount(val); setToAccount(""); }}
+                                placeholder="Chọn tài khoản nguồn"
+                                searchPlaceholder="Tìm theo tên hoặc số dư..."
                                 required
-                            >
-                                <option value="">Chọn tài khoản</option>
-                                {accounts.map(a => (
-                                    <option key={a.id} value={a.id}>
-                                        {CURRENCY_FLAGS[a.currency]} {a.name} - {a.balance.toLocaleString()} {a.currency}
-                                    </option>
-                                ))}
-                            </select>
+                            />
                         </div>
 
                         {/* Destination */}
                         <div className="p-4 rounded-xl bg-green-500/5 border border-green-500/20">
                             <label className="block text-sm font-bold text-green-400 mb-2">Tài khoản Đích (Nhận)</label>
-                            <select
+                            <SearchableSelect
+                                options={accounts
+                                    .filter(a => a.id !== fromAccount)
+                                    .map(a => ({
+                                        id: a.id,
+                                        label: a.name,
+                                        subLabel: `${a.balance.toLocaleString()} ${a.currency}`,
+                                        icon: CURRENCY_FLAGS[a.currency]
+                                    }))}
                                 value={toAccount}
-                                onChange={e => setToAccount(e.target.value)}
-                                className="glass-input w-full p-2 rounded-lg"
+                                onChange={setToAccount}
+                                placeholder="Chọn tài khoản đích"
+                                searchPlaceholder="Tìm theo tên hoặc số dư..."
+                                disabled={!fromAccount}
                                 required
-                            >
-                                <option value="">Chọn tài khoản</option>
-                                {accounts.filter(a => a.id !== fromAccount).map(a => (
-                                    <option key={a.id} value={a.id}>
-                                        {CURRENCY_FLAGS[a.currency]} {a.name} - {a.balance.toLocaleString()} {a.currency}
-                                    </option>
-                                ))}
-                            </select>
+                            />
                         </div>
                     </div>
 

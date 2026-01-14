@@ -46,11 +46,11 @@ export default function TransactionsPage() {
     const accessibleProjects = useMemo(() => {
         if (!currentUser) return [];
         if (userRole === "ADMIN") return projects;
-        
+
         const userId = currentUser?.uid || currentUser?.id;
         if (!userId) return [];
-        
-        return getAccessibleProjects(currentUser, projects).filter(p => 
+
+        return getAccessibleProjects(currentUser, projects).filter(p =>
             hasProjectPermission(userId, p, "view_transactions", currentUser)
         );
     }, [currentUser, userRole, projects]);
@@ -68,7 +68,7 @@ export default function TransactionsPage() {
                 // User chỉ xem giao dịch của dự án mình có quyền view_transactions
                 // HOẶC giao dịch do chính mình tạo
                 const userId = currentUser?.uid || currentUser?.id;
-                filteredData = data.filter(tx => 
+                filteredData = data.filter(tx =>
                     (tx.projectId && accessibleProjectIds.includes(tx.projectId)) ||
                     tx.userId === userId ||
                     tx.createdBy === currentUser?.displayName ||
@@ -237,7 +237,7 @@ export default function TransactionsPage() {
             {loading ? (
                 <div className="glass-card h-64 animate-pulse rounded-xl"></div>
             ) : (
-                <TransactionList transactions={transactions} />
+                <TransactionList transactions={transactions} accounts={accounts} projects={projects} />
             )}
         </div>
     );

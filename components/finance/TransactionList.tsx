@@ -8,9 +8,11 @@ const ITEMS_PER_PAGE = 15;
 
 interface TransactionListProps {
     transactions: Transaction[];
+    accounts: any[];
+    projects: any[];
 }
 
-export default function TransactionList({ transactions }: TransactionListProps) {
+export default function TransactionList({ transactions, accounts, projects }: TransactionListProps) {
     const [currentPage, setCurrentPage] = useState(1);
 
     const totalPages = Math.ceil(transactions.length / ITEMS_PER_PAGE);
@@ -33,6 +35,16 @@ export default function TransactionList({ transactions }: TransactionListProps) 
             style: "currency",
             currency: currency,
         }).format(amount);
+    };
+
+    const getAccountName = (id: string) => {
+        const acc = accounts.find(a => a.id === id);
+        return acc ? acc.name : id.slice(0, 8) + "...";
+    };
+
+    const getProjectName = (id: string) => {
+        const proj = projects.find(p => p.id === id);
+        return proj ? proj.name : id.slice(0, 8) + "...";
     };
 
     return (
@@ -68,8 +80,12 @@ export default function TransactionList({ transactions }: TransactionListProps) 
                                 Assuming we don't have account name in TX object, we might show truncated ID or fetch map.
                                 Let's truncate ID for now to avoid complexity in this file, or better, assuming the parent might inject names later.
                                 Actually, existing code just showed category. Let's show ID for now. */}
-                            <td className="p-4 text-[var(--muted)] text-xs">{tx.accountId?.slice(0, 8)}...</td>
-                            <td className="p-4 text-[var(--muted)] text-xs">{tx.projectId ? "Project " + tx.projectId.slice(0, 4) : "-"}</td>
+                            <td className="p-4">
+                                <span className="text-white font-medium">{getAccountName(tx.accountId)}</span>
+                            </td>
+                            <td className="p-4">
+                                <span className="text-white font-medium">{tx.projectId ? getProjectName(tx.projectId) : "-"}</span>
+                            </td>
                             <td className="p-4 text-xs">{tx.createdBy}</td>
                             <td className="p-4 text-center">
                                 {tx.images && tx.images.length > 0 ? (
@@ -105,7 +121,7 @@ export default function TransactionList({ transactions }: TransactionListProps) 
                     )}
                 </tbody>
             </table>
-            
+
             {/* Pagination */}
             {totalPages > 1 && (
                 <div className="flex items-center justify-between p-4 border-t border-white/10">
@@ -135,11 +151,10 @@ export default function TransactionList({ transactions }: TransactionListProps) 
                                 <button
                                     key={pageNum}
                                     onClick={() => setCurrentPage(pageNum)}
-                                    className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${
-                                        currentPage === pageNum 
-                                            ? "bg-blue-500 text-white" 
+                                    className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${currentPage === pageNum
+                                            ? "bg-blue-500 text-white"
                                             : "hover:bg-white/5 text-[var(--muted)]"
-                                    }`}
+                                        }`}
                                 >
                                     {pageNum}
                                 </button>
