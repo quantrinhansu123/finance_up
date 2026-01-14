@@ -51,8 +51,17 @@ export default function IncomePage() {
     const accessibleAccounts = useMemo(() => {
         let filtered = getAccessibleAccounts(currentUser, accounts, accessibleProjects.map(p => p.id));
         const userId = currentUser?.uid || currentUser?.id;
-        if (userId) filtered = filtered.filter(acc => !acc.assignedUserIds || acc.assignedUserIds.length === 0 || acc.assignedUserIds.includes(userId));
-        if (projectId) filtered = filtered.filter(acc => acc.projectId === projectId || !acc.projectId);
+        
+        // Filter by projectId first - only show accounts assigned to selected project
+        if (projectId) {
+            filtered = filtered.filter(acc => acc.projectId === projectId);
+        }
+        
+        // Then filter by assignedUserIds - only show accounts user is assigned to
+        if (userId) {
+            filtered = filtered.filter(acc => !acc.assignedUserIds || acc.assignedUserIds.length === 0 || acc.assignedUserIds.includes(userId));
+        }
+        
         return filtered;
     }, [currentUser, accounts, accessibleProjects, projectId]);
     const selectedAccount = useMemo(() => accounts.find(a => a.id === accountId), [accounts, accountId]);

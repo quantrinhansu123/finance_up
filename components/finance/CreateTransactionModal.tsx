@@ -80,6 +80,11 @@ export default function CreateTransactionModal({ isOpen, onClose, onSuccess, cur
     const accessibleAccounts = useMemo(() => {
         let filtered = getAccessibleAccounts(currentUser, accounts, accessibleProjectIds);
 
+        // IMPORTANT: Filter by selected project first - only show accounts assigned to this project
+        if (projectId) {
+            filtered = filtered.filter(acc => acc.projectId === projectId);
+        }
+
         // Filter by assignedUserIds if set
         const userId = currentUser?.uid || currentUser?.id;
         if (userId) {
@@ -87,14 +92,6 @@ export default function CreateTransactionModal({ isOpen, onClose, onSuccess, cur
                 !acc.assignedUserIds ||
                 acc.assignedUserIds.length === 0 ||
                 acc.assignedUserIds.includes(userId)
-            );
-        }
-
-        // IMPORTANT: Filter by selected project
-        if (projectId) {
-            filtered = filtered.filter(acc =>
-                acc.projectId === projectId || // Account belongs to this project
-                !acc.projectId // Or account is general (no project)
             );
         }
 

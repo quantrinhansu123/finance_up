@@ -1193,6 +1193,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                                 selectedAccountIds={selectedAccountIds}
                                 toggleSelection={toggleAccountSelection}
                                 currentProjectId={projectId}
+                                projectMembers={projectMembers}
                             />
                         </div>
 
@@ -1218,29 +1219,107 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
 }
 
 // Sub-component for fetching and displaying accounts inside the modal
-function AccountSelector({ selectedAccountIds, toggleSelection, currentProjectId }: {
+function AccountSelector({ selectedAccountIds, toggleSelection, currentProjectId, projectMembers }: {
     selectedAccountIds: string[],
     toggleSelection: (id: string) => void,
-    currentProjectId: string
+    currentProjectId: string,
+    projectMembers: ProjectMember[]
 }) {
     const [allAccounts, setAllAccounts] = useState<Account[]>([]);
     const [projects, setProjects] = useState<Project[]>([]);
+    const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
     const [loading, setLoading] = useState(true);
+    const [editingAccountId, setEditingAccountId] = useState<string | null>(null);
+    const [accountUserAssignments, setAccountUserAssignments] = useState<Record<string, string[]>>({});
+
+    // Get project member IDs
+    const memberIds = projectMembers.map(m => m.id);
 
     useEffect(() => {
         Promise.all([
             getAccounts(),
-            import("@/lib/finance").then(mod => mod.getProjects())
-        ]).then(([accs, projs]) => {
+            import("@/lib/finance").then(mod => mod.getProjects()),
+            import("@/lib/users").then(mod => mod.getUsers())
+        ]).then(([accs, projs, users]) => {
             setAllAccounts(accs);
             setProjects(projs);
+            setAllUsers(users);
+            // Initialize assignments from existing data only
+            // Default is empty (no one assigned) - admin must explicitly assign
+            const assignments: Record<string, string[]> = {};
+            accs.forEach(acc => {
+                if (acc.assignedUserIds && acc.assignedUserIds.length > 0) {
+                    assignments[acc.id] = acc.assignedUserIds;
+                }
+                // Default: empty array (no one assigned)
+            });
+            setAccountUserAssignments(assignments);
             setLoading(false);
         });
-    }, []);
+    }, [currentProjectId]);
 
     const getProjectName = (projectId: string) => {
         const project = projects.find(p => p.id === projectId);
         return project?.name || "Dự án khác";
+    };
+
+    const getUserName = (userId: string) => {
+        const user = allUsers.find(u => u.uid === userId);
+        return user?.displayName || user?.email || userId;
+    };
+
+    const toggleUserAssignment = async (accountId: string, userId: string) => {
+        const currentAssignments = accountUserAssignments[accountId] || [];
+        let newAssignments: string[];
+        
+        if (currentAssignments.includes(userId)) {
+            newAssignments = currentAssignments.filter(id => id !== userId);
+        } else {
+            newAssignments = [...currentAssignments, userId];
+        }
+        
+        setAccountUserAssignments(prev => ({
+            ...prev,
+            [accountId]: newAssignments
+        }));
+
+        // Update in Firebase
+        try {
+            await updateAccount(accountId, { 
+                assignedUserIds: newAssignments 
+            });
+        } catch (error) {
+            console.error("Failed to update account assignments", error);
+        }
+    };
+
+    const selectAllUsers = async (accountId: string) => {
+        setAccountUserAssignments(prev => ({
+            ...prev,
+            [accountId]: [...memberIds]
+        }));
+        try {
+            await updateAccount(accountId, { assignedUserIds: [...memberIds] });
+        } catch (error) {
+            console.error("Failed to update account assignments", error);
+        }
+    };
+
+    const deselectAllUsers = async (accountId: string) => {
+        setAccountUserAssignments(prev => ({
+            ...prev,
+            [accountId]: []
+        }));
+        try {
+            await updateAccount(accountId, { assignedUserIds: [] });
+        } catch (error) {
+            console.error("Failed to update account assignments", error);
+        }
+    };
+
+    // When selecting an account for project, don't auto-assign anyone
+    const handleToggleSelection = (accId: string) => {
+        toggleSelection(accId);
     };
 
     if (loading) return <div className="text-center py-8">Đang tải danh sách tài khoản...</div>;
@@ -1254,29 +1333,135 @@ function AccountSelector({ selectedAccountIds, toggleSelection, currentProjectId
             {/* Available accounts */}
             <div>
                 <h4 className="text-sm font-medium text-white mb-2">Tài khoản có thể chọn ({availableAccounts.length})</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {availableAccounts.map(acc => (
-                        <label key={acc.id} className={`flex items-center gap-3 p-3 rounded-xl border transition-all cursor-pointer ${selectedAccountIds.includes(acc.id)
-                            ? "bg-blue-500/10 border-blue-500/50"
-                            : "hover:bg-white/5 border-white/5"
+                <div className="space-y-3">
+                    {availableAccounts.map(acc => {
+                        const isSelected = selectedAccountIds.includes(acc.id);
+                        const assignedUsers = accountUserAssignments[acc.id] || [];
+                        const isEditing = editingAccountId === acc.id;
+                        const isAllAssigned = assignedUsers.length === memberIds.length && memberIds.every(id => assignedUsers.includes(id));
+                        
+                        return (
+                            <div key={acc.id} className={`rounded-xl border transition-all ${isSelected
+                                ? "bg-blue-500/10 border-blue-500/50"
+                                : "border-white/5 hover:border-white/10"
                             }`}>
-                            <input
-                                type="checkbox"
-                                checked={selectedAccountIds.includes(acc.id)}
-                                onChange={() => toggleSelection(acc.id)}
-                                className="w-5 h-5 rounded border-gray-600 bg-transparent text-blue-500 focus:ring-blue-500 focus:ring-offset-0"
-                            />
-                            <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center font-bold text-lg shrink-0">
-                                🏦
+                                {/* Account Header */}
+                                <label className="flex items-center gap-3 p-3 cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={isSelected}
+                                        onChange={() => handleToggleSelection(acc.id)}
+                                        className="w-5 h-5 rounded border-gray-600 bg-transparent text-blue-500 focus:ring-blue-500 focus:ring-offset-0"
+                                    />
+                                    <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center font-bold text-lg shrink-0">
+                                        🏦
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="font-medium text-white truncate">{acc.name}</div>
+                                        <div className="text-xs text-[var(--muted)]">{acc.currency} • {acc.balance.toLocaleString()}</div>
+                                    </div>
+                                    {isSelected && (
+                                        <button
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.preventDefault();
+                                                setEditingAccountId(isEditing ? null : acc.id);
+                                            }}
+                                            className="px-3 py-1.5 rounded-lg text-xs font-medium bg-white/10 hover:bg-white/20 text-white transition-colors flex items-center gap-1"
+                                        >
+                                            <Users size={14} />
+                                            {isAllAssigned ? "Tất cả" : assignedUsers.length === 0 ? "Không ai" : `${assignedUsers.length}/${memberIds.length} NV`}
+                                        </button>
+                                    )}
+                                </label>
+
+                                {/* User Assignment Panel */}
+                                {isSelected && isEditing && (
+                                    <div className="px-3 pb-3 border-t border-white/10 mt-2 pt-3">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <span className="text-xs font-medium text-[var(--muted)]">
+                                                Nhân viên được sử dụng tài khoản này:
+                                            </span>
+                                            <div className="flex gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => selectAllUsers(acc.id)}
+                                                    className="text-xs text-blue-400 hover:text-blue-300"
+                                                >
+                                                    Chọn tất cả
+                                                </button>
+                                                <span className="text-white/20">|</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => deselectAllUsers(acc.id)}
+                                                    className="text-xs text-red-400 hover:text-red-300"
+                                                >
+                                                    Bỏ chọn tất cả
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div className="flex flex-wrap gap-2">
+                                            {memberIds.map(memberId => {
+                                                const isAssigned = assignedUsers.includes(memberId);
+                                                return (
+                                                    <button
+                                                        key={memberId}
+                                                        type="button"
+                                                        onClick={() => toggleUserAssignment(acc.id, memberId)}
+                                                        className={`px-2 py-1 rounded-lg text-xs transition-all flex items-center gap-1 ${
+                                                            isAssigned
+                                                                ? "bg-green-500/20 text-green-400 border border-green-500/50"
+                                                                : "bg-white/5 text-[var(--muted)] border border-white/10 hover:border-white/20"
+                                                        }`}
+                                                    >
+                                                        {isAssigned && <Check size={12} />}
+                                                        {getUserName(memberId)}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                        {assignedUsers.length === 0 && (
+                                            <p className="mt-2 text-xs text-yellow-400">
+                                                ⚠️ Chưa có ai được gán - không ai có thể sử dụng tài khoản này
+                                            </p>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* Show assigned users summary when not editing */}
+                                {isSelected && !isEditing && (
+                                    <div className="px-3 pb-2">
+                                        <div className="flex flex-wrap gap-1">
+                                            {isAllAssigned ? (
+                                                <span className="px-2 py-0.5 rounded bg-green-500/10 text-green-400 text-xs">
+                                                    ✓ Tất cả thành viên
+                                                </span>
+                                            ) : assignedUsers.length === 0 ? (
+                                                <span className="px-2 py-0.5 rounded bg-red-500/10 text-red-400 text-xs">
+                                                    ⚠️ Chưa gán ai
+                                                </span>
+                                            ) : (
+                                                <>
+                                                    {assignedUsers.slice(0, 3).map(userId => (
+                                                        <span key={userId} className="px-2 py-0.5 rounded bg-green-500/10 text-green-400 text-xs">
+                                                            {getUserName(userId)}
+                                                        </span>
+                                                    ))}
+                                                    {assignedUsers.length > 3 && (
+                                                        <span className="px-2 py-0.5 rounded bg-white/10 text-[var(--muted)] text-xs">
+                                                            +{assignedUsers.length - 3}
+                                                        </span>
+                                                    )}
+                                                </>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
-                            <div className="flex-1 min-w-0">
-                                <div className="font-medium text-white truncate">{acc.name}</div>
-                                <div className="text-xs text-[var(--muted)]">{acc.currency} • {acc.balance.toLocaleString()}</div>
-                            </div>
-                        </label>
-                    ))}
+                        );
+                    })}
                     {availableAccounts.length === 0 && (
-                        <div className="col-span-2 text-center py-4 text-[var(--muted)]">Không có tài khoản khả dụng</div>
+                        <div className="text-center py-4 text-[var(--muted)]">Không có tài khoản khả dụng</div>
                     )}
                 </div>
             </div>
