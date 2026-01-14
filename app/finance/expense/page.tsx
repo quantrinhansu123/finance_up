@@ -12,6 +12,8 @@ import CurrencyInput from "@/components/finance/CurrencyInput";
 import SearchableSelect from "@/components/finance/SearchableSelect";
 import DataTableToolbar from "@/components/finance/DataTableToolbar";
 import { exportToCSV } from "@/lib/export";
+import TransactionDetailModal from "@/components/finance/TransactionDetailModal";
+import { Eye } from "lucide-react";
 
 const EXPENSE_CATEGORIES = [
     "Thuế", "Long Heng", "Cước vận chuyển", "Cước vận chuyển HN-HCM", "Cước vận chuyển HCM-HN",
@@ -54,6 +56,10 @@ export default function ExpensePage() {
         category: ""
     });
     const [searchTerm, setSearchTerm] = useState("");
+
+    // Modal state
+    const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
+    const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
     useEffect(() => {
         const u = localStorage.getItem("user") || sessionStorage.getItem("user");
@@ -596,11 +602,19 @@ export default function ExpensePage() {
                                 <th className="p-3">Tài khoản</th>
                                 <th className="p-3">Dự án</th>
                                 <th className="p-3">Trạng thái</th>
+                                <th className="p-3 text-center">Chi tiết</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-white/5">
                             {transactions.slice(0, 20).map(tx => (
-                                <tr key={tx.id} className="hover:bg-white/5 transition-colors">
+                                <tr
+                                    key={tx.id}
+                                    className="hover:bg-white/5 transition-colors cursor-pointer"
+                                    onClick={() => {
+                                        setSelectedTransaction(tx);
+                                        setIsDetailModalOpen(true);
+                                    }}
+                                >
                                     <td className="p-3 text-white/70">{new Date(tx.date).toLocaleDateString('vi-VN')}</td>
                                     <td className="p-3 text-red-400 font-semibold">-{tx.amount.toLocaleString()} {tx.currency}</td>
                                     <td className="p-3 text-white/70">{tx.category}</td>
@@ -613,15 +627,40 @@ export default function ExpensePage() {
                                             {tx.status === "APPROVED" ? "Đã duyệt" : tx.status === "PENDING" ? "Chờ duyệt" : "Từ chối"}
                                         </span>
                                     </td>
+                                    <td className="p-3 text-center">
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setSelectedTransaction(tx);
+                                                setIsDetailModalOpen(true);
+                                            }}
+                                            className="p-1.5 rounded hover:bg-white/10 text-[var(--muted)] hover:text-blue-400 transition-colors inline-flex items-center gap-1"
+                                            title="Xem chi tiết"
+                                        >
+                                            <Eye size={14} />
+                                        </button>
+                                    </td>
                                 </tr>
                             ))}
                             {transactions.length === 0 && (
-                                <tr><td colSpan={6} className="p-8 text-center text-white/30">Chưa có dữ liệu</td></tr>
+                                <tr><td colSpan={7} className="p-8 text-center text-white/30">Chưa có dữ liệu</td></tr>
                             )}
                         </tbody>
                     </table>
                 </div>
             </div>
+
+            {/* Transaction Detail Modal */}
+            <TransactionDetailModal
+                transaction={selectedTransaction}
+                isOpen={isDetailModalOpen}
+                onClose={() => {
+                    setIsDetailModalOpen(false);
+                    setSelectedTransaction(null);
+                }}
+                accountName={selectedTransaction ? getAccountName(selectedTransaction.accountId) : undefined}
+                projectName={selectedTransaction?.projectId ? getProjectName(selectedTransaction.projectId) : undefined}
+            />
         </div>
     );
 }
