@@ -10,7 +10,9 @@ import { updateDoc, doc, deleteDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import Link from "next/link";
 import { getUserRole, Role } from "@/lib/permissions";
-import { Plus, Lock, Unlock, Edit2, History, Wallet, Search, Trash2, Building2, Banknote, Smartphone } from "lucide-react";
+import { Plus, Lock, Unlock, Edit2, History, Wallet, Trash2, Building2, Banknote, Smartphone } from "lucide-react";
+import DataTableToolbar from "@/components/finance/DataTableToolbar";
+import { exportToCSV } from "@/lib/export";
 
 export default function AccountsPage() {
     const [accounts, setAccounts] = useState<Account[]>([]);
@@ -21,9 +23,14 @@ export default function AccountsPage() {
     const [loading, setLoading] = useState(true);
     const [userRole, setUserRole] = useState<Role>("USER");
     const [rates, setRates] = useState<any>({});
+
+    // Filters
+    const [activeFilters, setActiveFilters] = useState<Record<string, string>>({
+        currency: "",
+        type: "",
+        projectId: ""
+    });
     const [searchTerm, setSearchTerm] = useState("");
-    const [filterCurrency, setFilterCurrency] = useState("");
-    const [filterType, setFilterType] = useState("");
 
     const fetchData = async () => {
         setLoading(true);
@@ -112,11 +119,12 @@ export default function AccountsPage() {
     const filteredAccounts = useMemo(() => {
         return accounts.filter(acc => {
             if (searchTerm && !acc.name.toLowerCase().includes(searchTerm.toLowerCase())) return false;
-            if (filterCurrency && acc.currency !== filterCurrency) return false;
-            if (filterType && acc.type !== filterType) return false;
+            if (activeFilters.currency && acc.currency !== activeFilters.currency) return false;
+            if (activeFilters.type && acc.type !== activeFilters.type) return false;
+            if (activeFilters.projectId && acc.projectId !== activeFilters.projectId) return false;
             return true;
         });
-    }, [accounts, searchTerm, filterCurrency, filterType]);
+    }, [accounts, searchTerm, activeFilters]);
 
     // Summary stats
     const totalBalanceUSD = accounts.reduce((sum, a) => sum + convertCurrency(a.balance, a.currency, "USD", rates), 0);
@@ -134,12 +142,6 @@ export default function AccountsPage() {
                     <h1 className="text-xl font-bold text-white">Tài khoản Ngân hàng/Tiền mặt</h1>
                     <p className="text-[10px] text-[var(--muted)]">Quản lý số dư và phân quyền</p>
                 </div>
-                <button
-                    onClick={() => setIsCreateModalOpen(true)}
-                    className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-xs font-medium transition-colors"
-                >
-                    <Plus size={14} /> Thêm tài khoản
-                </button>
             </div>
 
             {/* Total Summary */}
@@ -153,43 +155,44 @@ export default function AccountsPage() {
                 </div>
             </div>
 
-            {/* Filters */}
-            <div className="flex flex-wrap gap-2 items-center">
-                <div className="relative flex-1 min-w-[150px] max-w-[200px]">
-                    <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
-                    <input
-                        type="text"
-                        placeholder="Tìm tài khoản..."
-                        value={searchTerm}
-                        onChange={e => setSearchTerm(e.target.value)}
-                        className="glass-input w-full pl-8 pr-3 py-1.5 rounded-lg text-xs"
-                    />
-                </div>
-                <select
-                    value={filterCurrency}
-                    onChange={e => setFilterCurrency(e.target.value)}
-                    className="glass-input px-2 py-1.5 rounded-lg text-xs"
-                >
-                    <option value="">Tất cả tiền tệ</option>
-                    {currencies.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-                <select
-                    value={filterType}
-                    onChange={e => setFilterType(e.target.value)}
-                    className="glass-input px-2 py-1.5 rounded-lg text-xs"
-                >
-                    <option value="">Tất cả loại</option>
-                    {types.map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
-                {(searchTerm || filterCurrency || filterType) && (
-                    <button
-                        onClick={() => { setSearchTerm(""); setFilterCurrency(""); setFilterType(""); }}
-                        className="text-[10px] text-[var(--muted)] hover:text-white"
-                    >
-                        Xóa lọc
-                    </button>
-                )}
-            </div>
+            {/* Dashboard Toolbar */}
+            <DataTableToolbar
+                searchPlaceholder="Tìm tên tài khoản..."
+                onSearch={setSearchTerm}
+                activeFilters={activeFilters}
+                onFilterChange={(id, val) => setActiveFilters(prev => ({ ...prev, [id]: val }))}
+                onReset={() => {
+                    setActiveFilters({ currency: "", type: "", projectId: "" });
+                    setSearchTerm("");
+                }}
+                onExport={() => exportToCSV(filteredAccounts, "Danh_Sach_Tai_Khoan", {
+                    name: "Tên tài khoản",
+                    type: "Loại",
+                    currency: "Tiền tệ",
+                    balance: "Số dư",
+                    projectId: "Mã dự án"
+                })}
+                onAdd={userRole === "ADMIN" ? () => setIsCreateModalOpen(true) : undefined}
+                addLabel="Thêm tài khoản"
+                filters={[
+                    {
+                        id: "type",
+                        label: "Loại tài khoản",
+                        options: types.map(t => ({ value: t, label: t }))
+                    },
+                    {
+                        id: "currency",
+                        label: "Tiền tệ",
+                        options: currencies.map(c => ({ value: c, label: c }))
+                    },
+                    {
+                        id: "projectId",
+                        label: "Dự án",
+                        options: Object.entries(projects).map(([id, name]) => ({ value: id, label: name as string })),
+                        advanced: true
+                    }
+                ]}
+            />
 
             {/* Table */}
             <div className="glass-card rounded-xl overflow-hidden border border-white/5">
@@ -257,11 +260,10 @@ export default function AccountsPage() {
                                                 </button>
                                                 <button
                                                     onClick={() => toggleLock(acc)}
-                                                    className={`p-1.5 rounded transition-colors ${
-                                                        acc.isLocked 
-                                                            ? "text-red-400 hover:bg-red-500/20" 
+                                                    className={`p-1.5 rounded transition-colors ${acc.isLocked
+                                                            ? "text-red-400 hover:bg-red-500/20"
                                                             : "text-[var(--muted)] hover:text-yellow-400 hover:bg-white/10"
-                                                    }`}
+                                                        }`}
                                                     title={acc.isLocked ? "Mở khóa" : "Khóa"}
                                                 >
                                                     {acc.isLocked ? <Lock size={14} /> : <Unlock size={14} />}

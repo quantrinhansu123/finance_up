@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { getFixedCosts, createFixedCost, createTransaction, getAccounts, deleteFixedCost } from "@/lib/finance";
 import { FixedCost, Currency, Account } from "@/types/finance";
 import { doc, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import CurrencyInput from "@/components/finance/CurrencyInput";
 import { Plus, Eye, Edit2, Trash2, Zap, X, Save } from "lucide-react";
+import DataTableToolbar from "@/components/finance/DataTableToolbar";
+import { exportToCSV } from "@/lib/export";
 
 const CURRENCY_COLORS: Record<string, string> = {
     "VND": "#ef4444",
@@ -24,6 +26,14 @@ export default function FixedCostsPage() {
     const [selectedCost, setSelectedCost] = useState<FixedCost | null>(null);
     const [loading, setLoading] = useState(true);
     const [deleteLoading, setDeleteLoading] = useState(false);
+
+    // Filters
+    const [activeFilters, setActiveFilters] = useState<Record<string, string>>({
+        status: "",
+        cycle: "",
+        accountId: ""
+    });
+    const [searchTerm, setSearchTerm] = useState("");
 
     // Form State
     const [name, setName] = useState("");
@@ -201,19 +211,29 @@ export default function FixedCostsPage() {
         }
     };
 
+    // Filtered data
+    const filteredCosts = useMemo(() => {
+        return costs.filter(c => {
+            const matchSearch = c.name.toLowerCase().includes(searchTerm.toLowerCase());
+            const matchStatus = !activeFilters.status || c.status === activeFilters.status;
+            const matchCycle = !activeFilters.cycle || c.cycle === activeFilters.cycle;
+            const matchAccount = !activeFilters.accountId || c.accountId === activeFilters.accountId;
+            return matchSearch && matchStatus && matchCycle && matchAccount;
+        });
+    }, [costs, searchTerm, activeFilters]);
+
     useEffect(() => {
         fetchData();
     }, []);
 
     return (
-        <div className="space-y-8">
+        <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-3xl font-bold text-white">Chi Phí Cố Định</h1>
                     <p className="text-[var(--muted)]">Quản lý các khoản chi định kỳ (Thuê nhà, Lương, Server...)</p>
                 </div>
                 <div className="flex gap-4">
-
                     <button
                         onClick={generateTransactions}
                         disabled={loading}
@@ -222,14 +242,54 @@ export default function FixedCostsPage() {
                         <Zap size={14} className="text-yellow-400" />
                         Tạo giao dịch tháng này
                     </button>
-                    <button
-                        onClick={openCreateModal}
-                        className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-xs font-medium transition-colors border-none"
-                    >
-                        <Plus size={14} /> Thêm Chi Phí
-                    </button>
                 </div>
             </div>
+
+            <DataTableToolbar
+                searchPlaceholder="Tìm tên khoản chi..."
+                onSearch={setSearchTerm}
+                activeFilters={activeFilters}
+                onFilterChange={(id, val) => setActiveFilters(prev => ({ ...prev, [id]: val }))}
+                onReset={() => {
+                    setActiveFilters({ status: "", cycle: "", accountId: "" });
+                    setSearchTerm("");
+                }}
+                onExport={() => exportToCSV(filteredCosts, "Chi_Phi_Co_Dinh", {
+                    name: "Tên khoản chi",
+                    amount: "Số tiền",
+                    currency: "Tiền tệ",
+                    cycle: "Chu kỳ",
+                    status: "Trạng thái",
+                    lastGenerated: "Tháng gần nhất"
+                })}
+                onAdd={openCreateModal}
+                addLabel="Thêm Chi Phí"
+                filters={[
+                    {
+                        id: "status",
+                        label: "Trạng thái",
+                        options: [
+                            { value: "ON", label: "Đang bật" },
+                            { value: "OFF", label: "Đang tắt" }
+                        ]
+                    },
+                    {
+                        id: "cycle",
+                        label: "Chu kỳ",
+                        options: [
+                            { value: "MONTHLY", label: "Hàng tháng" },
+                            { value: "QUARTERLY", label: "Hàng quý" },
+                            { value: "YEARLY", label: "Hàng năm" }
+                        ]
+                    },
+                    {
+                        id: "accountId",
+                        label: "Tài khoản",
+                        options: accounts.map(a => ({ value: a.id, label: a.name })),
+                        advanced: true
+                    }
+                ]}
+            />
 
             <div className="glass-card rounded-2xl overflow-hidden border border-white/5">
                 <div className="overflow-x-auto">
@@ -245,7 +305,7 @@ export default function FixedCostsPage() {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-white/5">
-                            {costs.map((cost) => (
+                            {filteredCosts.map((cost: FixedCost) => (
                                 <tr key={cost.id} className="hover:bg-white/5 transition-colors">
                                     {/* Tên khoản chi */}
                                     <td className="p-4">

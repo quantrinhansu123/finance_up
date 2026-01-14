@@ -5,8 +5,10 @@ import { getProjects, createProject, updateProject, getTransactions, deleteProje
 import { Project } from "@/types/finance";
 import { useRouter } from "next/navigation";
 import { getUserRole, getAccessibleProjects, hasProjectPermission, Role } from "@/lib/permissions";
-import { Users, Trash2, Search, ChevronLeft, ChevronRight, ShieldX, Plus, Eye, Save, X, Edit2 } from "lucide-react";
+import { Users, Trash2, ChevronLeft, ChevronRight, ShieldX, Plus, Eye, Save, X, Edit2 } from "lucide-react";
 import CurrencyInput from "@/components/finance/CurrencyInput";
+import DataTableToolbar from "@/components/finance/DataTableToolbar";
+import { exportToCSV } from "@/lib/export";
 
 const ITEMS_PER_PAGE = 10;
 
@@ -21,8 +23,10 @@ export default function ProjectsPage() {
     const [loading, setLoading] = useState(true);
 
     // Filters & Pagination
+    const [activeFilters, setActiveFilters] = useState<Record<string, string>>({
+        status: "ALL"
+    });
     const [searchTerm, setSearchTerm] = useState("");
-    const [filterStatus, setFilterStatus] = useState<string>("ALL");
     const [currentPage, setCurrentPage] = useState(1);
 
     // Form
@@ -37,10 +41,10 @@ export default function ProjectsPage() {
         return projects.filter(p => {
             const matchSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 (p.description || "").toLowerCase().includes(searchTerm.toLowerCase());
-            const matchStatus = filterStatus === "ALL" || p.status === filterStatus;
+            const matchStatus = activeFilters.status === "ALL" || p.status === activeFilters.status;
             return matchSearch && matchStatus;
         });
-    }, [projects, searchTerm, filterStatus]);
+    }, [projects, searchTerm, activeFilters]);
 
     const totalPages = Math.ceil(filteredProjects.length / ITEMS_PER_PAGE);
     const paginatedProjects = useMemo(() => {
@@ -51,7 +55,7 @@ export default function ProjectsPage() {
     // Reset page when filter changes
     useEffect(() => {
         setCurrentPage(1);
-    }, [searchTerm, filterStatus]);
+    }, [searchTerm, activeFilters]);
 
     // Load user info
     useEffect(() => {
@@ -232,16 +236,6 @@ export default function ProjectsPage() {
                     <h1 className="text-3xl font-bold text-white">Dự án</h1>
                     <p className="text-[var(--muted)]">Quản lý dự án và P&L</p>
                 </div>
-                <div className="flex gap-4">
-                    {canCreateProject && (
-                        <button
-                            onClick={openCreateModal}
-                            className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-xs font-medium transition-colors border-none"
-                        >
-                            <Plus size={14} /> Tạo dự án mới
-                        </button>
-                    )}
-                </div>
             </div>
 
             {/* Show access message if user has limited access */}
@@ -254,32 +248,40 @@ export default function ProjectsPage() {
                 </div>
             )}
 
-            {/* Filters */}
-            <div className="glass-card p-4 rounded-xl flex flex-wrap items-center gap-4">
-                <div className="relative flex-1 min-w-[200px]">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" size={18} />
-                    <input
-                        type="text"
-                        placeholder="Tìm kiếm dự án..."
-                        value={searchTerm}
-                        onChange={e => setSearchTerm(e.target.value)}
-                        className="glass-input w-full pl-10 pr-4 py-2 rounded-lg text-sm"
-                    />
-                </div>
-                <select
-                    value={filterStatus}
-                    onChange={e => setFilterStatus(e.target.value)}
-                    className="glass-input px-4 py-2 rounded-lg text-sm"
-                >
-                    <option value="ALL">Tất cả trạng thái</option>
-                    <option value="ACTIVE">Đang hoạt động</option>
-                    <option value="PAUSED">Tạm dừng</option>
-                    <option value="COMPLETED">Hoàn thành</option>
-                </select>
-                <div className="text-sm text-[var(--muted)]">
-                    {filteredProjects.length} dự án
-                </div>
-            </div>
+            {/* Toolbar */}
+            <DataTableToolbar
+                searchPlaceholder="Tìm kiếm dự án..."
+                onSearch={setSearchTerm}
+                activeFilters={activeFilters}
+                onFilterChange={(id, val) => setActiveFilters(prev => ({ ...prev, [id]: val }))}
+                onReset={() => {
+                    setActiveFilters({ status: "ALL" });
+                    setSearchTerm("");
+                }}
+                onExport={() => exportToCSV(filteredProjects, "Danh_Sach_Du_An", {
+                    name: "Tên dự án",
+                    description: "Mô tả",
+                    status: "Trạng thái",
+                    budget: "Ngân sách",
+                    currency: "Tiền tệ",
+                    totalRevenue: "Doanh thu",
+                    totalExpense: "Chi phí"
+                })}
+                onAdd={canCreateProject ? openCreateModal : undefined}
+                addLabel="Tạo dự án mới"
+                filters={[
+                    {
+                        id: "status",
+                        label: "Trạng thái",
+                        options: [
+                            { value: "ALL", label: "Tất cả trạng thái" },
+                            { value: "ACTIVE", label: "Đang hoạt động" },
+                            { value: "PAUSED", label: "Tạm dừng" },
+                            { value: "COMPLETED", label: "Hoàn thành" }
+                        ]
+                    }
+                ]}
+            />
 
             <div className="glass-card rounded-2xl overflow-hidden border border-white/5">
                 <table className="w-full text-left text-sm">
@@ -369,7 +371,7 @@ export default function ProjectsPage() {
                         ))}
                         {paginatedProjects.length === 0 && !loading && (
                             <tr><td colSpan={7} className="p-8 text-center text-[var(--muted)]">
-                                {searchTerm || filterStatus !== "ALL" ? "Không tìm thấy dự án phù hợp" : "Chưa có dự án nào"}
+                                {searchTerm || activeFilters.status !== "ALL" ? "Không tìm thấy dự án phù hợp" : "Chưa có dự án nào"}
                             </td></tr>
                         )}
                     </tbody>

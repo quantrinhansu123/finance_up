@@ -10,6 +10,8 @@ import { getUserRole, getAccessibleProjects, getAccessibleAccounts, hasProjectPe
 import { FolderOpen, CreditCard, Wallet, Upload, Check, ChevronRight, AlertCircle, Lock } from "lucide-react";
 import CurrencyInput from "@/components/finance/CurrencyInput";
 import SearchableSelect from "@/components/finance/SearchableSelect";
+import DataTableToolbar from "@/components/finance/DataTableToolbar";
+import { exportToCSV } from "@/lib/export";
 
 const INCOME_SOURCES = ["COD VET", "COD JNT", "Khách CK", "Khác"];
 const CURRENCY_FLAGS: Record<string, string> = { "VND": "🇻🇳", "USD": "🇺🇸", "KHR": "🇰🇭", "TRY": "🇹🇷" };
@@ -30,8 +32,16 @@ export default function IncomePage() {
     const [source, setSource] = useState(INCOME_SOURCES[0]);
     const [description, setDescription] = useState("");
     const [files, setFiles] = useState<File[]>([]);
-    const [filterDate, setFilterDate] = useState("");
-    const [filterProject, setFilterProject] = useState("");
+
+    // Filters
+    const [activeFilters, setActiveFilters] = useState<Record<string, string>>({
+        startDate: "",
+        endDate: "",
+        date: "",
+        projectId: "",
+        accountId: ""
+    });
+    const [searchTerm, setSearchTerm] = useState("");
 
     useEffect(() => {
         const u = localStorage.getItem("user") || sessionStorage.getItem("user");
@@ -117,14 +127,25 @@ export default function IncomePage() {
             let txs = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Transaction)).filter(t => t.type === "IN");
             // User thường chỉ xem giao dịch của mình, ADMIN xem tất cả
             if (userRole !== "ADMIN") { const userId = currentUser.uid || currentUser.id; txs = txs.filter(t => t.userId === userId); }
-            if (filterDate) txs = txs.filter(t => t.date.startsWith(filterDate));
-            if (filterProject) txs = txs.filter(t => t.projectId === filterProject);
+            if (activeFilters.startDate) txs = txs.filter(t => t.date.split("T")[0] >= activeFilters.startDate);
+            if (activeFilters.endDate) txs = txs.filter(t => t.date.split("T")[0] <= activeFilters.endDate);
+            if (activeFilters.date) txs = txs.filter(t => t.date.startsWith(activeFilters.date));
+            if (activeFilters.projectId) txs = txs.filter(t => t.projectId === activeFilters.projectId);
+            if (activeFilters.accountId) txs = txs.filter(t => t.accountId === activeFilters.accountId);
+            if (searchTerm) {
+                const term = searchTerm.toLowerCase();
+                txs = txs.filter(t =>
+                    (t.source?.toLowerCase().includes(term)) ||
+                    (t.category?.toLowerCase().includes(term)) ||
+                    (t.description?.toLowerCase().includes(term))
+                );
+            }
             txs.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
             setTransactions(txs);
         } catch (e) { console.error(e); }
     };
 
-    useEffect(() => { if (!loading) fetchTransactions(); }, [filterDate, filterProject]);
+    useEffect(() => { if (!loading) fetchTransactions(); }, [activeFilters, searchTerm]);
     useEffect(() => { if (projectId && selectedAccount?.projectId && selectedAccount.projectId !== projectId) setAccountId(""); }, [projectId]);
 
     useEffect(() => {
@@ -306,15 +327,45 @@ export default function IncomePage() {
             )}
 
             <div className="rounded-2xl bg-white/5 border border-white/10 overflow-hidden">
-                <div className="p-4 border-b border-white/10 flex flex-wrap justify-between items-center gap-3">
-                    <h3 className="font-semibold text-white">Lịch sử thu tiền</h3>
-                    <div className="flex gap-2">
-                        <input type="date" value={filterDate} onChange={e => setFilterDate(e.target.value)} className="px-3 py-1.5 bg-black/30 border border-white/10 rounded-lg text-sm text-white focus:outline-none" />
-                        <select value={filterProject} onChange={e => setFilterProject(e.target.value)} className="px-3 py-1.5 bg-black/30 border border-white/10 rounded-lg text-sm text-white focus:outline-none">
-                            <option value="">Tất cả dự án</option>
-                            {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                        </select>
-                    </div>
+                <div className="p-4 border-b border-white/10">
+                    <DataTableToolbar
+                        searchPlaceholder="Tìm kiếm nguồn, nội dung..."
+                        onSearch={setSearchTerm}
+                        activeFilters={activeFilters}
+                        onFilterChange={(id, val) => setActiveFilters(prev => ({ ...prev, [id]: val }))}
+                        enableDateRange={true}
+                        onReset={() => {
+                            setActiveFilters({ startDate: "", endDate: "", date: "", projectId: "", accountId: "" });
+                            setSearchTerm("");
+                        }}
+                        onExport={() => exportToCSV(transactions, "Thu_Tien", {
+                            date: "Ngày",
+                            amount: "Số tiền",
+                            currency: "Tiền tệ",
+                            source: "Nguồn",
+                            category: "Hạng mục",
+                            description: "Ghi chú"
+                        })}
+                        filters={[
+                            {
+                                id: "projectId",
+                                label: "Dự án",
+                                options: projects.map(p => ({ value: p.id, label: p.name }))
+                            },
+                            {
+                                id: "accountId",
+                                label: "Tài khoản",
+                                options: accounts.map(a => ({ value: a.id, label: a.name })),
+                                advanced: true
+                            },
+                            {
+                                id: "date",
+                                label: "Ngày",
+                                options: Array.from(new Set(transactions.map(t => t.date.split("T")[0]))).sort().reverse().map(d => ({ value: d, label: d })),
+                                advanced: true
+                            }
+                        ]}
+                    />
                 </div>
                 <div className="overflow-x-auto">
                     <table className="w-full text-left text-sm">

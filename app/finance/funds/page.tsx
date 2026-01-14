@@ -1,16 +1,23 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Fund, Transaction } from "@/types/finance";
 import { getTransactions, getFunds, deleteFund } from "@/lib/finance";
 import FundModal from "@/components/finance/FundModal";
-import { Plus, Edit2, History, X, Save, Trash2, Calendar } from "lucide-react";
+import { History, X, Edit2, Trash2 } from "lucide-react";
+import DataTableToolbar from "@/components/finance/DataTableToolbar";
+import { exportToCSV } from "@/lib/export";
 
 export default function FundsPage() {
-    const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [funds, setFunds] = useState<Fund[]>([]);
     const [loading, setLoading] = useState(true);
+
+    // Filters
+    const [activeFilters, setActiveFilters] = useState<Record<string, string>>({
+        month: new Date().toISOString().slice(0, 7)
+    });
+    const [searchTerm, setSearchTerm] = useState("");
 
     // Modal State
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -36,14 +43,11 @@ export default function FundsPage() {
 
     // Helper: Filter transactions by selected month
     const filterByMonth = (txs: Transaction[]) => {
-        return txs.filter(tx => tx.date.startsWith(selectedMonth));
+        return txs.filter(tx => tx.date.startsWith(activeFilters.month));
     };
 
     // Calculate Stats
     const filteredTxs = filterByMonth(transactions);
-    const totalSystemExpense = filteredTxs
-        .filter(t => t.type === "OUT" && t.status === "APPROVED")
-        .reduce((sum, t) => sum + t.amount, 0);
 
     const getFundStats = (fund: Fund) => {
         const fundTxs = filteredTxs.filter(t =>
@@ -55,6 +59,14 @@ export default function FundsPage() {
         const spent = fundTxs.reduce((sum, t) => sum + t.amount, 0);
         return { spent, txs: fundTxs };
     };
+
+    // Filtered Funds
+    const filteredFunds = useMemo(() => {
+        return funds.filter(f =>
+            f.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (f.description || "").toLowerCase().includes(searchTerm.toLowerCase())
+        );
+    }, [funds, searchTerm]);
 
     const handleEdit = (e: React.MouseEvent, fund: Fund) => {
         e.stopPropagation();
@@ -84,30 +96,39 @@ export default function FundsPage() {
     };
 
     return (
-        <div className="space-y-8">
-            <div className="flex items-center justify-between flex-wrap gap-4">
+        <div className="space-y-6">
+            <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-3xl font-bold text-white">Quỹ & Nhóm Chi Phí</h1>
                     <p className="text-[var(--muted)]">Quản lý ngân sách và phân bổ chi phí</p>
                 </div>
-                <div className="flex gap-3">
-                    <div className="relative">
-                        <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
-                        <input
-                            type="month"
-                            value={selectedMonth}
-                            onChange={e => setSelectedMonth(e.target.value)}
-                            className="glass-input pl-10 pr-4 py-2 rounded-lg text-xs"
-                        />
-                    </div>
-                    <button
-                        onClick={handleCreate}
-                        className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-xs font-medium transition-colors border-none"
-                    >
-                        <Plus size={14} /> Tạo Quỹ
-                    </button>
-                </div>
             </div>
+
+            <DataTableToolbar
+                searchPlaceholder="Tìm tên quỹ..."
+                onSearch={setSearchTerm}
+                activeFilters={activeFilters}
+                onFilterChange={(id, val) => setActiveFilters(prev => ({ ...prev, [id]: val }))}
+                onReset={() => {
+                    setActiveFilters({ month: new Date().toISOString().slice(0, 7) });
+                    setSearchTerm("");
+                }}
+                onExport={() => exportToCSV(filteredFunds, "Danh_Sach_Quy", {
+                    name: "Tên quỹ",
+                    description: "Mô tả",
+                    targetBudget: "Ngân sách",
+                    keywords: "Từ khóa"
+                })}
+                onAdd={handleCreate}
+                addLabel="Tạo Quỹ mới"
+                filters={[
+                    {
+                        id: "month",
+                        label: "Tháng báo cáo",
+                        options: Array.from(new Set(transactions.map(t => t.date.slice(0, 7)))).sort().reverse().map(m => ({ value: m, label: m }))
+                    }
+                ]}
+            />
 
             <div className="glass-card rounded-xl overflow-hidden border border-white/5">
                 <div className="overflow-x-auto">
@@ -132,7 +153,7 @@ export default function FundsPage() {
                                     <td colSpan={6} className="p-8 text-center text-[var(--muted)]">Chưa có quỹ nào. Hãy tạo quỹ mới.</td>
                                 </tr>
                             ) : (
-                                funds.map((fund) => {
+                                filteredFunds.map((fund) => {
                                     const { spent } = getFundStats(fund);
                                     const pctBudget = fund.targetBudget && fund.targetBudget > 0
                                         ? (spent / fund.targetBudget) * 100
@@ -231,7 +252,7 @@ export default function FundsPage() {
 
                         <div className="mb-6">
                             <h2 className="text-2xl font-bold text-white mb-1">{detailFund.name}</h2>
-                            <p className="text-[var(--muted)]">Giao dịch tháng {selectedMonth}</p>
+                            <p className="text-[var(--muted)]">Giao dịch tháng {activeFilters.month}</p>
                         </div>
 
                         <div className="overflow-y-auto flex-1 pr-2">

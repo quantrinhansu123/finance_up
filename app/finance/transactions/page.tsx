@@ -6,6 +6,8 @@ import { getTransactions } from "@/lib/finance";
 import { Transaction } from "@/types/finance";
 import { getUserRole, getAccessibleProjects, hasProjectPermission, Role } from "@/lib/permissions";
 import Link from "next/link";
+import DataTableToolbar, { FilterConfig } from "@/components/finance/DataTableToolbar";
+import { exportToCSV } from "@/lib/export";
 
 export default function TransactionsPage() {
     const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -13,13 +15,16 @@ export default function TransactionsPage() {
     const [currentUser, setCurrentUser] = useState<any>(null);
     const [userRole, setUserRole] = useState<Role>("USER");
 
-    // Filters
-    const [filterDate, setFilterDate] = useState("");
-    const [filterProject, setFilterProject] = useState("");
-    const [filterSource, setFilterSource] = useState("");
-    const [filterAccount, setFilterAccount] = useState("");
-    const [filterType, setFilterType] = useState<"" | "IN" | "OUT">("");
-    const [filterStatus, setFilterStatus] = useState("");
+    const [activeFilters, setActiveFilters] = useState<Record<string, string>>({
+        startDate: "",
+        endDate: "",
+        date: "",
+        type: "",
+        status: "",
+        projectId: "",
+        accountId: "",
+    });
+    const [searchTerm, setSearchTerm] = useState("");
 
     // Filter Options Data
     const [projects, setProjects] = useState<any[]>([]);
@@ -77,27 +82,34 @@ export default function TransactionsPage() {
             }
 
             // 2. UI Filters
-            if (filterDate) {
-                filteredData = filteredData.filter(tx => tx.date.startsWith(filterDate));
+            if (activeFilters.startDate) {
+                filteredData = filteredData.filter(tx => tx.date.split("T")[0] >= activeFilters.startDate);
             }
-            if (filterProject) {
-                filteredData = filteredData.filter(tx => tx.projectId === filterProject);
+            if (activeFilters.endDate) {
+                filteredData = filteredData.filter(tx => tx.date.split("T")[0] <= activeFilters.endDate);
             }
-            if (filterAccount) {
-                filteredData = filteredData.filter(tx => tx.accountId === filterAccount);
+            if (activeFilters.date) {
+                filteredData = filteredData.filter(tx => tx.date.startsWith(activeFilters.date));
             }
-            if (filterType) {
-                filteredData = filteredData.filter(tx => tx.type === filterType);
+            if (activeFilters.projectId) {
+                filteredData = filteredData.filter(tx => tx.projectId === activeFilters.projectId);
             }
-            if (filterStatus) {
-                filteredData = filteredData.filter(tx => tx.status === filterStatus);
+            if (activeFilters.accountId) {
+                filteredData = filteredData.filter(tx => tx.accountId === activeFilters.accountId);
             }
-            if (filterSource) {
-                const term = filterSource.toLowerCase();
+            if (activeFilters.type) {
+                filteredData = filteredData.filter(tx => tx.type === activeFilters.type);
+            }
+            if (activeFilters.status) {
+                filteredData = filteredData.filter(tx => tx.status === activeFilters.status);
+            }
+            if (searchTerm) {
+                const term = searchTerm.toLowerCase();
                 filteredData = filteredData.filter(tx =>
                     (tx.source?.toLowerCase().includes(term)) ||
                     (tx.category?.toLowerCase().includes(term)) ||
-                    (tx.description?.toLowerCase().includes(term))
+                    (tx.description?.toLowerCase().includes(term)) ||
+                    (tx.createdBy?.toLowerCase().includes(term))
                 );
             }
 
@@ -115,7 +127,7 @@ export default function TransactionsPage() {
         if (currentUser && projects.length > 0) {
             fetchTransactions();
         }
-    }, [currentUser, accessibleProjectIds, filterDate, filterProject, filterAccount, filterSource, filterType, filterStatus]);
+    }, [currentUser, accessibleProjectIds, activeFilters, searchTerm]);
 
     // Stats
     const totalIn = transactions.filter(t => t.type === "IN" && t.status === "APPROVED").reduce((sum, t) => sum + t.amount, 0);
@@ -165,74 +177,76 @@ export default function TransactionsPage() {
                 </div>
             </div>
 
-            {/* Filters */}
-            <div className="glass-card p-4 rounded-xl">
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-                    <input
-                        type="date"
-                        value={filterDate}
-                        onChange={e => setFilterDate(e.target.value)}
-                        className="glass-input p-2 rounded-lg w-full text-sm"
-                    />
-                    <select
-                        value={filterType}
-                        onChange={e => setFilterType(e.target.value as any)}
-                        className="glass-input p-2 rounded-lg w-full text-sm"
-                    >
-                        <option value="">Tất cả loại</option>
-                        <option value="IN">💰 Thu</option>
-                        <option value="OUT">💸 Chi</option>
-                    </select>
-                    <select
-                        value={filterStatus}
-                        onChange={e => setFilterStatus(e.target.value)}
-                        className="glass-input p-2 rounded-lg w-full text-sm"
-                    >
-                        <option value="">Tất cả trạng thái</option>
-                        <option value="APPROVED">✓ Đã duyệt</option>
-                        <option value="PENDING">⏳ Chờ duyệt</option>
-                        <option value="REJECTED">✗ Từ chối</option>
-                    </select>
-                    <select
-                        value={filterProject}
-                        onChange={e => setFilterProject(e.target.value)}
-                        className="glass-input p-2 rounded-lg w-full text-sm"
-                    >
-                        <option value="">Tất cả dự án</option>
-                        {accessibleProjects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                    </select>
-                    <select
-                        value={filterAccount}
-                        onChange={e => setFilterAccount(e.target.value)}
-                        className="glass-input p-2 rounded-lg w-full text-sm"
-                    >
-                        <option value="">Tất cả tài khoản</option>
-                        {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-                    </select>
-                    <input
-                        type="text"
-                        placeholder="Tìm kiếm..."
-                        value={filterSource}
-                        onChange={e => setFilterSource(e.target.value)}
-                        className="glass-input p-2 rounded-lg w-full text-sm"
-                    />
-                </div>
-                {(filterDate || filterType || filterStatus || filterProject || filterAccount || filterSource) && (
-                    <button
-                        onClick={() => {
-                            setFilterDate("");
-                            setFilterType("");
-                            setFilterStatus("");
-                            setFilterProject("");
-                            setFilterAccount("");
-                            setFilterSource("");
-                        }}
-                        className="mt-3 text-sm text-blue-400 hover:text-blue-300"
-                    >
-                        ✕ Xóa bộ lọc
-                    </button>
-                )}
-            </div>
+            {/* Reusable Toolbar */}
+            <DataTableToolbar
+                searchPlaceholder="Tìm mã GD, nội dung, người tạo..."
+                onSearch={setSearchTerm}
+                activeFilters={activeFilters}
+                onFilterChange={(id, val) => setActiveFilters(prev => ({ ...prev, [id]: val }))}
+                enableDateRange={true}
+                onReset={() => {
+                    setActiveFilters({
+                        startDate: "",
+                        endDate: "",
+                        date: "",
+                        type: "",
+                        status: "",
+                        projectId: "",
+                        accountId: "",
+                    });
+                    setSearchTerm("");
+                }}
+                onExport={() => {
+                    exportToCSV(transactions, "Giao_Dich", {
+                        date: "Ngày",
+                        type: "Loại",
+                        amount: "Số tiền",
+                        currency: "Tiện tệ",
+                        category: "Hạng mục",
+                        source: "Nguồn",
+                        description: "Ghi chú",
+                        status: "Trạng thái",
+                        createdBy: "Người tạo"
+                    });
+                }}
+                filters={[
+                    {
+                        id: "type",
+                        label: "Tất cả loại",
+                        options: [
+                            { value: "IN", label: "💰 Thu tiền" },
+                            { value: "OUT", label: "💸 Chi tiền" }
+                        ]
+                    },
+                    {
+                        id: "status",
+                        label: "Trạng thái",
+                        options: [
+                            { value: "APPROVED", label: "✓ Đã duyệt" },
+                            { value: "PENDING", label: "⏳ Chờ duyệt" },
+                            { value: "REJECTED", label: "✗ Từ chối" }
+                        ]
+                    },
+                    {
+                        id: "projectId",
+                        label: "Dự án",
+                        options: accessibleProjects.map(p => ({ value: p.id, label: p.name })),
+                        advanced: true
+                    },
+                    {
+                        id: "accountId",
+                        label: "Tài khoản",
+                        options: accounts.map(a => ({ value: a.id, label: a.name })),
+                        advanced: true
+                    },
+                    {
+                        id: "date",
+                        label: "Ngày",
+                        options: Array.from(new Set(transactions.map(t => t.date.split("T")[0]))).sort().reverse().map(d => ({ value: d, label: d })),
+                        advanced: true
+                    }
+                ]}
+            />
 
             {loading ? (
                 <div className="glass-card h-64 animate-pulse rounded-xl"></div>

@@ -14,10 +14,14 @@ const formatCurrency = (val: number, currency?: string) => {
     }
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(val);
 };
-import { 
-    Plus, Edit2, Trash2, TrendingUp, TrendingDown, Save, X, 
-    Filter, ChevronDown, ChevronRight, ArrowLeft, BarChart3, Tag 
+
+import {
+    Plus, Edit2, Trash2, TrendingUp, TrendingDown, Save, X,
+    ChevronRight, ArrowLeft, BarChart3, Tag,
+    Filter
 } from "lucide-react";
+import DataTableToolbar from "@/components/finance/DataTableToolbar";
+import { exportToCSV } from "@/lib/export";
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
 
 const MASTER_CATEGORIES_COL = "finance_master_categories";
@@ -47,7 +51,10 @@ export default function MasterCategoriesPage() {
     const router = useRouter();
 
     // Filter state
-    const [filterType, setFilterType] = useState<FilterType>("ALL");
+    const [activeFilters, setActiveFilters] = useState<Record<string, string>>({
+        type: "ALL"
+    });
+    const [searchTerm, setSearchTerm] = useState("");
 
     // Modal states
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -66,7 +73,7 @@ export default function MasterCategoriesPage() {
             setCurrentUser(parsedUser);
             const role = getUserRole(parsedUser);
             setUserRole(role);
-            
+
             if (role !== "ADMIN") {
                 alert("Chỉ quản trị viên mới có quyền quản lý danh mục");
                 router.push("/finance");
@@ -91,7 +98,7 @@ export default function MasterCategoriesPage() {
                 getTransactions(),
                 getProjects()
             ]);
-            
+
             const cats = catsSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as MasterCategory));
             setCategories(cats);
             setTransactions(txs);
@@ -105,20 +112,20 @@ export default function MasterCategoriesPage() {
 
     // Calculate stats for a category
     const getCategoryStats = (category: MasterCategory): CategoryStats => {
-        const categoryTxs = transactions.filter(tx => 
+        const categoryTxs = transactions.filter(tx =>
             tx.parentCategory === category.name || tx.parentCategoryId === category.id
         );
 
         const projectBreakdown: CategoryStats["projectBreakdown"] = [];
-        
+
         projects.forEach(project => {
             const projectTxs = categoryTxs.filter(tx => tx.projectId === project.id);
             if (projectTxs.length > 0) {
                 const amount = projectTxs.reduce((sum, tx) => sum + tx.amount, 0);
-                
+
                 // Lấy danh sách danh mục con được sử dụng
                 const subCategories = [...new Set(projectTxs.map(tx => tx.category))];
-                
+
                 projectBreakdown.push({
                     projectId: project.id,
                     projectName: project.name,
@@ -141,8 +148,10 @@ export default function MasterCategoriesPage() {
 
     // Filter categories
     const filteredCategories = categories.filter(c => {
-        if (filterType === "ALL") return true;
-        return c.type === filterType;
+        const matchSearch = c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (c.description || "").toLowerCase().includes(searchTerm.toLowerCase());
+        const matchType = activeFilters.type === "ALL" || c.type === activeFilters.type;
+        return matchSearch && matchType;
     });
 
     const handleAddCategory = () => {
@@ -241,7 +250,7 @@ export default function MasterCategoriesPage() {
     // Detail Panel View
     if (selectedCategory) {
         const stats = getCategoryStats(selectedCategory);
-        
+
         // Prepare chart data
         const pieData = stats.projectBreakdown.map((item, idx) => ({
             name: item.projectName,
@@ -256,7 +265,7 @@ export default function MasterCategoriesPage() {
         }));
 
         const COLORS = ['#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#f97316', '#84cc16', '#ec4899'];
-        
+
         return (
             <div className="space-y-6">
                 {/* Back Header */}
@@ -269,12 +278,11 @@ export default function MasterCategoriesPage() {
                     </button>
                     <div className="flex-1">
                         <div className="flex items-center gap-3">
-                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                                selectedCategory.type === "INCOME" 
-                                    ? "bg-green-500/20" 
-                                    : "bg-red-500/20"
-                            }`}>
-                                {selectedCategory.type === "INCOME" 
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${selectedCategory.type === "INCOME"
+                                ? "bg-green-500/20"
+                                : "bg-red-500/20"
+                                }`}>
+                                {selectedCategory.type === "INCOME"
                                     ? <TrendingUp size={20} className="text-green-400" />
                                     : <TrendingDown size={20} className="text-red-400" />
                                 }
@@ -293,9 +301,8 @@ export default function MasterCategoriesPage() {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="glass-card p-4 rounded-xl">
                         <p className="text-sm text-[var(--muted)]">Tổng số tiền</p>
-                        <p className={`text-2xl font-bold ${
-                            selectedCategory.type === "INCOME" ? "text-green-400" : "text-red-400"
-                        }`}>
+                        <p className={`text-2xl font-bold ${selectedCategory.type === "INCOME" ? "text-green-400" : "text-red-400"
+                            }`}>
                             {formatCurrency(stats.totalAmount, "VND")}
                         </p>
                     </div>
@@ -349,25 +356,25 @@ export default function MasterCategoriesPage() {
                                 <ResponsiveContainer width="100%" height="100%">
                                     <BarChart data={barData}>
                                         <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                                        <XAxis 
-                                            dataKey="name" 
+                                        <XAxis
+                                            dataKey="name"
                                             tick={{ fill: '#9CA3AF', fontSize: 12 }}
                                             angle={-45}
                                             textAnchor="end"
                                             height={60}
                                         />
                                         <YAxis tick={{ fill: '#9CA3AF', fontSize: 12 }} />
-                                        <Tooltip 
-                                            contentStyle={{ 
-                                                backgroundColor: '#1f2937', 
-                                                border: '1px solid #374151', 
+                                        <Tooltip
+                                            contentStyle={{
+                                                backgroundColor: '#1f2937',
+                                                border: '1px solid #374151',
                                                 borderRadius: '8px',
                                                 color: '#fff'
                                             }}
                                             formatter={(value: number) => [formatCurrency(value, "VND"), "Số tiền"]}
                                         />
-                                        <Bar 
-                                            dataKey="amount" 
+                                        <Bar
+                                            dataKey="amount"
                                             fill={selectedCategory.type === "INCOME" ? "#10b981" : "#ef4444"}
                                             radius={[4, 4, 0, 0]}
                                         />
@@ -386,7 +393,7 @@ export default function MasterCategoriesPage() {
                             So sánh chi tiết giữa các dự án
                         </h3>
                     </div>
-                    
+
                     {stats.projectBreakdown.length > 0 ? (
                         <div className="overflow-x-auto">
                             <table className="w-full">
@@ -402,11 +409,11 @@ export default function MasterCategoriesPage() {
                                 </thead>
                                 <tbody>
                                     {stats.projectBreakdown.map((item, idx) => {
-                                        const percentage = stats.totalAmount > 0 
-                                            ? (item.amount / stats.totalAmount) * 100 
+                                        const percentage = stats.totalAmount > 0
+                                            ? (item.amount / stats.totalAmount) * 100
                                             : 0;
                                         return (
-                                            <tr 
+                                            <tr
                                                 key={item.projectId}
                                                 className="border-b border-white/5 hover:bg-white/5 transition-colors"
                                             >
@@ -416,9 +423,8 @@ export default function MasterCategoriesPage() {
                                                         <span className="font-medium text-white">{item.projectName}</span>
                                                     </div>
                                                 </td>
-                                                <td className={`p-4 text-right font-medium ${
-                                                    selectedCategory.type === "INCOME" ? "text-green-400" : "text-red-400"
-                                                }`}>
+                                                <td className={`p-4 text-right font-medium ${selectedCategory.type === "INCOME" ? "text-green-400" : "text-red-400"
+                                                    }`}>
                                                     {formatCurrency(item.amount, "VND")}
                                                 </td>
                                                 <td className="p-4 text-right text-[var(--muted)]">
@@ -430,7 +436,7 @@ export default function MasterCategoriesPage() {
                                                 <td className="p-4">
                                                     <div className="flex flex-wrap gap-1">
                                                         {item.subCategories.map((subCat, subIdx) => (
-                                                            <span 
+                                                            <span
                                                                 key={subIdx}
                                                                 className="px-2 py-1 bg-white/10 text-xs rounded-md text-[var(--muted)] flex items-center gap-1"
                                                             >
@@ -442,12 +448,11 @@ export default function MasterCategoriesPage() {
                                                 </td>
                                                 <td className="p-4 w-40">
                                                     <div className="w-full bg-white/10 rounded-full h-2">
-                                                        <div 
-                                                            className={`h-2 rounded-full ${
-                                                                selectedCategory.type === "INCOME" 
-                                                                    ? "bg-green-500" 
-                                                                    : "bg-red-500"
-                                                            }`}
+                                                        <div
+                                                            className={`h-2 rounded-full ${selectedCategory.type === "INCOME"
+                                                                ? "bg-green-500"
+                                                                : "bg-red-500"
+                                                                }`}
                                                             style={{ width: `${percentage}%` }}
                                                         />
                                                     </div>
@@ -473,46 +478,42 @@ export default function MasterCategoriesPage() {
     return (
         <div className="space-y-6">
             {/* Header */}
-            <div className="flex items-center justify-between flex-wrap gap-4">
+            <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-3xl font-bold text-white">Danh mục Gốc</h1>
                     <p className="text-[var(--muted)]">Quản lý danh mục thu chi chung</p>
                 </div>
-                <button
-                    onClick={handleAddCategory}
-                    className="glass-button px-6 py-3 rounded-xl font-medium flex items-center gap-2"
-                >
-                    <Plus size={20} />
-                    Thêm danh mục
-                </button>
             </div>
 
-            {/* Filter */}
-            <div className="flex items-center gap-2">
-                <Filter size={18} className="text-[var(--muted)]" />
-                <div className="flex gap-2">
-                    {(["ALL", "INCOME", "EXPENSE"] as FilterType[]).map(type => (
-                        <button
-                            key={type}
-                            onClick={() => setFilterType(type)}
-                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                                filterType === type
-                                    ? type === "INCOME" 
-                                        ? "bg-green-500/20 text-green-400 border border-green-500/30"
-                                        : type === "EXPENSE"
-                                            ? "bg-red-500/20 text-red-400 border border-red-500/30"
-                                            : "bg-white/20 text-white border border-white/30"
-                                    : "bg-white/5 text-[var(--muted)] border border-white/10 hover:bg-white/10"
-                            }`}
-                        >
-                            {type === "ALL" ? "Tất cả" : type === "INCOME" ? "Thu" : "Chi"}
-                        </button>
-                    ))}
-                </div>
-                <span className="text-sm text-[var(--muted)] ml-2">
-                    ({filteredCategories.length} danh mục)
-                </span>
-            </div>
+            <DataTableToolbar
+                searchPlaceholder="Tìm tên danh mục..."
+                onSearch={setSearchTerm}
+                activeFilters={activeFilters}
+                onFilterChange={(id, val) => setActiveFilters(prev => ({ ...prev, [id]: val }))}
+                onReset={() => {
+                    setActiveFilters({ type: "ALL" });
+                    setSearchTerm("");
+                }}
+                onExport={() => exportToCSV(filteredCategories, "Danh_Sach_Danh_Muc", {
+                    name: "Tên danh mục",
+                    type: "Loại",
+                    description: "Mô tả",
+                    isActive: "Trạng thái"
+                })}
+                onAdd={handleAddCategory}
+                addLabel="Thêm danh mục"
+                filters={[
+                    {
+                        id: "type",
+                        label: "Tất cả loại",
+                        options: [
+                            { value: "ALL", label: "Tất cả loại" },
+                            { value: "INCOME", label: "Thu tiền" },
+                            { value: "EXPENSE", label: "Chi tiền" }
+                        ]
+                    }
+                ]}
+            />
 
             {/* Table */}
             <div className="glass-card rounded-xl overflow-hidden">
@@ -533,19 +534,18 @@ export default function MasterCategoriesPage() {
                                 filteredCategories.map(category => {
                                     const stats = getCategoryStats(category);
                                     return (
-                                        <tr 
+                                        <tr
                                             key={category.id}
                                             onClick={() => setSelectedCategory(category)}
                                             className="border-b border-white/5 hover:bg-white/5 transition-colors cursor-pointer"
                                         >
                                             <td className="p-4">
                                                 <div className="flex items-center gap-3">
-                                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                                                        category.type === "INCOME" 
-                                                            ? "bg-green-500/20" 
-                                                            : "bg-red-500/20"
-                                                    }`}>
-                                                        {category.type === "INCOME" 
+                                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${category.type === "INCOME"
+                                                        ? "bg-green-500/20"
+                                                        : "bg-red-500/20"
+                                                        }`}>
+                                                        {category.type === "INCOME"
                                                             ? <TrendingUp size={16} className="text-green-400" />
                                                             : <TrendingDown size={16} className="text-red-400" />
                                                         }
@@ -560,17 +560,15 @@ export default function MasterCategoriesPage() {
                                                 </div>
                                             </td>
                                             <td className="p-4">
-                                                <span className={`px-2 py-1 rounded text-xs font-medium ${
-                                                    category.type === "INCOME"
-                                                        ? "bg-green-500/20 text-green-400"
-                                                        : "bg-red-500/20 text-red-400"
-                                                }`}>
+                                                <span className={`px-2 py-1 rounded text-xs font-medium ${category.type === "INCOME"
+                                                    ? "bg-green-500/20 text-green-400"
+                                                    : "bg-red-500/20 text-red-400"
+                                                    }`}>
                                                     {category.type === "INCOME" ? "Thu" : "Chi"}
                                                 </span>
                                             </td>
-                                            <td className={`p-4 text-right font-medium ${
-                                                category.type === "INCOME" ? "text-green-400" : "text-red-400"
-                                            }`}>
+                                            <td className={`p-4 text-right font-medium ${category.type === "INCOME" ? "text-green-400" : "text-red-400"
+                                                }`}>
                                                 {formatCurrency(stats.totalAmount, "VND")}
                                             </td>
                                             <td className="p-4 text-right text-[var(--muted)]">
@@ -579,11 +577,10 @@ export default function MasterCategoriesPage() {
                                             <td className="p-4 text-center">
                                                 <button
                                                     onClick={(e) => handleToggleCategory(category, e)}
-                                                    className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
-                                                        category.isActive
-                                                            ? "bg-green-500/20 text-green-400 hover:bg-green-500/30"
-                                                            : "bg-gray-500/20 text-gray-400 hover:bg-gray-500/30"
-                                                    }`}
+                                                    className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${category.isActive
+                                                        ? "bg-green-500/20 text-green-400 hover:bg-green-500/30"
+                                                        : "bg-gray-500/20 text-gray-400 hover:bg-gray-500/30"
+                                                        }`}
                                                 >
                                                     {category.isActive ? "Hoạt động" : "Tạm dừng"}
                                                 </button>
@@ -651,11 +648,10 @@ export default function MasterCategoriesPage() {
                                     <button
                                         type="button"
                                         onClick={() => setCategoryType("INCOME")}
-                                        className={`flex-1 p-3 rounded-lg border transition-all ${
-                                            categoryType === "INCOME"
-                                                ? "bg-green-500/20 border-green-500/50 text-green-400"
-                                                : "bg-white/5 border-white/10 text-[var(--muted)] hover:border-white/20"
-                                        }`}
+                                        className={`flex-1 p-3 rounded-lg border transition-all ${categoryType === "INCOME"
+                                            ? "bg-green-500/20 border-green-500/50 text-green-400"
+                                            : "bg-white/5 border-white/10 text-[var(--muted)] hover:border-white/20"
+                                            }`}
                                     >
                                         <TrendingUp size={20} className="mx-auto mb-1" />
                                         <div className="text-sm font-medium">Thu</div>
@@ -663,11 +659,10 @@ export default function MasterCategoriesPage() {
                                     <button
                                         type="button"
                                         onClick={() => setCategoryType("EXPENSE")}
-                                        className={`flex-1 p-3 rounded-lg border transition-all ${
-                                            categoryType === "EXPENSE"
-                                                ? "bg-red-500/20 border-red-500/50 text-red-400"
-                                                : "bg-white/5 border-white/10 text-[var(--muted)] hover:border-white/20"
-                                        }`}
+                                        className={`flex-1 p-3 rounded-lg border transition-all ${categoryType === "EXPENSE"
+                                            ? "bg-red-500/20 border-red-500/50 text-red-400"
+                                            : "bg-white/5 border-white/10 text-[var(--muted)] hover:border-white/20"
+                                            }`}
                                     >
                                         <TrendingDown size={20} className="mx-auto mb-1" />
                                         <div className="text-sm font-medium">Chi</div>
@@ -713,11 +708,10 @@ export default function MasterCategoriesPage() {
                                 <button
                                     onClick={handleSaveCategory}
                                     disabled={saving || !categoryName.trim()}
-                                    className={`flex-1 px-4 py-3 rounded-lg font-medium text-white transition-colors flex items-center justify-center gap-2 ${
-                                        categoryType === "INCOME"
-                                            ? "bg-green-500 hover:bg-green-600"
-                                            : "bg-red-500 hover:bg-red-600"
-                                    } disabled:opacity-50 disabled:cursor-not-allowed`}
+                                    className={`flex-1 px-4 py-3 rounded-lg font-medium text-white transition-colors flex items-center justify-center gap-2 ${categoryType === "INCOME"
+                                        ? "bg-green-500 hover:bg-green-600"
+                                        : "bg-red-500 hover:bg-red-600"
+                                        } disabled:opacity-50 disabled:cursor-not-allowed`}
                                 >
                                     {saving ? (
                                         <>

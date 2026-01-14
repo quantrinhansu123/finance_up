@@ -10,6 +10,8 @@ import { getUserRole, getAccessibleProjects, getAccessibleAccounts, getCategorie
 import { FolderOpen, CreditCard, Receipt, Upload, Check, ChevronRight, AlertCircle, Lock } from "lucide-react";
 import CurrencyInput from "@/components/finance/CurrencyInput";
 import SearchableSelect from "@/components/finance/SearchableSelect";
+import DataTableToolbar from "@/components/finance/DataTableToolbar";
+import { exportToCSV } from "@/lib/export";
 
 const EXPENSE_CATEGORIES = [
     "Thuế", "Long Heng", "Cước vận chuyển", "Cước vận chuyển HN-HCM", "Cước vận chuyển HCM-HN",
@@ -41,9 +43,17 @@ export default function ExpensePage() {
     const [files, setFiles] = useState<File[]>([]);
 
     // Filters
-    const [filterDate, setFilterDate] = useState("");
-    const [filterProject, setFilterProject] = useState("");
-    const [filterStatus, setFilterStatus] = useState("");
+    const [activeFilters, setActiveFilters] = useState<Record<string, string>>({
+        startDate: "",
+        endDate: "",
+        date: "",
+        projectId: "",
+        accountId: "",
+        status: "",
+        fundId: "",
+        category: ""
+    });
+    const [searchTerm, setSearchTerm] = useState("");
 
     useEffect(() => {
         const u = localStorage.getItem("user") || sessionStorage.getItem("user");
@@ -152,15 +162,27 @@ export default function ExpensePage() {
                 const userId = currentUser.uid || currentUser.id;
                 txs = txs.filter(t => t.userId === userId);
             }
-            if (filterDate) txs = txs.filter(t => t.date.startsWith(filterDate));
-            if (filterProject) txs = txs.filter(t => t.projectId === filterProject);
-            if (filterStatus) txs = txs.filter(t => t.status === filterStatus);
+            if (activeFilters.startDate) txs = txs.filter(t => t.date.split("T")[0] >= activeFilters.startDate);
+            if (activeFilters.endDate) txs = txs.filter(t => t.date.split("T")[0] <= activeFilters.endDate);
+            if (activeFilters.date) txs = txs.filter(t => t.date.startsWith(activeFilters.date));
+            if (activeFilters.projectId) txs = txs.filter(t => t.projectId === activeFilters.projectId);
+            if (activeFilters.accountId) txs = txs.filter(t => t.accountId === activeFilters.accountId);
+            if (activeFilters.status) txs = txs.filter(t => t.status === activeFilters.status);
+            if (activeFilters.fundId) txs = txs.filter(t => t.fundId === activeFilters.fundId);
+            if (activeFilters.category) txs = txs.filter(t => t.category === activeFilters.category);
+            if (searchTerm) {
+                const term = searchTerm.toLowerCase();
+                txs = txs.filter(t =>
+                    (t.category?.toLowerCase().includes(term)) ||
+                    (t.description?.toLowerCase().includes(term))
+                );
+            }
             txs.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
             setTransactions(txs);
         } catch (e) { console.error(e); }
     };
 
-    useEffect(() => { if (!loading) fetchTransactions(); }, [filterDate, filterProject, filterStatus]);
+    useEffect(() => { if (!loading) fetchTransactions(); }, [activeFilters, searchTerm]);
 
     useEffect(() => {
         if (projectId && selectedAccount?.projectId && selectedAccount.projectId !== projectId) {
@@ -500,34 +522,69 @@ export default function ExpensePage() {
 
             {/* Transaction History */}
             <div className="rounded-2xl bg-white/5 border border-white/10 overflow-hidden">
-                <div className="p-4 border-b border-white/10 flex flex-wrap justify-between items-center gap-3">
-                    <h3 className="font-semibold text-white">Lịch sử chi tiền</h3>
-                    <div className="flex gap-2 flex-wrap">
-                        <input
-                            type="date"
-                            value={filterDate}
-                            onChange={e => setFilterDate(e.target.value)}
-                            className="px-3 py-1.5 bg-black/30 border border-white/10 rounded-lg text-sm text-white focus:outline-none"
-                        />
-                        <select
-                            value={filterProject}
-                            onChange={e => setFilterProject(e.target.value)}
-                            className="px-3 py-1.5 bg-black/30 border border-white/10 rounded-lg text-sm text-white focus:outline-none"
-                        >
-                            <option value="">Tất cả dự án</option>
-                            {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                        </select>
-                        <select
-                            value={filterStatus}
-                            onChange={e => setFilterStatus(e.target.value)}
-                            className="px-3 py-1.5 bg-black/30 border border-white/10 rounded-lg text-sm text-white focus:outline-none"
-                        >
-                            <option value="">Tất cả</option>
-                            <option value="APPROVED">Đã duyệt</option>
-                            <option value="PENDING">Chờ duyệt</option>
-                            <option value="REJECTED">Từ chối</option>
-                        </select>
-                    </div>
+                <div className="p-4 border-b border-white/10">
+                    <DataTableToolbar
+                        searchPlaceholder="Tìm kiếm hạng mục, nội dung..."
+                        onSearch={setSearchTerm}
+                        activeFilters={activeFilters}
+                        onFilterChange={(id, val) => setActiveFilters(prev => ({ ...prev, [id]: val }))}
+                        enableDateRange={true}
+                        onReset={() => {
+                            setActiveFilters({
+                                startDate: "", endDate: "", date: "", projectId: "",
+                                accountId: "", status: "", fundId: "", category: ""
+                            });
+                            setSearchTerm("");
+                        }}
+                        onExport={() => exportToCSV(transactions, "Chi_Tien", {
+                            date: "Ngày",
+                            amount: "Số tiền",
+                            currency: "Tiền tệ",
+                            category: "Tiêu đề",
+                            description: "Ghi chú",
+                            status: "Trạng thái"
+                        })}
+                        filters={[
+                            {
+                                id: "status",
+                                label: "Trạng thái",
+                                options: [
+                                    { value: "APPROVED", label: "Đã duyệt" },
+                                    { value: "PENDING", label: "Chờ duyệt" },
+                                    { value: "REJECTED", label: "Từ chối" }
+                                ]
+                            },
+                            {
+                                id: "projectId",
+                                label: "Dự án",
+                                options: projects.map(p => ({ value: p.id, label: p.name }))
+                            },
+                            {
+                                id: "accountId",
+                                label: "Tài khoản",
+                                options: accounts.map(a => ({ value: a.id, label: a.name })),
+                                advanced: true
+                            },
+                            {
+                                id: "category",
+                                label: "Hạng mục",
+                                options: Array.from(new Set(transactions.map(t => t.category))).filter(Boolean).map(c => ({ value: c!, label: c! })),
+                                advanced: true
+                            },
+                            {
+                                id: "fundId",
+                                label: "Quỹ chi",
+                                options: funds.map(f => ({ value: f.id, label: f.name })),
+                                advanced: true
+                            },
+                            {
+                                id: "date",
+                                label: "Ngày",
+                                options: Array.from(new Set(transactions.map(t => t.date.split("T")[0]))).sort().reverse().map(d => ({ value: d, label: d })),
+                                advanced: true
+                            }
+                        ]}
+                    />
                 </div>
                 <div className="overflow-x-auto">
                     <table className="w-full text-left text-sm">
