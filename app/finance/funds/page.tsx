@@ -7,6 +7,7 @@ import FundModal from "@/components/finance/FundModal";
 import { History, X, Edit2, Trash2 } from "lucide-react";
 import DataTableToolbar from "@/components/finance/DataTableToolbar";
 import { exportToCSV } from "@/lib/export";
+import DataTable, { ActionCell } from "@/components/finance/DataTable";
 
 export default function FundsPage() {
     const [transactions, setTransactions] = useState<Transaction[]>([]);

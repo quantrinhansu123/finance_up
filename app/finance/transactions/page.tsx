@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import TransactionList from "@/components/finance/TransactionList";
 import { getTransactions } from "@/lib/finance";
 import { Transaction } from "@/types/finance";
 import { getUserRole, getAccessibleProjects, hasProjectPermission, Role } from "@/lib/permissions";
 import Link from "next/link";
-import DataTableToolbar, { FilterConfig } from "@/components/finance/DataTableToolbar";
+import DataTableToolbar from "@/components/finance/DataTableToolbar";
 import { exportToCSV } from "@/lib/export";
+import DataTable, { AmountCell, DateCell, TextCell, StatusBadge, ImageCell } from "@/components/finance/DataTable";
 
 export default function TransactionsPage() {
     const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -134,6 +134,9 @@ export default function TransactionsPage() {
     const totalOut = transactions.filter(t => t.type === "OUT" && t.status === "APPROVED").reduce((sum, t) => sum + t.amount, 0);
     const pendingCount = transactions.filter(t => t.status === "PENDING").length;
 
+    const getAccountName = (id: string) => accounts.find(a => a.id === id)?.name || id.slice(0, 8) + "...";
+    const getProjectName = (id: string) => projects.find(p => p.id === id)?.name || id.slice(0, 8) + "...";
+
     return (
         <div className="space-y-8">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -178,80 +181,131 @@ export default function TransactionsPage() {
             </div>
 
             {/* Reusable Toolbar */}
-            <DataTableToolbar
-                searchPlaceholder="Tìm mã GD, nội dung, người tạo..."
-                onSearch={setSearchTerm}
-                activeFilters={activeFilters}
-                onFilterChange={(id, val) => setActiveFilters(prev => ({ ...prev, [id]: val }))}
-                enableDateRange={true}
-                onReset={() => {
-                    setActiveFilters({
-                        startDate: "",
-                        endDate: "",
-                        date: "",
-                        type: "",
-                        status: "",
-                        projectId: "",
-                        accountId: "",
-                    });
-                    setSearchTerm("");
-                }}
-                onExport={() => {
-                    exportToCSV(transactions, "Giao_Dich", {
-                        date: "Ngày",
-                        type: "Loại",
-                        amount: "Số tiền",
-                        currency: "Tiện tệ",
-                        category: "Hạng mục",
-                        source: "Nguồn",
-                        description: "Ghi chú",
-                        status: "Trạng thái",
-                        createdBy: "Người tạo"
-                    });
-                }}
-                filters={[
-                    {
-                        id: "type",
-                        label: "Tất cả loại",
-                        options: [
-                            { value: "IN", label: "💰 Thu tiền" },
-                            { value: "OUT", label: "💸 Chi tiền" }
-                        ]
-                    },
-                    {
-                        id: "status",
-                        label: "Trạng thái",
-                        options: [
-                            { value: "APPROVED", label: "✓ Đã duyệt" },
-                            { value: "PENDING", label: "⏳ Chờ duyệt" },
-                            { value: "REJECTED", label: "✗ Từ chối" }
-                        ]
-                    },
-                    {
-                        id: "projectId",
-                        label: "Dự án",
-                        options: accessibleProjects.map(p => ({ value: p.id, label: p.name })),
-                        advanced: true
-                    },
-                    {
-                        id: "accountId",
-                        label: "Tài khoản",
-                        options: accounts.map(a => ({ value: a.id, label: a.name })),
-                        advanced: true
-                    },
-                    {
-                        id: "date",
-                        label: "Ngày",
-                        options: Array.from(new Set(transactions.map(t => t.date.split("T")[0]))).sort().reverse().map(d => ({ value: d, label: d })),
-                        advanced: true
-                    }
-                ]}
-            />
+            <div className="rounded-2xl bg-white/5 border border-white/10 p-4">
+                <DataTableToolbar
+                    searchPlaceholder="Tìm mã GD, nội dung, người tạo..."
+                    onSearch={setSearchTerm}
+                    activeFilters={activeFilters}
+                    onFilterChange={(id, val) => setActiveFilters(prev => ({ ...prev, [id]: val }))}
+                    enableDateRange={true}
+                    onReset={() => {
+                        setActiveFilters({
+                            startDate: "",
+                            endDate: "",
+                            date: "",
+                            type: "",
+                            status: "",
+                            projectId: "",
+                            accountId: "",
+                        });
+                        setSearchTerm("");
+                    }}
+                    onExport={() => {
+                        exportToCSV(transactions, "Giao_Dich", {
+                            date: "Ngày",
+                            type: "Loại",
+                            amount: "Số tiền",
+                            currency: "Tiện tệ",
+                            category: "Hạng mục",
+                            source: "Nguồn",
+                            description: "Ghi chú",
+                            status: "Trạng thái",
+                            createdBy: "Người tạo"
+                        });
+                    }}
+                    filters={[
+                        {
+                            id: "type",
+                            label: "Tất cả loại",
+                            options: [
+                                { value: "IN", label: "💰 Thu tiền" },
+                                { value: "OUT", label: "💸 Chi tiền" }
+                            ]
+                        },
+                        {
+                            id: "status",
+                            label: "Trạng thái",
+                            options: [
+                                { value: "APPROVED", label: "✓ Đã duyệt" },
+                                { value: "PENDING", label: "⏳ Chờ duyệt" },
+                                { value: "REJECTED", label: "✗ Từ chối" }
+                            ]
+                        },
+                        {
+                            id: "projectId",
+                            label: "Dự án",
+                            options: accessibleProjects.map(p => ({ value: p.id, label: p.name })),
+                            advanced: true
+                        },
+                        {
+                            id: "accountId",
+                            label: "Tài khoản",
+                            options: accounts.map(a => ({ value: a.id, label: a.name })),
+                            advanced: true
+                        },
+                        {
+                            id: "date",
+                            label: "Ngày",
+                            options: Array.from(new Set(transactions.map(t => t.date.split("T")[0]))).sort().reverse().map(d => ({ value: d, label: d })),
+                            advanced: true
+                        }
+                    ]}
+                />
+            </div>
 
             {loading ? (
                 <div className="glass-card h-64 animate-pulse rounded-xl"></div>
             ) : (
-                <TransactionList transactions={transactions} accounts={accounts} projects={projects} />
+                <DataTable
+                    data={transactions}
+                    colorScheme="blue"
+                    emptyMessage="Không tìm thấy giao dịch"
+                    columns={[
+                        {
+                            key: "date",
+                            header: "Ngày",
+                            render: (tx) => <DateCell date={tx.date} />
+                        },
+                        {
+                            key: "amount",
+                            header: "Số tiền",
+                            align: "right",
+                            render: (tx) => <AmountCell amount={tx.amount} type={tx.type} currency={tx.currency} />
+                        },
+                        {
+                            key: "category",
+                            header: "Nguồn/Hạng mục",
+                            render: (tx) => <TextCell primary={tx.type === "IN" ? (tx.source || tx.category || "") : (tx.category || "")} secondary={tx.description} />
+                        },
+                        {
+                            key: "account",
+                            header: "Tài khoản",
+                            render: (tx) => <span className="text-white font-medium">{getAccountName(tx.accountId)}</span>
+                        },
+                        {
+                            key: "project",
+                            header: "Dự án",
+                            render: (tx) => <span className="text-white font-medium">{tx.projectId ? getProjectName(tx.projectId) : "-"}</span>
+                        },
+                        {
+                            key: "user",
+                            header: "Người tạo",
+                            render: (tx) => <span className="text-xs text-white/70">{tx.createdBy}</span>
+                        },
+                        {
+                            key: "images",
+                            header: "Ảnh",
+                            align: "center",
+                            render: (tx) => <ImageCell images={tx.images} />
+                        },
+                        {
+                            key: "status",
+                            header: "Trạng thái",
+                            align: "center",
+                            render: (tx) => <StatusBadge status={tx.status} />
+                        }
+                    ]}
+                />
             )}
         </div>
     );

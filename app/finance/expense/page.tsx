@@ -7,7 +7,7 @@ import { uploadImage } from "@/lib/upload";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { getUserRole, getAccessibleProjects, getAccessibleAccounts, getCategoriesForRole, hasProjectPermission, Role } from "@/lib/permissions";
-import { FolderOpen, CreditCard, Receipt, Upload, AlertCircle, Plus, Eye } from "lucide-react";
+import { FolderOpen, CreditCard, Receipt, Upload, AlertCircle, Plus } from "lucide-react";
 import CurrencyInput from "@/components/finance/CurrencyInput";
 import SearchableSelect from "@/components/finance/SearchableSelect";
 import SearchableSelectWithAdd from "@/components/finance/SearchableSelectWithAdd";
@@ -15,6 +15,8 @@ import DataTableToolbar from "@/components/finance/DataTableToolbar";
 import { exportToCSV } from "@/lib/export";
 import TransactionDetailModal from "@/components/finance/TransactionDetailModal";
 import { WizardProgress, WizardStepPanel, WizardSummaryItem } from "@/components/finance/TransactionWizard";
+import DataTable, { AmountCell, DateCell, TextCell, StatusBadge, ActionCell } from "@/components/finance/DataTable";
+import { Eye } from "lucide-react";
 
 const EXPENSE_CATEGORIES = [
     "Thuế", "Long Heng", "Cước vận chuyển", "Cước vận chuyển HN-HCM", "Cước vận chuyển HCM-HN",
@@ -440,8 +442,8 @@ export default function ExpensePage() {
             )}
 
             {/* Transaction History */}
-            <div className="rounded-2xl bg-white/5 border border-white/10 overflow-hidden">
-                <div className="p-4 border-b border-white/10">
+            <div className="space-y-4">
+                <div className="rounded-2xl bg-white/5 border border-white/10 p-4">
                     <DataTableToolbar
                         searchPlaceholder="Tìm kiếm hạng mục, nội dung..."
                         onSearch={setSearchTerm}
@@ -460,43 +462,62 @@ export default function ExpensePage() {
                         ]}
                     />
                 </div>
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left text-sm">
-                        <thead className="bg-black/30 text-white/50 text-xs uppercase">
-                            <tr>
-                                <th className="p-3">Ngày</th>
-                                <th className="p-3">Số tiền</th>
-                                <th className="p-3">Hạng mục</th>
-                                <th className="p-3">Tài khoản</th>
-                                <th className="p-3">Dự án</th>
-                                <th className="p-3">Trạng thái</th>
-                                <th className="p-3 text-center">Chi tiết</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-white/5">
-                            {transactions.slice(0, 20).map(tx => (
-                                <tr key={tx.id} className="hover:bg-white/5 transition-colors cursor-pointer" onClick={() => { setSelectedTransaction(tx); setIsDetailModalOpen(true); }}>
-                                    <td className="p-3 text-white/70">{new Date(tx.date).toLocaleDateString('vi-VN')}</td>
-                                    <td className="p-3 text-red-400 font-semibold">-{tx.amount.toLocaleString()} {tx.currency}</td>
-                                    <td className="p-3 text-white/70">{tx.category}</td>
-                                    <td className="p-3 text-white/70">{getAccountName(tx.accountId)}</td>
-                                    <td className="p-3 text-white/70">{tx.projectId ? getProjectName(tx.projectId) : "-"}</td>
-                                    <td className="p-3">
-                                        <span className={`px-2 py-1 rounded-lg text-xs font-medium ${tx.status === "APPROVED" ? "bg-green-500/20 text-green-400" : tx.status === "PENDING" ? "bg-yellow-500/20 text-yellow-400" : "bg-red-500/20 text-red-400"}`}>
-                                            {tx.status === "APPROVED" ? "Đã duyệt" : tx.status === "PENDING" ? "Chờ duyệt" : "Từ chối"}
-                                        </span>
-                                    </td>
-                                    <td className="p-3 text-center">
-                                        <button onClick={(e) => { e.stopPropagation(); setSelectedTransaction(tx); setIsDetailModalOpen(true); }} className="p-1.5 rounded hover:bg-white/10 text-[var(--muted)] hover:text-blue-400 transition-colors" title="Xem chi tiết">
-                                            <Eye size={14} />
-                                        </button>
-                                    </td>
-                                </tr>
-                            ))}
-                            {transactions.length === 0 && <tr><td colSpan={7} className="p-8 text-center text-white/30">Chưa có dữ liệu</td></tr>}
-                        </tbody>
-                    </table>
-                </div>
+
+                <DataTable
+                    data={transactions}
+                    colorScheme="red"
+                    onRowClick={(tx) => { setSelectedTransaction(tx); setIsDetailModalOpen(true); }}
+                    emptyMessage="Chưa có khoản chi nào"
+                    columns={[
+                        {
+                            key: "date",
+                            header: "Ngày",
+                            render: (tx) => <DateCell date={tx.date} />
+                        },
+                        {
+                            key: "amount",
+                            header: "Số tiền",
+                            align: "right",
+                            render: (tx) => <AmountCell amount={tx.amount} type="OUT" currency={tx.currency} />
+                        },
+                        {
+                            key: "category",
+                            header: "Hạng mục",
+                            render: (tx) => <TextCell primary={tx.category || ""} secondary={tx.description} />
+                        },
+                        {
+                            key: "account",
+                            header: "Tài khoản",
+                            render: (tx) => <span className="text-white/70">{getAccountName(tx.accountId)}</span>
+                        },
+                        {
+                            key: "project",
+                            header: "Dự án",
+                            render: (tx) => <span className="text-white/70">{tx.projectId ? getProjectName(tx.projectId) : "-"}</span>
+                        },
+                        {
+                            key: "status",
+                            header: "Trạng thái",
+                            align: "center",
+                            render: (tx) => <StatusBadge status={tx.status} />
+                        },
+                        {
+                            key: "actions",
+                            header: "Chi tiết",
+                            align: "center",
+                            render: (tx) => (
+                                <ActionCell>
+                                    <button 
+                                        onClick={() => { setSelectedTransaction(tx); setIsDetailModalOpen(true); }} 
+                                        className="p-1.5 rounded hover:bg-white/10 text-white/40 hover:text-blue-400 transition-colors"
+                                    >
+                                        <Eye size={16} />
+                                    </button>
+                                </ActionCell>
+                            )
+                        }
+                    ]}
+                />
             </div>
 
             {/* Transaction Detail Modal */}

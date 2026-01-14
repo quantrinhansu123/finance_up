@@ -9,6 +9,7 @@ import { Users, Trash2, ChevronLeft, ChevronRight, ShieldX, Plus, Eye, Save, X, 
 import CurrencyInput from "@/components/finance/CurrencyInput";
 import DataTableToolbar from "@/components/finance/DataTableToolbar";
 import { exportToCSV } from "@/lib/export";
+import DataTable, { ActionCell } from "@/components/finance/DataTable";
 
 const ITEMS_PER_PAGE = 10;
 

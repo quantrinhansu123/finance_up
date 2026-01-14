@@ -7,7 +7,7 @@ import { uploadImage } from "@/lib/upload";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { getUserRole, getAccessibleProjects, getAccessibleAccounts, hasProjectPermission, Role } from "@/lib/permissions";
-import { FolderOpen, CreditCard, Wallet, Upload, AlertCircle, Plus, Eye } from "lucide-react";
+import { FolderOpen, CreditCard, Wallet, Upload, AlertCircle, Plus } from "lucide-react";
 import CurrencyInput from "@/components/finance/CurrencyInput";
 import SearchableSelect from "@/components/finance/SearchableSelect";
 import SearchableSelectWithAdd from "@/components/finance/SearchableSelectWithAdd";
@@ -15,6 +15,8 @@ import DataTableToolbar from "@/components/finance/DataTableToolbar";
 import { exportToCSV } from "@/lib/export";
 import TransactionDetailModal from "@/components/finance/TransactionDetailModal";
 import { WizardProgress, WizardStepPanel, WizardSummaryItem } from "@/components/finance/TransactionWizard";
+import DataTable, { AmountCell, DateCell, TextCell, ActionCell } from "@/components/finance/DataTable";
+import { Eye } from "lucide-react";
 
 const INCOME_SOURCES = ["COD VET", "COD JNT", "Khách CK", "Khác"];
 const CURRENCY_FLAGS: Record<string, string> = { "VND": "🇻🇳", "USD": "🇺🇸", "KHR": "🇰🇭", "TRY": "🇹🇷" };
@@ -369,8 +371,8 @@ export default function IncomePage() {
             )}
 
             {/* Transaction History */}
-            <div className="rounded-2xl bg-white/5 border border-white/10 overflow-hidden">
-                <div className="p-4 border-b border-white/10">
+            <div className="space-y-4">
+                <div className="rounded-2xl bg-white/5 border border-white/10 p-4">
                     <DataTableToolbar
                         searchPlaceholder="Tìm kiếm nguồn, nội dung..."
                         onSearch={setSearchTerm}
@@ -386,37 +388,56 @@ export default function IncomePage() {
                         ]}
                     />
                 </div>
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left text-sm">
-                        <thead className="bg-black/30 text-white/50 text-xs uppercase">
-                            <tr>
-                                <th className="p-3">Ngày</th>
-                                <th className="p-3">Số tiền</th>
-                                <th className="p-3">Nguồn</th>
-                                <th className="p-3">Tài khoản</th>
-                                <th className="p-3">Dự án</th>
-                                <th className="p-3 text-center">Chi tiết</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-white/5">
-                            {transactions.slice(0, 20).map(tx => (
-                                <tr key={tx.id} className="hover:bg-white/5 transition-colors cursor-pointer" onClick={() => { setSelectedTransaction(tx); setIsDetailModalOpen(true); }}>
-                                    <td className="p-3 text-white/70">{new Date(tx.date).toLocaleDateString('vi-VN')}</td>
-                                    <td className="p-3 text-green-400 font-semibold">+{tx.amount.toLocaleString()} {tx.currency}</td>
-                                    <td className="p-3 text-white/70">{tx.source || tx.category}</td>
-                                    <td className="p-3 text-white/70">{getAccountName(tx.accountId)}</td>
-                                    <td className="p-3 text-white/70">{tx.projectId ? getProjectName(tx.projectId) : "-"}</td>
-                                    <td className="p-3 text-center">
-                                        <button onClick={(e) => { e.stopPropagation(); setSelectedTransaction(tx); setIsDetailModalOpen(true); }} className="p-1.5 rounded hover:bg-white/10 text-[var(--muted)] hover:text-blue-400 transition-colors" title="Xem chi tiết">
-                                            <Eye size={14} />
-                                        </button>
-                                    </td>
-                                </tr>
-                            ))}
-                            {transactions.length === 0 && <tr><td colSpan={6} className="p-8 text-center text-white/30">Chưa có dữ liệu</td></tr>}
-                        </tbody>
-                    </table>
-                </div>
+                
+                <DataTable
+                    data={transactions}
+                    colorScheme="green"
+                    onRowClick={(tx) => { setSelectedTransaction(tx); setIsDetailModalOpen(true); }}
+                    emptyMessage="Chưa có khoản thu nào"
+                    columns={[
+                        {
+                            key: "date",
+                            header: "Ngày",
+                            render: (tx) => <DateCell date={tx.date} />
+                        },
+                        {
+                            key: "amount",
+                            header: "Số tiền",
+                            align: "right",
+                            render: (tx) => <AmountCell amount={tx.amount} type="IN" currency={tx.currency} />
+                        },
+                        {
+                            key: "source",
+                            header: "Nguồn",
+                            render: (tx) => <TextCell primary={tx.source || tx.category || ""} secondary={tx.description} />
+                        },
+                        {
+                            key: "account",
+                            header: "Tài khoản",
+                            render: (tx) => <span className="text-white/70">{getAccountName(tx.accountId)}</span>
+                        },
+                        {
+                            key: "project",
+                            header: "Dự án",
+                            render: (tx) => <span className="text-white/70">{tx.projectId ? getProjectName(tx.projectId) : "-"}</span>
+                        },
+                        {
+                            key: "actions",
+                            header: "Chi tiết",
+                            align: "center",
+                            render: (tx) => (
+                                <ActionCell>
+                                    <button 
+                                        onClick={() => { setSelectedTransaction(tx); setIsDetailModalOpen(true); }} 
+                                        className="p-1.5 rounded hover:bg-white/10 text-white/40 hover:text-blue-400 transition-colors"
+                                    >
+                                        <Eye size={16} />
+                                    </button>
+                                </ActionCell>
+                            )
+                        }
+                    ]}
+                />
             </div>
 
             {/* Transaction Detail Modal */}

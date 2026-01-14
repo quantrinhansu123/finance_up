@@ -13,6 +13,7 @@ import { getUserRole, Role } from "@/lib/permissions";
 import { Plus, Lock, Unlock, Edit2, History, Wallet, Trash2, Building2, Banknote, Smartphone } from "lucide-react";
 import DataTableToolbar from "@/components/finance/DataTableToolbar";
 import { exportToCSV } from "@/lib/export";
+import DataTable, { ActionCell } from "@/components/finance/DataTable";
 
 export default function AccountsPage() {
     const [accounts, setAccounts] = useState<Account[]>([]);
@@ -195,109 +196,121 @@ export default function AccountsPage() {
             />
 
             {/* Table */}
-            <div className="glass-card rounded-xl overflow-hidden border border-white/5">
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs">
-                        <thead className="bg-[#1a1a1a] text-[var(--muted)] uppercase text-[10px] font-semibold tracking-wider">
-                            <tr>
-                                <th className="p-3 border-b border-white/10">Tên tài khoản</th>
-                                <th className="p-3 border-b border-white/10">Loại</th>
-                                <th className="p-3 border-b border-white/10">Tiền tệ</th>
-                                <th className="p-3 border-b border-white/10 text-right">Đầu kỳ</th>
-                                <th className="p-3 border-b border-white/10 text-right text-green-400">Tổng thu</th>
-                                <th className="p-3 border-b border-white/10 text-right text-red-400">Tổng chi</th>
-                                <th className="p-3 border-b border-white/10 text-right">Số dư</th>
-                                <th className="p-3 border-b border-white/10">Dự án</th>
-                                <th className="p-3 border-b border-white/10 text-center">Thao tác</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-white/5">
-                            {filteredAccounts.map(acc => {
-                                const metrics = accountMetrics[acc.id] || { moneyIn: 0, moneyOut: 0, txCount: 0 };
-                                return (
-                                    <tr key={acc.id} className={`hover:bg-white/5 transition-colors ${acc.isLocked ? "bg-red-500/5" : ""}`}>
-                                        <td className="p-3">
-                                            <div className="flex items-center gap-2">
-                                                {acc.isLocked && <Lock size={12} className="text-red-400" />}
-                                                <span className="font-medium text-white">{acc.name}</span>
-                                            </div>
-                                        </td>
-                                        <td className="p-3">
-                                            <span className="flex items-center gap-1 text-[var(--muted)]">
-                                                {getTypeIcon(acc.type)} {acc.type}
-                                            </span>
-                                        </td>
-                                        <td className="p-3">
-                                            <span className="bg-white/10 px-1.5 py-0.5 rounded text-[10px] font-mono">{acc.currency}</span>
-                                        </td>
-                                        <td className="p-3 text-right text-[var(--muted)]">
-                                            {(acc.openingBalance || 0).toLocaleString()}
-                                        </td>
-                                        <td className="p-3 text-right text-green-400 font-medium">
-                                            +{metrics.moneyIn.toLocaleString()}
-                                        </td>
-                                        <td className="p-3 text-right text-red-400 font-medium">
-                                            -{metrics.moneyOut.toLocaleString()}
-                                        </td>
-                                        <td className="p-3 text-right font-bold text-white">
-                                            {acc.balance.toLocaleString()}
-                                        </td>
-                                        <td className="p-3">
-                                            {acc.projectId ? (
-                                                <span className="text-blue-400 text-[10px]">{projects[acc.projectId] || "N/A"}</span>
-                                            ) : (
-                                                <span className="text-[var(--muted)]">-</span>
-                                            )}
-                                        </td>
-                                        <td className="p-3">
-                                            <div className="flex justify-center gap-1">
-                                                <button
-                                                    onClick={() => setEditingAccount(acc)}
-                                                    className="p-1.5 rounded hover:bg-white/10 text-[var(--muted)] hover:text-blue-400 transition-colors"
-                                                    title="Sửa"
-                                                >
-                                                    <Edit2 size={14} />
-                                                </button>
-                                                <button
-                                                    onClick={() => toggleLock(acc)}
-                                                    className={`p-1.5 rounded transition-colors ${acc.isLocked
-                                                            ? "text-red-400 hover:bg-red-500/20"
-                                                            : "text-[var(--muted)] hover:text-yellow-400 hover:bg-white/10"
-                                                        }`}
-                                                    title={acc.isLocked ? "Mở khóa" : "Khóa"}
-                                                >
-                                                    {acc.isLocked ? <Lock size={14} /> : <Unlock size={14} />}
-                                                </button>
-                                                <button
-                                                    onClick={() => deleteAccount(acc)}
-                                                    className="p-1.5 rounded hover:bg-red-500/20 text-[var(--muted)] hover:text-red-400 transition-colors"
-                                                    title="Xóa"
-                                                >
-                                                    <Trash2 size={14} />
-                                                </button>
-                                                <Link
-                                                    href={`/finance/transactions?account=${acc.id}`}
-                                                    className="p-1.5 rounded hover:bg-white/10 text-[var(--muted)] hover:text-blue-400 transition-colors"
-                                                    title="Xem lịch sử"
-                                                >
-                                                    <History size={14} />
-                                                </Link>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                );
-                            })}
-                            {filteredAccounts.length === 0 && (
-                                <tr>
-                                    <td colSpan={9} className="p-8 text-center text-[var(--muted)]">
-                                        {accounts.length === 0 ? "Chưa có tài khoản nào" : "Không tìm thấy tài khoản phù hợp"}
-                                    </td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+            <DataTable
+                data={filteredAccounts}
+                colorScheme="green"
+                emptyMessage={accounts.length === 0 ? "Chưa có tài khoản nào" : "Không tìm thấy tài khoản phù hợp"}
+                showIndex={false}
+                columns={[
+                    {
+                        key: "name",
+                        header: "Tên tài khoản",
+                        render: (acc) => (
+                            <div className="flex items-center gap-2">
+                                {acc.isLocked && <Lock size={12} className="text-red-400" />}
+                                <span className="font-medium text-white">{acc.name}</span>
+                            </div>
+                        )
+                    },
+                    {
+                        key: "type",
+                        header: "Loại",
+                        render: (acc) => (
+                            <span className="flex items-center gap-1 text-white/70">
+                                {getTypeIcon(acc.type)} {acc.type}
+                            </span>
+                        )
+                    },
+                    {
+                        key: "currency",
+                        header: "Tiền tệ",
+                        render: (acc) => (
+                            <span className="bg-white/10 px-1.5 py-0.5 rounded text-[10px] font-mono">{acc.currency}</span>
+                        )
+                    },
+                    {
+                        key: "openingBalance",
+                        header: "Đầu kỳ",
+                        align: "right",
+                        render: (acc) => (
+                            <span className="text-white/70">{(acc.openingBalance || 0).toLocaleString()}</span>
+                        )
+                    },
+                    {
+                        key: "moneyIn",
+                        header: "Tổng thu",
+                        align: "right",
+                        render: (acc) => {
+                            const metrics = accountMetrics[acc.id] || { moneyIn: 0, moneyOut: 0, txCount: 0 };
+                            return <span className="text-green-400 font-medium">+{metrics.moneyIn.toLocaleString()}</span>;
+                        }
+                    },
+                    {
+                        key: "moneyOut",
+                        header: "Tổng chi",
+                        align: "right",
+                        render: (acc) => {
+                            const metrics = accountMetrics[acc.id] || { moneyIn: 0, moneyOut: 0, txCount: 0 };
+                            return <span className="text-red-400 font-medium">-{metrics.moneyOut.toLocaleString()}</span>;
+                        }
+                    },
+                    {
+                        key: "balance",
+                        header: "Số dư",
+                        align: "right",
+                        render: (acc) => <span className="font-bold text-white">{acc.balance.toLocaleString()}</span>
+                    },
+                    {
+                        key: "project",
+                        header: "Dự án",
+                        render: (acc) => acc.projectId ? (
+                            <span className="text-blue-400 text-xs">{projects[acc.projectId] || "N/A"}</span>
+                        ) : (
+                            <span className="text-white/30">-</span>
+                        )
+                    },
+                    {
+                        key: "actions",
+                        header: "Thao tác",
+                        align: "center",
+                        render: (acc) => (
+                            <ActionCell>
+                                <button
+                                    onClick={() => setEditingAccount(acc)}
+                                    className="p-1.5 rounded hover:bg-white/10 text-white/40 hover:text-blue-400 transition-colors"
+                                    title="Sửa"
+                                >
+                                    <Edit2 size={14} />
+                                </button>
+                                <button
+                                    onClick={() => toggleLock(acc)}
+                                    className={`p-1.5 rounded transition-colors ${acc.isLocked
+                                            ? "text-red-400 hover:bg-red-500/20"
+                                            : "text-white/40 hover:text-yellow-400 hover:bg-white/10"
+                                        }`}
+                                    title={acc.isLocked ? "Mở khóa" : "Khóa"}
+                                >
+                                    {acc.isLocked ? <Lock size={14} /> : <Unlock size={14} />}
+                                </button>
+                                <button
+                                    onClick={() => deleteAccount(acc)}
+                                    className="p-1.5 rounded hover:bg-red-500/20 text-white/40 hover:text-red-400 transition-colors"
+                                    title="Xóa"
+                                >
+                                    <Trash2 size={14} />
+                                </button>
+                                <Link
+                                    href={`/finance/transactions?account=${acc.id}`}
+                                    className="p-1.5 rounded hover:bg-white/10 text-white/40 hover:text-blue-400 transition-colors"
+                                    title="Xem lịch sử"
+                                >
+                                    <History size={14} />
+                                </Link>
+                            </ActionCell>
+                        )
+                    }
+                ]}
+            />
 
             {/* Modals */}
             <CreateAccountModal

@@ -9,6 +9,7 @@ import { db } from "@/lib/firebase";
 import { getUserRole, hasProjectPermission } from "@/lib/permissions";
 import { useRouter } from "next/navigation";
 import { ShieldX } from "lucide-react";
+import DataTable, { DateCell } from "@/components/finance/DataTable";
 
 type ApprovalTab = "all" | "high_value" | "pending";
 
@@ -337,44 +338,59 @@ export default function ApprovalsPage() {
             )}
 
             {/* Approval History */}
-            <div className="glass-card rounded-xl overflow-hidden border border-white/5">
-                <div className="p-4 border-b border-white/5 bg-[#1a1a1a]">
-                    <h3 className="text-lg font-bold">Lịch sử phê duyệt gần đây</h3>
+            <div>
+                <div className="mb-4">
+                    <h3 className="text-lg font-bold text-white">Lịch sử phê duyệt gần đây</h3>
                 </div>
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left text-sm">
-                        <thead className="bg-[#1a1a1a] text-[var(--muted)] text-xs uppercase font-semibold tracking-wider">
-                            <tr>
-                                <th className="p-4 border-b border-white/10">Thời gian</th>
-                                <th className="p-4 border-b border-white/10">Người duyệt</th>
-                                <th className="p-4 border-b border-white/10">Hành động</th>
-                                <th className="p-4 border-b border-white/10">Chi tiết</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-white/5">
-                            {approvalLogs.map(log => (
-                                <tr key={log.id} className="hover:bg-white/5">
-                                    <td className="p-4 text-[var(--muted)]">{new Date(log.timestamp).toLocaleString()}</td>
-                                    <td className="p-4 text-white">{log.userName}</td>
-                                    <td className="p-4">
-                                        <span className={`px-2 py-1 rounded text-xs font-bold ${log.action === "APPROVE" ? "bg-green-500/20 text-green-400" : "bg-red-500/20 text-red-400"
-                                            }`}>
-                                            {log.action === "APPROVE" ? "DUYỆT" : "TỪ CHỐI"}
-                                        </span>
-                                    </td>
-                                    <td className="p-4 text-[var(--muted)] max-w-[300px] truncate">{log.details}</td>
-                                </tr>
-                            ))}
-                            {approvalLogs.length === 0 && (
-                                <tr>
-                                    <td colSpan={4} className="p-8 text-center text-[var(--muted)]">
-                                        Chưa có lịch sử phê duyệt
-                                    </td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
+                <DataTable
+                    data={approvalLogs}
+                    colorScheme="blue"
+                    emptyMessage="Chưa có lịch sử phê duyệt"
+                    showIndex={false}
+                    itemsPerPage={10}
+                    columns={[
+                        {
+                            key: "timestamp",
+                            header: "Thời gian",
+                            render: (log) => (
+                                <span className="text-white/70">
+                                    {new Date(log.timestamp).toLocaleString("vi-VN")}
+                                </span>
+                            )
+                        },
+                        {
+                            key: "userName",
+                            header: "Người duyệt",
+                            render: (log) => <span className="text-white font-medium">{log.userName}</span>
+                        },
+                        {
+                            key: "action",
+                            header: "Hành động",
+                            align: "center",
+                            render: (log) => (
+                                <span className={`px-2 py-1 rounded text-xs font-bold ${
+                                    log.action === "APPROVE" 
+                                        ? "bg-green-500/20 text-green-400" 
+                                        : "bg-red-500/20 text-red-400"
+                                }`}>
+                                    {log.action === "APPROVE" ? "DUYỆT" : "TỪ CHỐI"}
+                                </span>
+                            )
+                        },
+                        {
+                            key: "details",
+                            header: "Chi tiết",
+                            render: (log) => (
+                                <div className="max-w-[400px]">
+                                    <div className="text-white/70 truncate">{log.details}</div>
+                                    {log.reason && (
+                                        <div className="text-xs text-white/40 mt-1">Lý do: {log.reason}</div>
+                                    )}
+                                </div>
+                            )
+                        }
+                    ]}
+                />
             </div>
 
             {/* Rejection Modal */}
