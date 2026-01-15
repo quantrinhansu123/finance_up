@@ -19,6 +19,9 @@ export const metadata: Metadata = {
   icons: {
     icon: "/logo-kama.png",
   },
+  verification: {
+    google: "IcMJ-OQoufDJ5oJpT9ElL-FTKp7X9VvXxEywl11WFno",
+  },
 };
 
 export default function RootLayout({
