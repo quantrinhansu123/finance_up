@@ -131,117 +131,122 @@ export default function FundsPage() {
                 ]}
             />
 
-            <div className="glass-card rounded-xl overflow-hidden border border-white/5">
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left text-sm">
-                        <thead className="bg-[#1a1a1a] text-[var(--muted)] uppercase text-xs font-semibold tracking-wider">
-                            <tr>
-                                <th className="p-4 border-b border-white/10">Tên quỹ</th>
-                                <th className="p-4 border-b border-white/10 text-right">Ngân sách</th>
-                                <th className="p-4 border-b border-white/10 text-right">Đã chi (Tháng)</th>
-                                <th className="p-4 border-b border-white/10 text-right">% Sử dụng</th>
-                                <th className="p-4 border-b border-white/10">Từ khóa</th>
-                                <th className="p-4 border-b border-white/10 text-center w-24">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-white/5">
-                            {loading ? (
-                                <tr>
-                                    <td colSpan={6} className="p-8 text-center text-[var(--muted)]">Đang tải dữ liệu...</td>
-                                </tr>
-                            ) : funds.length === 0 ? (
-                                <tr>
-                                    <td colSpan={6} className="p-8 text-center text-[var(--muted)]">Chưa có quỹ nào. Hãy tạo quỹ mới.</td>
-                                </tr>
-                            ) : (
-                                filteredFunds.map((fund) => {
-                                    const { spent } = getFundStats(fund);
-                                    const pctBudget = fund.targetBudget && fund.targetBudget > 0
-                                        ? (spent / fund.targetBudget) * 100
-                                        : 0;
-
-                                    return (
-                                        <tr
-                                            key={fund.id}
-                                            className="hover:bg-white/5 transition-colors cursor-pointer group"
-                                            onClick={() => handleRowClick(fund)}
-                                        >
-                                            <td className="p-4 font-medium text-white">
-                                                {fund.name}
-                                                <div className="text-xs text-[var(--muted)] font-normal line-clamp-1 max-w-[200px] mt-0.5">
-                                                    {fund.description || ""}
-                                                </div>
-                                            </td>
-                                            <td className="p-4 text-right text-[var(--muted)]">
-                                                {fund.targetBudget ? `$${fund.targetBudget.toLocaleString()}` : "∞"}
-                                            </td>
-                                            <td className="p-4 text-right font-medium text-white">
-                                                ${spent.toLocaleString()}
-                                            </td>
-                                            <td className="p-4 text-right">
-                                                <div className="flex items-center justify-end gap-2">
-                                                    <span className={`text-xs ${pctBudget > 100 ? "text-red-400" : pctBudget > 80 ? "text-yellow-400" : "text-green-400"}`}>
-                                                        {pctBudget.toFixed(1)}%
-                                                    </span>
-                                                    {fund.targetBudget && fund.targetBudget > 0 && (
-                                                        <div className="w-16 h-1.5 bg-white/10 rounded-full overflow-hidden">
-                                                            <div
-                                                                className={`h-full rounded-full ${pctBudget > 100 ? "bg-red-500" : pctBudget > 80 ? "bg-yellow-500" : "bg-green-500"}`}
-                                                                style={{ width: `${Math.min(pctBudget, 100)}%` }}
-                                                            ></div>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </td>
-                                            <td className="p-4">
-                                                <div className="flex flex-wrap gap-1 max-w-[200px]">
-                                                    {fund.keywords && fund.keywords.length > 0 ? (
-                                                        fund.keywords.slice(0, 3).map(k => (
-                                                            <span key={k} className="text-[10px] bg-white/5 px-1.5 py-0.5 rounded text-[var(--muted)]">
-                                                                {k}
-                                                            </span>
-                                                        ))
-                                                    ) : (
-                                                        <span className="text-[10px] text-[var(--muted)] italic">-</span>
-                                                    )}
-                                                    {fund.keywords && fund.keywords.length > 3 && (
-                                                        <span className="text-[10px] text-[var(--muted)]">+{fund.keywords.length - 3}</span>
-                                                    )}
-                                                </div>
-                                            </td>
-                                            <td className="p-4">
-                                                <div className="flex items-center gap-1 justify-center">
-                                                    <button
-                                                        onClick={(e) => handleEdit(e, fund)}
-                                                        className="p-1.5 rounded hover:bg-white/10 text-[var(--muted)] hover:text-yellow-400 transition-colors"
-                                                        title="Sửa"
-                                                    >
-                                                        <Edit2 size={14} />
-                                                    </button>
-                                                    <button
-                                                        onClick={(e) => handleDelete(e, fund.id)}
-                                                        className="p-1.5 rounded hover:bg-red-500/20 text-[var(--muted)] hover:text-red-400 transition-colors"
-                                                        title="Xóa"
-                                                    >
-                                                        <Trash2 size={14} />
-                                                    </button>
-                                                    <button
-                                                        onClick={(e) => { e.stopPropagation(); setDetailFund(fund); }}
-                                                        className="p-1.5 rounded hover:bg-white/10 text-[var(--muted)] hover:text-blue-400 transition-colors"
-                                                        title="Xem lịch sử"
-                                                    >
-                                                        <History size={14} />
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    );
-                                })
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+            <DataTable
+                data={filteredFunds.map(fund => {
+                    const { spent } = getFundStats(fund);
+                    const pctBudget = fund.targetBudget && fund.targetBudget > 0
+                        ? (spent / fund.targetBudget) * 100
+                        : 0;
+                    return { ...fund, spent, pctBudget };
+                })}
+                onRowClick={handleRowClick}
+                columns={[
+                    {
+                        key: "name",
+                        header: "Tên quỹ",
+                        render: (fund) => (
+                            <div className="font-medium text-white">
+                                {fund.name}
+                                <div className="text-xs text-[var(--muted)] font-normal line-clamp-1 max-w-[200px] mt-0.5">
+                                    {fund.description || ""}
+                                </div>
+                            </div>
+                        )
+                    },
+                    {
+                        key: "targetBudget",
+                        header: "Ngân sách",
+                        align: "right",
+                        render: (fund) => (
+                            <span className="text-[var(--muted)]">
+                                {fund.targetBudget ? `$${fund.targetBudget.toLocaleString()}` : "∞"}
+                            </span>
+                        )
+                    },
+                    {
+                        key: "spent",
+                        header: "Đã chi (Tháng)",
+                        align: "right",
+                        render: (fund) => (
+                            <span className="font-medium text-white">
+                                ${fund.spent.toLocaleString()}
+                            </span>
+                        )
+                    },
+                    {
+                        key: "pctBudget",
+                        header: "% Sử dụng",
+                        align: "right",
+                        render: (fund) => (
+                            <div className="flex items-center justify-end gap-2">
+                                <span className={`text-xs ${fund.pctBudget > 100 ? "text-red-400" : fund.pctBudget > 80 ? "text-yellow-400" : "text-green-400"}`}>
+                                    {fund.pctBudget.toFixed(1)}%
+                                </span>
+                                {fund.targetBudget && fund.targetBudget > 0 && (
+                                    <div className="w-16 h-1.5 bg-white/10 rounded-full overflow-hidden">
+                                        <div
+                                            className={`h-full rounded-full ${fund.pctBudget > 100 ? "bg-red-500" : fund.pctBudget > 80 ? "bg-yellow-500" : "bg-green-500"}`}
+                                            style={{ width: `${Math.min(fund.pctBudget, 100)}%` }}
+                                        ></div>
+                                    </div>
+                                )}
+                            </div>
+                        )
+                    },
+                    {
+                        key: "keywords",
+                        header: "Từ khóa",
+                        render: (fund) => (
+                            <div className="flex flex-wrap gap-1 max-w-[200px]">
+                                {fund.keywords && fund.keywords.length > 0 ? (
+                                    fund.keywords.slice(0, 3).map((k: string) => (
+                                        <span key={k} className="text-[10px] bg-white/5 px-1.5 py-0.5 rounded text-[var(--muted)]">
+                                            {k}
+                                        </span>
+                                    ))
+                                ) : (
+                                    <span className="text-[10px] text-[var(--muted)] italic">-</span>
+                                )}
+                                {fund.keywords && fund.keywords.length > 3 && (
+                                    <span className="text-[10px] text-[var(--muted)]">+{fund.keywords.length - 3}</span>
+                                )}
+                            </div>
+                        )
+                    },
+                    {
+                        key: "actions",
+                        header: "Actions",
+                        align: "center",
+                        width: "w-24",
+                        render: (fund) => (
+                            <ActionCell>
+                                <button
+                                    onClick={(e) => handleEdit(e, fund)}
+                                    className="p-1.5 rounded hover:bg-white/10 text-[var(--muted)] hover:text-yellow-400 transition-colors"
+                                    title="Sửa"
+                                >
+                                    <Edit2 size={14} />
+                                </button>
+                                <button
+                                    onClick={(e) => handleDelete(e, fund.id)}
+                                    className="p-1.5 rounded hover:bg-red-500/20 text-[var(--muted)] hover:text-red-400 transition-colors"
+                                    title="Xóa"
+                                >
+                                    <Trash2 size={14} />
+                                </button>
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); setDetailFund(fund); }}
+                                    className="p-1.5 rounded hover:bg-white/10 text-[var(--muted)] hover:text-blue-400 transition-colors"
+                                    title="Xem lịch sử"
+                                >
+                                    <History size={14} />
+                                </button>
+                            </ActionCell>
+                        )
+                    }
+                ]}
+                emptyMessage={loading ? "Đang tải dữ liệu..." : funds.length === 0 ? "Chưa có quỹ nào. Hãy tạo quỹ mới." : "Không tìm thấy kết quả"}
+            />
 
             {/* Fund Detail Transaction Modal */}
             {detailFund && (

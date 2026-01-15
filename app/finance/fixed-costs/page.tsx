@@ -9,6 +9,7 @@ import CurrencyInput from "@/components/finance/CurrencyInput";
 import { Plus, Eye, Edit2, Trash2, Zap, X, Save } from "lucide-react";
 import DataTableToolbar from "@/components/finance/DataTableToolbar";
 import { exportToCSV } from "@/lib/export";
+import DataTable, { ActionCell } from "@/components/finance/DataTable";
 
 const CURRENCY_COLORS: Record<string, string> = {
     "VND": "#ef4444",
@@ -291,91 +292,97 @@ export default function FixedCostsPage() {
                 ]}
             />
 
-            <div className="glass-card rounded-2xl overflow-hidden border border-white/5">
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left text-sm">
-                        <thead className="bg-[#1a1a1a] text-[var(--muted)] uppercase text-xs font-semibold tracking-wider">
-                            <tr>
-                                <th className="p-4 border-b border-white/10">Tên khoản chi</th>
-                                <th className="p-4 border-b border-white/10">Số tiền</th>
-                                <th className="p-4 border-b border-white/10">Chu kỳ</th>
-                                <th className="p-4 border-b border-white/10">Tài khoản trả</th>
-                                <th className="p-4 border-b border-white/10 text-center">Trạng thái</th>
-                                <th className="p-4 border-b border-white/10">Hành động</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-white/5">
-                            {filteredCosts.map((cost: FixedCost) => (
-                                <tr key={cost.id} className="hover:bg-white/5 transition-colors">
-                                    {/* Tên khoản chi */}
-                                    <td className="p-4">
-                                        <div className="font-bold text-white">{cost.name}</div>
-                                    </td>
-                                    {/* Số tiền */}
-                                    <td className="p-4">
-                                        <div className="text-white">
-                                            {new Intl.NumberFormat('vi-VN').format(cost.amount)}
-                                            <span className="text-[10px] ml-1 opacity-60" style={{ color: CURRENCY_COLORS[cost.currency] }}>{cost.currency}</span>
-                                        </div>
-                                    </td>
-                                    {/* Chu kỳ */}
-                                    <td className="p-4">
-                                        <span className="text-xs px-2 py-1 bg-white/5 rounded-full text-white/70">
-                                            {cost.cycle === "MONTHLY" ? "Hàng tháng" : cost.cycle === "QUARTERLY" ? "Hàng quý" : "Hàng năm"}
-                                        </span>
-                                    </td>
-                                    {/* Tài khoản trả */}
-                                    <td className="p-4">
-                                        <div className="text-xs text-white/60">
-                                            {accounts.find(a => a.id === cost.accountId)?.name || "Chưa gán"}
-                                        </div>
-                                    </td>
-                                    {/* Trạng thái */}
-                                    <td className="p-4 text-center">
-                                        <button
-                                            onClick={() => handleUpdate(cost.id, { status: cost.status === "ON" ? "OFF" : "ON" })}
-                                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${cost.status === "ON" ? "bg-green-500" : "bg-gray-600"}`}
-                                        >
-                                            <span
-                                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${cost.status === "ON" ? "translate-x-6" : "translate-x-1"}`}
-                                            />
-                                        </button>
-                                    </td>
-                                    {/* Hành động */}
-                                    <td className="p-4">
-                                        <div className="flex items-center gap-1 justify-center">
-                                            <button
-                                                onClick={() => openViewModal(cost)}
-                                                className="p-1.5 rounded hover:bg-white/10 text-[var(--muted)] hover:text-blue-400 transition-colors"
-                                                title="Xem chi tiết"
-                                            >
-                                                <Eye size={14} />
-                                            </button>
-                                            <button
-                                                onClick={() => openEditModal(cost)}
-                                                className="p-1.5 rounded hover:bg-white/10 text-[var(--muted)] hover:text-yellow-400 transition-colors"
-                                                title="Sửa"
-                                            >
-                                                <Edit2 size={14} />
-                                            </button>
-                                            <button
-                                                onClick={() => handleDelete(cost.id)}
-                                                className="p-1.5 rounded hover:bg-red-500/20 text-[var(--muted)] hover:text-red-400 transition-colors"
-                                                title="Xóa"
-                                            >
-                                                <Trash2 size={14} />
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
-                            {costs.length === 0 && (
-                                <tr><td colSpan={6} className="p-8 text-center text-[var(--muted)]">Chưa có chi phí cố định nào</td></tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-            </div >
+            <DataTable
+                data={filteredCosts}
+                onRowClick={openViewModal}
+                columns={[
+                    {
+                        key: "name",
+                        header: "Tên khoản chi",
+                        render: (cost) => (
+                            <div className="font-bold text-white">{cost.name}</div>
+                        )
+                    },
+                    {
+                        key: "amount",
+                        header: "Số tiền",
+                        align: "left",
+                        render: (cost) => (
+                            <div className="text-white">
+                                {new Intl.NumberFormat('vi-VN').format(cost.amount)}
+                                <span className="text-[10px] ml-1 opacity-60" style={{ color: CURRENCY_COLORS[cost.currency] }}>{cost.currency}</span>
+                            </div>
+                        )
+                    },
+                    {
+                        key: "cycle",
+                        header: "Chu kỳ",
+                        render: (cost) => (
+                            <span className="text-xs px-2 py-1 bg-white/5 rounded-full text-white/70">
+                                {cost.cycle === "MONTHLY" ? "Hàng tháng" : cost.cycle === "QUARTERLY" ? "Hàng quý" : "Hàng năm"}
+                            </span>
+                        )
+                    },
+                    {
+                        key: "accountId",
+                        header: "Tài khoản trả",
+                        render: (cost) => (
+                            <div className="text-xs text-white/60">
+                                {accounts.find(a => a.id === cost.accountId)?.name || "Chưa gán"}
+                            </div>
+                        )
+                    },
+                    {
+                        key: "status",
+                        header: "Trạng thái",
+                        align: "center",
+                        render: (cost) => (
+                            <div onClick={(e) => e.stopPropagation()}>
+                                <button
+                                    onClick={() => handleUpdate(cost.id, { status: cost.status === "ON" ? "OFF" : "ON" })}
+                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${cost.status === "ON" ? "bg-green-500" : "bg-gray-600"}`}
+                                >
+                                    <span
+                                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${cost.status === "ON" ? "translate-x-6" : "translate-x-1"}`}
+                                    />
+                                </button>
+                            </div>
+                        )
+                    },
+                    {
+                        key: "actions",
+                        header: "Thao tác",
+                        align: "center",
+                        sortable: false,
+                        render: (cost) => (
+                            <ActionCell>
+                                <button
+                                    onClick={() => openViewModal(cost)}
+                                    className="p-1.5 rounded hover:bg-white/10 text-[var(--muted)] hover:text-blue-400 transition-colors"
+                                    title="Xem chi tiết"
+                                >
+                                    <Eye size={14} />
+                                </button>
+                                <button
+                                    onClick={() => openEditModal(cost)}
+                                    className="p-1.5 rounded hover:bg-white/10 text-[var(--muted)] hover:text-yellow-400 transition-colors"
+                                    title="Sửa"
+                                >
+                                    <Edit2 size={14} />
+                                </button>
+                                <button
+                                    onClick={() => handleDelete(cost.id)}
+                                    className="p-1.5 rounded hover:bg-red-500/20 text-[var(--muted)] hover:text-red-400 transition-colors"
+                                    title="Xóa"
+                                >
+                                    <Trash2 size={14} />
+                                </button>
+                            </ActionCell>
+                        )
+                    }
+                ]}
+                emptyMessage="Chưa có chi phí cố định nào"
+            />
 
             {/* Create/Edit Modal */}
             {(isModalOpen || isEditModalOpen) && (

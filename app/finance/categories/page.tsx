@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { MasterCategory, Transaction, Project } from "@/types/finance";
 import { getUserRole, Role } from "@/lib/permissions";
 import { useRouter } from "next/navigation";
@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import DataTableToolbar from "@/components/finance/DataTableToolbar";
 import { exportToCSV } from "@/lib/export";
+import DataTable, { ActionCell } from "@/components/finance/DataTable";
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
 
 const MASTER_CATEGORIES_COL = "finance_master_categories";
@@ -153,6 +154,18 @@ export default function MasterCategoriesPage() {
         const matchType = activeFilters.type === "ALL" || c.type === activeFilters.type;
         return matchSearch && matchType;
     });
+
+    // Pre-calculate stats for the table
+    const displayCategories = useMemo(() => {
+        return filteredCategories.map(cat => {
+            const stats = getCategoryStats(cat);
+            return {
+                ...cat,
+                totalAmount: stats.totalAmount,
+                transactionCount: stats.transactionCount
+            };
+        });
+    }, [filteredCategories, transactions, projects]);
 
     const handleAddCategory = () => {
         setEditingCategory(null);
@@ -516,112 +529,104 @@ export default function MasterCategoriesPage() {
             />
 
             {/* Table */}
-            <div className="glass-card rounded-xl overflow-hidden">
-                <div className="overflow-x-auto">
-                    <table className="w-full">
-                        <thead>
-                            <tr className="border-b border-white/10 bg-white/5">
-                                <th className="text-left p-4 text-sm font-medium text-[var(--muted)]">Danh mục</th>
-                                <th className="text-left p-4 text-sm font-medium text-[var(--muted)]">Loại</th>
-                                <th className="text-right p-4 text-sm font-medium text-[var(--muted)]">Tổng tiền</th>
-                                <th className="text-right p-4 text-sm font-medium text-[var(--muted)]">Số GD</th>
-                                <th className="text-center p-4 text-sm font-medium text-[var(--muted)]">Trạng thái</th>
-                                <th className="text-right p-4 text-sm font-medium text-[var(--muted)]">Thao tác</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {filteredCategories.length > 0 ? (
-                                filteredCategories.map(category => {
-                                    const stats = getCategoryStats(category);
-                                    return (
-                                        <tr
-                                            key={category.id}
-                                            onClick={() => setSelectedCategory(category)}
-                                            className="border-b border-white/5 hover:bg-white/5 transition-colors cursor-pointer"
-                                        >
-                                            <td className="p-4">
-                                                <div className="flex items-center gap-3">
-                                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${category.type === "INCOME"
-                                                        ? "bg-green-500/20"
-                                                        : "bg-red-500/20"
-                                                        }`}>
-                                                        {category.type === "INCOME"
-                                                            ? <TrendingUp size={16} className="text-green-400" />
-                                                            : <TrendingDown size={16} className="text-red-400" />
-                                                        }
-                                                    </div>
-                                                    <div>
-                                                        <p className="font-medium text-white">{category.name}</p>
-                                                        {category.description && (
-                                                            <p className="text-xs text-[var(--muted)]">{category.description}</p>
-                                                        )}
-                                                    </div>
-                                                    <ChevronRight size={16} className="text-[var(--muted)] ml-auto" />
-                                                </div>
-                                            </td>
-                                            <td className="p-4">
-                                                <span className={`px-2 py-1 rounded text-xs font-medium ${category.type === "INCOME"
-                                                    ? "bg-green-500/20 text-green-400"
-                                                    : "bg-red-500/20 text-red-400"
-                                                    }`}>
-                                                    {category.type === "INCOME" ? "Thu" : "Chi"}
-                                                </span>
-                                            </td>
-                                            <td className={`p-4 text-right font-medium ${category.type === "INCOME" ? "text-green-400" : "text-red-400"
-                                                }`}>
-                                                {formatCurrency(stats.totalAmount, "VND")}
-                                            </td>
-                                            <td className="p-4 text-right text-[var(--muted)]">
-                                                {stats.transactionCount}
-                                            </td>
-                                            <td className="p-4 text-center">
-                                                <button
-                                                    onClick={(e) => handleToggleCategory(category, e)}
-                                                    className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${category.isActive
-                                                        ? "bg-green-500/20 text-green-400 hover:bg-green-500/30"
-                                                        : "bg-gray-500/20 text-gray-400 hover:bg-gray-500/30"
-                                                        }`}
-                                                >
-                                                    {category.isActive ? "Hoạt động" : "Tạm dừng"}
-                                                </button>
-                                            </td>
-                                            <td className="p-4">
-                                                <div className="flex items-center justify-end gap-1">
-                                                    <button
-                                                        onClick={(e) => handleEditCategory(category, e)}
-                                                        className="p-2 rounded-lg hover:bg-white/10 text-[var(--muted)] hover:text-white transition-colors"
-                                                    >
-                                                        <Edit2 size={16} />
-                                                    </button>
-                                                    <button
-                                                        onClick={(e) => handleDeleteCategory(category, e)}
-                                                        className="p-2 rounded-lg hover:bg-red-500/20 text-red-400 transition-colors"
-                                                    >
-                                                        <Trash2 size={16} />
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    );
-                                })
-                            ) : (
-                                <tr>
-                                    <td colSpan={6} className="p-8 text-center text-[var(--muted)]">
-                                        <Filter size={40} className="mx-auto mb-3 opacity-50" />
-                                        <p>Không có danh mục nào</p>
-                                        <button
-                                            onClick={handleAddCategory}
-                                            className="mt-3 text-blue-400 text-sm hover:underline"
-                                        >
-                                            + Thêm danh mục đầu tiên
-                                        </button>
-                                    </td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+            <DataTable
+                data={displayCategories}
+                onRowClick={setSelectedCategory}
+                columns={[
+                    {
+                        key: "name",
+                        header: "Danh mục",
+                        render: (cat: any) => (
+                            <div className="flex items-center gap-3">
+                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${cat.type === "INCOME"
+                                    ? "bg-green-500/20"
+                                    : "bg-red-500/20"
+                                    }`}>
+                                    {cat.type === "INCOME"
+                                        ? <TrendingUp size={16} className="text-green-400" />
+                                        : <TrendingDown size={16} className="text-red-400" />
+                                    }
+                                </div>
+                                <div className="overflow-hidden">
+                                    <p className="font-medium text-white truncate">{cat.name}</p>
+                                    {cat.description && (
+                                        <p className="text-xs text-[var(--muted)] truncate max-w-[200px]">{cat.description}</p>
+                                    )}
+                                </div>
+                            </div>
+                        )
+                    },
+                    {
+                        key: "type",
+                        header: "Loại",
+                        render: (cat: any) => (
+                            <span className={`px-2 py-1 rounded text-xs font-medium ${cat.type === "INCOME"
+                                ? "bg-green-500/20 text-green-400"
+                                : "bg-red-500/20 text-red-400"
+                                }`}>
+                                {cat.type === "INCOME" ? "Thu" : "Chi"}
+                            </span>
+                        )
+                    },
+                    {
+                        key: "totalAmount",
+                        header: "Tổng tiền",
+                        align: "right",
+                        render: (cat: any) => (
+                            <span className={`font-medium ${cat.type === "INCOME" ? "text-green-400" : "text-red-400"}`}>
+                                {formatCurrency(cat.totalAmount, "VND")}
+                            </span>
+                        )
+                    },
+                    {
+                        key: "transactionCount",
+                        header: "Số GD",
+                        align: "right",
+                        render: (cat: any) => (
+                            <span className="text-[var(--muted)]">{cat.transactionCount}</span>
+                        )
+                    },
+                    {
+                        key: "isActive",
+                        header: "Trạng thái",
+                        align: "center",
+                        render: (cat: any) => (
+                            <button
+                                onClick={(e) => handleToggleCategory(cat, e)}
+                                className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${cat.isActive
+                                    ? "bg-green-500/20 text-green-400 hover:bg-green-500/30"
+                                    : "bg-gray-500/20 text-gray-400 hover:bg-gray-500/30"
+                                    }`}
+                            >
+                                {cat.isActive ? "Hoạt động" : "Tạm dừng"}
+                            </button>
+                        )
+                    },
+                    {
+                        key: "actions",
+                        header: "Thao tác",
+                        align: "right",
+                        sortable: false,
+                        render: (cat: any) => (
+                            <ActionCell>
+                                <button
+                                    onClick={(e) => handleEditCategory(cat, e)}
+                                    className="p-2 rounded-lg hover:bg-white/10 text-[var(--muted)] hover:text-white transition-colors"
+                                >
+                                    <Edit2 size={16} />
+                                </button>
+                                <button
+                                    onClick={(e) => handleDeleteCategory(cat, e)}
+                                    className="p-2 rounded-lg hover:bg-red-500/20 text-red-400 transition-colors"
+                                >
+                                    <Trash2 size={16} />
+                                </button>
+                            </ActionCell>
+                        )
+                    }
+                ]}
+                emptyMessage="Không có danh mục nào"
+            />
 
             {/* Modal */}
             {isModalOpen && (

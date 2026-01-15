@@ -28,7 +28,6 @@ export default function ProjectsPage() {
         status: "ALL"
     });
     const [searchTerm, setSearchTerm] = useState("");
-    const [currentPage, setCurrentPage] = useState(1);
 
     // Form
     const [name, setName] = useState("");
@@ -37,7 +36,7 @@ export default function ProjectsPage() {
     const [budget, setBudget] = useState("");
     const [currency, setCurrency] = useState<"USD" | "VND" | "KHR">("USD");
 
-    // Filtered & Paginated data
+    // Filtered data
     const filteredProjects = useMemo(() => {
         return projects.filter(p => {
             const matchSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -47,16 +46,9 @@ export default function ProjectsPage() {
         });
     }, [projects, searchTerm, activeFilters]);
 
-    const totalPages = Math.ceil(filteredProjects.length / ITEMS_PER_PAGE);
-    const paginatedProjects = useMemo(() => {
-        const start = (currentPage - 1) * ITEMS_PER_PAGE;
-        return filteredProjects.slice(start, start + ITEMS_PER_PAGE);
-    }, [filteredProjects, currentPage]);
-
-    // Reset page when filter changes
-    useEffect(() => {
-        setCurrentPage(1);
-    }, [searchTerm, activeFilters]);
+    // Reset page when filter changes removed - DataTable handles its own internal state
+    // But we might want to pass a key to DataTable to force reset if needed, 
+    // however for now standard internal reset is fine.
 
     // Load user info
     useEffect(() => {
@@ -284,149 +276,117 @@ export default function ProjectsPage() {
                 ]}
             />
 
-            <div className="glass-card rounded-2xl overflow-hidden border border-white/5">
-                <table className="w-full text-left text-sm">
-                    <thead className="bg-[#1a1a1a] text-[var(--muted)] uppercase text-xs font-semibold tracking-wider">
-                        <tr>
-                            <th className="p-4 border-b border-white/10">Project Name</th>
-                            <th className="p-4 border-b border-white/10">Members</th>
-                            <th className="p-4 border-b border-white/10 text-right">Revenue</th>
-                            <th className="p-4 border-b border-white/10 text-right">Expense</th>
-                            <th className="p-4 border-b border-white/10 text-center">Status</th>
-                            <th className="p-4 border-b border-white/10 text-right">Profit</th>
-                            <th className="p-4 border-b border-white/10 text-center w-24">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-white/5">
-                        {paginatedProjects.map((project) => (
-                            <tr
-                                key={project.id}
-                                className="hover:bg-white/5 transition-colors group cursor-pointer"
-                                onClick={() => router.push(`/finance/projects/${project.id}`)}
+            <DataTable
+                data={filteredProjects}
+                columns={[
+                    {
+                        key: "name",
+                        header: "Project Name",
+                        render: (p) => (
+                            <div
+                                onClick={() => router.push(`/finance/projects/${p.id}`)}
+                                className="hover:text-blue-400 block cursor-pointer"
                             >
-                                <td className="p-4 font-medium text-white">
-                                    <div
-                                        onClick={() => router.push(`/finance/projects/${project.id}`)}
-                                        className="hover:text-blue-400 block cursor-pointer"
-                                    >
-                                        {project.name}
-                                        <div className="text-xs text-[var(--muted)] font-normal line-clamp-1 max-w-[200px] mt-0.5">
-                                            {project.description || "No description"}
-                                        </div>
-                                    </div>
-                                </td>
-                                <td className="p-4">
-                                    <div className="flex items-center gap-1 text-[var(--muted)]">
-                                        <Users size={14} />
-                                        <span>{project.memberIds?.length || 0}</span>
-                                    </div>
-                                </td>
-                                <td className="p-4 text-right font-medium text-green-400">
-                                    ${project.totalRevenue.toLocaleString()}
-                                </td>
-                                <td className="p-4 text-right font-medium text-red-400">
-                                    ${project.totalExpense.toLocaleString()}
-                                </td>
-                                <td className="p-4 text-center">
-                                    <span className={`text-[10px] uppercase font-bold px-2 py-1 rounded ${project.status === "ACTIVE" ? "bg-green-500/10 text-green-500" :
-                                        project.status === "COMPLETED" ? "bg-blue-500/10 text-blue-500" :
-                                            "bg-gray-500/10 text-gray-500"
-                                        }`}>
-                                        {project.status === "ACTIVE" ? "Doing" : project.status}
-                                    </span>
-                                </td>
-
-                                <td className="p-4 text-right font-bold text-white">
-                                    ${(project.totalRevenue - project.totalExpense).toLocaleString()}
-                                </td>
-                                <td className="p-4">
-                                    <div className="flex items-center gap-1 justify-center">
+                                <div className="font-medium text-white">{p.name}</div>
+                                <div className="text-xs text-[var(--muted)] font-normal line-clamp-1 max-w-[200px] mt-0.5">
+                                    {p.description || "No description"}
+                                </div>
+                            </div>
+                        )
+                    },
+                    {
+                        key: "members",
+                        header: "Members",
+                        render: (p) => (
+                            <div className="flex items-center gap-1 text-[var(--muted)]">
+                                <Users size={14} />
+                                <span>{p.memberIds?.length || 0}</span>
+                            </div>
+                        )
+                    },
+                    {
+                        key: "totalRevenue",
+                        header: "Revenue",
+                        align: "right",
+                        render: (p) => (
+                            <span className="font-medium text-green-400">
+                                ${p.totalRevenue.toLocaleString()}
+                            </span>
+                        )
+                    },
+                    {
+                        key: "totalExpense",
+                        header: "Expense",
+                        align: "right",
+                        render: (p) => (
+                            <span className="font-medium text-red-400">
+                                ${p.totalExpense.toLocaleString()}
+                            </span>
+                        )
+                    },
+                    {
+                        key: "status",
+                        header: "Status",
+                        align: "center",
+                        render: (p) => (
+                            <span className={`text-[10px] uppercase font-bold px-2 py-1 rounded ${p.status === "ACTIVE" ? "bg-green-500/10 text-green-500" :
+                                p.status === "COMPLETED" ? "bg-blue-500/10 text-blue-500" :
+                                    "bg-gray-500/10 text-gray-500"
+                                }`}>
+                                {p.status === "ACTIVE" ? "Doing" : p.status}
+                            </span>
+                        )
+                    },
+                    {
+                        key: "profit",
+                        header: "Profit",
+                        align: "right",
+                        render: (p) => (
+                            <span className="font-bold text-white">
+                                ${(p.totalRevenue - p.totalExpense).toLocaleString()}
+                            </span>
+                        )
+                    },
+                    {
+                        key: "actions",
+                        header: "Actions",
+                        align: "center",
+                        width: "w-24",
+                        render: (p) => (
+                            <ActionCell>
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); router.push(`/finance/projects/${p.id}`); }}
+                                    className="p-1.5 rounded hover:bg-white/10 text-[var(--muted)] hover:text-blue-400 transition-colors"
+                                    title="Xem chi tiết"
+                                >
+                                    <Eye size={14} />
+                                </button>
+                                {userRole === "ADMIN" && (
+                                    <>
                                         <button
-                                            onClick={(e) => { e.stopPropagation(); router.push(`/finance/projects/${project.id}`); }}
-                                            className="p-1.5 rounded hover:bg-white/10 text-[var(--muted)] hover:text-blue-400 transition-colors"
-                                            title="Xem chi tiết"
+                                            onClick={(e) => openEditModal(p, e)}
+                                            className="p-1.5 rounded hover:bg-white/10 text-[var(--muted)] hover:text-yellow-400 transition-colors"
+                                            title="Sửa"
                                         >
-                                            <Eye size={14} />
+                                            <Edit2 size={14} />
                                         </button>
-                                        {userRole === "ADMIN" && (
-                                            <>
-                                                <button
-                                                    onClick={(e) => openEditModal(project, e)}
-                                                    className="p-1.5 rounded hover:bg-white/10 text-[var(--muted)] hover:text-yellow-400 transition-colors"
-                                                    title="Sửa"
-                                                >
-                                                    <Edit2 size={14} />
-                                                </button>
-                                                <button
-                                                    onClick={(e) => handleDelete(project.id, e)}
-                                                    className="p-1.5 rounded hover:bg-red-500/20 text-[var(--muted)] hover:text-red-400 transition-colors"
-                                                    title="Xóa"
-                                                >
-                                                    <Trash2 size={14} />
-                                                </button>
-                                            </>
-                                        )}
-                                    </div>
-                                </td>
-                            </tr>
-                        ))}
-                        {paginatedProjects.length === 0 && !loading && (
-                            <tr><td colSpan={7} className="p-8 text-center text-[var(--muted)]">
-                                {searchTerm || activeFilters.status !== "ALL" ? "Không tìm thấy dự án phù hợp" : "Chưa có dự án nào"}
-                            </td></tr>
-                        )}
-                    </tbody>
-                </table>
-
-                {/* Pagination */}
-                {totalPages > 1 && (
-                    <div className="flex items-center justify-between p-4 border-t border-white/10">
-                        <div className="text-sm text-[var(--muted)]">
-                            Trang {currentPage} / {totalPages}
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <button
-                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                                disabled={currentPage === 1}
-                                className="p-2 rounded-lg hover:bg-white/5 disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                <ChevronLeft size={18} />
-                            </button>
-                            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                                let pageNum;
-                                if (totalPages <= 5) {
-                                    pageNum = i + 1;
-                                } else if (currentPage <= 3) {
-                                    pageNum = i + 1;
-                                } else if (currentPage >= totalPages - 2) {
-                                    pageNum = totalPages - 4 + i;
-                                } else {
-                                    pageNum = currentPage - 2 + i;
-                                }
-                                return (
-                                    <button
-                                        key={pageNum}
-                                        onClick={() => setCurrentPage(pageNum)}
-                                        className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${currentPage === pageNum
-                                            ? "bg-blue-500 text-white"
-                                            : "hover:bg-white/5 text-[var(--muted)]"
-                                            }`}
-                                    >
-                                        {pageNum}
-                                    </button>
-                                );
-                            })}
-                            <button
-                                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                                disabled={currentPage === totalPages}
-                                className="p-2 rounded-lg hover:bg-white/5 disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                <ChevronRight size={18} />
-                            </button>
-                        </div>
-                    </div>
-                )}
-            </div>
+                                        <button
+                                            onClick={(e) => handleDelete(p.id, e)}
+                                            className="p-1.5 rounded hover:bg-red-500/20 text-[var(--muted)] hover:text-red-400 transition-colors"
+                                            title="Xóa"
+                                        >
+                                            <Trash2 size={14} />
+                                        </button>
+                                    </>
+                                )}
+                            </ActionCell>
+                        )
+                    }
+                ]}
+                itemsPerPage={ITEMS_PER_PAGE}
+                onRowClick={(p) => router.push(`/finance/projects/${p.id}`)}
+                emptyMessage={searchTerm || activeFilters.status !== "ALL" ? "Không tìm thấy dự án phù hợp" : "Chưa có dự án nào"}
+            />
 
             {
                 isModalOpen && (
