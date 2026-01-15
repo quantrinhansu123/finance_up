@@ -13,7 +13,7 @@ export function exportToCSV(data: any[], filename: string, headers: Record<strin
     }
 
     const columnKeys = Object.keys(headers);
-    const headerRow = columnKeys.map(key => headers[key]).join(",");
+    const headerRow = columnKeys.map(key => headers[key]).join(";");
 
     const rows = data.map(item => {
         return columnKeys.map(key => {
@@ -22,7 +22,7 @@ export function exportToCSV(data: any[], filename: string, headers: Record<strin
             // Handle dates
             if (val instanceof Date) {
                 val = val.toLocaleDateString("vi-VN");
-            } else if (typeof val === "string" && (val.includes(",") || val.includes("\"") || val.includes("\n"))) {
+            } else if (typeof val === "string" && (val.includes(";") || val.includes("\"") || val.includes("\n"))) {
                 // Escape quotes and wrap in quotes if contains separator
                 val = `"${val.replace(/"/g, "\"\"")}"`;
             } else if (val === null || val === undefined) {
@@ -30,7 +30,7 @@ export function exportToCSV(data: any[], filename: string, headers: Record<strin
             }
 
             return val;
-        }).join(",");
+        }).join(";");
     });
 
     const csvContent = "\uFEFF" + [headerRow, ...rows].join("\n"); // Add UTF-8 BOM for Excel
