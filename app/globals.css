@@ -235,3 +235,73 @@ html {
 .animate-morph {
   animation: morph 12s ease-in-out infinite;
 }
+
+@keyframes scanning {
+  0% {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+
+  50% {
+    opacity: 1;
+  }
+
+  100% {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+}
+
+.animate-scanning {
+  animation: scanning 2s linear infinite;
+}
+
+@keyframes glitch {
+  0% {
+    clip-path: inset(50% 0 30% 0);
+    transform: translate(-2px, 2px);
+  }
+
+  20% {
+    clip-path: inset(10% 0 10% 0);
+    transform: translate(2px, -2px);
+  }
+
+  40% {
+    clip-path: inset(40% 0 40% 0);
+    transform: translate(-1px, 1px);
+  }
+
+  60% {
+    clip-path: inset(80% 0 5% 0);
+    transform: translate(1px, -1px);
+  }
+
+  80% {
+    clip-path: inset(15% 0 70% 0);
+    transform: translate(-2px, 0);
+  }
+
+  100% {
+    clip-path: inset(50% 0 30% 0);
+    transform: translate(-2px, 2px);
+  }
+}
+
+.animate-glitch {
+  animation: glitch 1s infinite alternate-reverse;
+}
+
+@keyframes orbit {
+  from {
+    transform: rotate(0deg) translateX(40px) rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg) translateX(40px) rotate(-360deg);
+  }
+}
+
+.animate-orbit {
+  animation: orbit 4s linear infinite;
+}

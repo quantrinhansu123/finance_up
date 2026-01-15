@@ -189,40 +189,6 @@ export default function ProjectsPage() {
     // Check if user has any accessible projects
     const hasAccessibleProjects = projects.length > 0;
 
-    if (loading) {
-        return (
-            <div className="space-y-8">
-                <div className="glass-card h-64 animate-pulse rounded-xl"></div>
-            </div>
-        );
-    }
-
-    // If user has no accessible projects, show message
-    if (!hasAccessibleProjects && !loading) {
-        return (
-            <div className="space-y-8">
-                <div className="flex items-center justify-between">
-                    <div>
-                        <h1 className="text-3xl font-bold text-white">{t("projects")}</h1>
-                        <p className="text-[var(--muted)]">{t("projects_desc")}</p>
-                    </div>
-                </div>
-
-                <div className="glass-card p-8 rounded-xl text-center">
-                    <ShieldX size={48} className="mx-auto text-[var(--muted)] mb-4" />
-                    <h3 className="text-xl font-semibold text-white mb-2">{t("no_access")}</h3>
-                    <p className="text-[var(--muted)]">
-                        {t("no_project_access_desc")}
-                    </p>
-                </div>
-            </div>
-        );
-    }
-
-
-
-
-
     return (
         <div className="space-y-8">
             <div className="flex items-center justify-between">
@@ -233,10 +199,21 @@ export default function ProjectsPage() {
             </div>
 
             {/* Show access message if user has limited access */}
-            {userRole !== "ADMIN" && (
+            {userRole !== "ADMIN" && hasAccessibleProjects && !loading && (
                 <div className="glass-card p-4 rounded-xl bg-blue-500/10 border border-blue-500/20">
                     <p className="text-sm text-blue-400">
                         {t("limited_project_view").replace("{count}", projects.length.toString())}
+                    </p>
+                </div>
+            )}
+
+            {/* If user has no accessible projects, show message */}
+            {!hasAccessibleProjects && !loading && (
+                <div className="glass-card p-8 rounded-xl text-center">
+                    <ShieldX size={48} className="mx-auto text-[var(--muted)] mb-4" />
+                    <h3 className="text-xl font-semibold text-white mb-2">{t("no_access")}</h3>
+                    <p className="text-[var(--muted)]">
+                        {t("no_project_access_desc")}
                     </p>
                 </div>
             )}
@@ -278,6 +255,7 @@ export default function ProjectsPage() {
 
             <DataTable
                 data={filteredProjects}
+                isLoading={loading}
                 columns={[
                     {
                         key: "name",

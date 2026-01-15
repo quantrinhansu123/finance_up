@@ -25,6 +25,7 @@ interface DataTableProps<T> {
     colorScheme?: "default" | "green" | "red" | "blue";
     maxWidth?: string; // e.g., "max-w-4xl", "max-w-2xl"
     layout?: "table" | "grid" | "auto"; // auto is table on desktop, card on mobile
+    isLoading?: boolean;
 }
 
 const colorSchemes = {
@@ -44,6 +45,7 @@ export default function DataTable<T extends { id?: string }>({
     emptyMessage,
     showIndex = true,
     colorScheme = "default",
+    isLoading = false,
 }: DataTableProps<T>) {
     const { t, language } = useTranslation();
     const [currentPage, setCurrentPage] = useState(1);
@@ -140,33 +142,55 @@ export default function DataTable<T extends { id?: string }>({
                         </thead>
                         <tbody className="divide-y divide-white/[0.04] font-medium relative z-10">
                             <AnimatePresence mode="popLayout">
-                                {paginatedData.map((item, index) => (
-                                    <motion.tr
-                                        key={item.id || index}
-                                        initial={{ opacity: 0, y: 8 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        exit={{ opacity: 0, scale: 0.98 }}
-                                        transition={{ duration: 0.2, delay: index * 0.02 }}
-                                        className={`group/row hover:bg-white/[0.03] transition-all duration-300 relative ${onRowClick ? "cursor-pointer" : ""}`}
-                                        onClick={() => onRowClick?.(item)}
-                                    >
-                                        {showIndex && (
-                                            <td className="p-4 text-white/20 text-xs font-mono group-hover/row:text-blue-400 transition-colors text-center border-l-2 border-transparent group-hover/row:border-blue-500/50">
-                                                {((currentPage - 1) * itemsPerPage + index + 1).toString().padStart(2, '0')}
-                                            </td>
-                                        )}
-                                        {columns.map((col) => (
-                                            <td
-                                                key={col.key}
-                                                className={`p-4 text-white/70 group-hover/row:text-white transition-colors ${getAlignClass(col.align)} ${col.className || ""}`}
-                                            >
-                                                {col.render
-                                                    ? col.render(item, (currentPage - 1) * itemsPerPage + index)
-                                                    : (item as any)[col.key]}
-                                            </td>
-                                        ))}
-                                    </motion.tr>
-                                ))}
+                                {isLoading ? (
+                                    // Loading Skeletons
+                                    [...Array(itemsPerPage)].map((_, i) => (
+                                        <tr key={`skeleton-${i}`} className="animate-pulse">
+                                            {showIndex && (
+                                                <td className="p-4 text-center">
+                                                    <div className="w-4 h-4 bg-white/5 rounded mx-auto" />
+                                                </td>
+                                            )}
+                                            {columns.map((col) => (
+                                                <td key={`skeleton-col-${col.key}`} className="p-4">
+                                                    <div className="h-4 bg-white/5 rounded w-full relative overflow-hidden">
+                                                        <motion.div
+                                                            animate={{ x: ["-100%", "100%"] }}
+                                                            transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+                                                            className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent shadow-[0_0_20px_rgba(255,255,255,0.05)]"
+                                                        />
+                                                    </div>
+                                                </td>
+                                            ))}
+                                        </tr>
+                                    ))
+                                ) : (
+                                    paginatedData.map((item, index) => (
+                                        <motion.tr
+                                            key={item.id || index}
+                                            initial={{ opacity: 0, y: 5 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            className={`group/row hover:bg-white/[0.03] transition-all duration-300 relative ${onRowClick ? "cursor-pointer" : ""}`}
+                                            onClick={() => onRowClick?.(item)}
+                                        >
+                                            {showIndex && (
+                                                <td className="p-4 text-white/20 text-xs font-mono group-hover/row:text-blue-400 transition-colors text-center border-l-2 border-transparent group-hover/row:border-blue-500/50">
+                                                    {((currentPage - 1) * itemsPerPage + index + 1).toString().padStart(2, '0')}
+                                                </td>
+                                            )}
+                                            {columns.map((col) => (
+                                                <td
+                                                    key={col.key}
+                                                    className={`p-4 text-white/70 group-hover/row:text-white transition-colors ${getAlignClass(col.align)} ${col.className || ""}`}
+                                                >
+                                                    {col.render
+                                                        ? col.render(item, (currentPage - 1) * itemsPerPage + index)
+                                                        : (item as any)[col.key]}
+                                                </td>
+                                            ))}
+                                        </motion.tr>
+                                    ))
+                                )}
                             </AnimatePresence>
                         </tbody>
                     </table>

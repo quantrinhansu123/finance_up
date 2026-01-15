@@ -255,60 +255,57 @@ export default function TransactionsPage() {
                 />
             </div>
 
-            {loading ? (
-                <div className="glass-card h-64 animate-pulse rounded-xl"></div>
-            ) : (
-                <DataTable
-                    data={transactions}
-                    colorScheme="blue"
-                    emptyMessage={t("no_transactions_found")}
-                    columns={[
-                        {
-                            key: "date",
-                            header: t("date"),
-                            render: (tx) => <DateCell date={tx.date} />
-                        },
-                        {
-                            key: "amount",
-                            header: t("amount"),
-                            align: "right",
-                            render: (tx) => <AmountCell amount={tx.amount} type={tx.type} currency={tx.currency} />
-                        },
-                        {
-                            key: "category",
-                            header: t("category_source"),
-                            render: (tx) => <TextCell primary={tx.type === "IN" ? (tx.source || tx.category || "") : (tx.category || "")} secondary={tx.description} />
-                        },
-                        {
-                            key: "account",
-                            header: t("account"),
-                            render: (tx) => <span className="text-white font-medium">{getAccountName(tx.accountId)}</span>
-                        },
-                        {
-                            key: "project",
-                            header: t("project"),
-                            render: (tx) => <span className="text-white font-medium">{tx.projectId ? getProjectName(tx.projectId) : "-"}</span>
-                        },
-                        {
-                            key: "user",
-                            header: t("creator"),
-                            render: (tx) => <span className="text-xs text-white/70">{tx.createdBy}</span>
-                        },
-                        {
-                            key: "images",
-                            header: t("images"),
-                            align: "center",
-                            render: (tx) => <ImageCell images={tx.images} />
-                        },
-                        {
-                            key: "status",
-                            header: t("status"),
-                            align: "center",
-                            render: (tx) => <StatusBadge status={tx.status} />
-                        }
-                    ]}
-                />
-            )}
+            <DataTable
+                data={transactions}
+                colorScheme="blue"
+                isLoading={loading}
+                emptyMessage={t("no_transactions_found")}
+                columns={[
+                    {
+                        key: "date",
+                        header: t("date"),
+                        render: (tx) => <DateCell date={tx.date} />
+                    },
+                    {
+                        key: "amount",
+                        header: t("amount"),
+                        align: "right",
+                        render: (tx) => <AmountCell amount={tx.amount} type={tx.type} currency={tx.currency} />
+                    },
+                    {
+                        key: "category",
+                        header: t("category_source"),
+                        render: (tx) => <TextCell primary={tx.type === "IN" ? (tx.source || tx.category || "") : (tx.category || "")} secondary={tx.description} />
+                    },
+                    {
+                        key: "account",
+                        header: t("account"),
+                        render: (tx) => <span className="text-white font-medium">{getAccountName(tx.accountId)}</span>
+                    },
+                    {
+                        key: "project",
+                        header: t("project"),
+                        render: (tx) => <span className="text-white font-medium">{tx.projectId ? getProjectName(tx.projectId) : "-"}</span>
+                    },
+                    {
+                        key: "user",
+                        header: t("creator"),
+                        render: (tx) => <span className="text-xs text-white/70">{tx.createdBy}</span>
+                    },
+                    {
+                        key: "images",
+                        header: t("images"),
+                        align: "center",
+                        render: (tx) => <ImageCell images={tx.images} />
+                    },
+                    {
+                        key: "status",
+                        header: t("status"),
+                        align: "center",
+                        render: (tx) => <StatusBadge status={tx.status} />
+                    }
+                ]}
+            />
         </div>
     );
 }

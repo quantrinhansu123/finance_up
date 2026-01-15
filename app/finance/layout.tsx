@@ -32,7 +32,8 @@ import {
     UserCircle
 } from "lucide-react";
 import LanguageToggle from "@/components/finance/LanguageToggle";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
+import LoadingScreen from "@/components/finance/LoadingScreen";
 
 export default function FinanceLayout({
     children,
@@ -58,6 +59,7 @@ function FinanceLayoutContent({
     const [user, setUser] = useState<any>(null);
     const [projects, setProjects] = useState<Project[]>([]);
     const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [isInitialLoading, setIsInitialLoading] = useState(true);
 
     // Default all groups to collapsed
     const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({
@@ -86,9 +88,16 @@ function FinanceLayoutContent({
                 setProjects(projs);
             } catch (e) {
                 console.error("Failed to load projects for permissions", e);
+            } finally {
+                // Tắt loading sau khi đã lấy xong cả user và projects
+                setTimeout(() => setIsInitialLoading(false), 800);
             }
         };
         if (user) loadProjects();
+        else if (localStorage.getItem("user") === null && sessionStorage.getItem("user") === null) {
+            // Không có user thì cũng tắt loading để router redirect
+            setIsInitialLoading(false);
+        }
     }, [user]);
 
     // Kiểm tra user có quyền gì trong các dự án
@@ -234,38 +243,9 @@ function FinanceLayoutContent({
 
     const SidebarContent = () => (
         <div className="h-full flex flex-col bg-[#080810] relative overflow-hidden">
-            {/* Sci-fi Base Layer */}
-            <div className="absolute inset-0 bg-grid-white pointer-events-none opacity-40" />
-
-            {/* Drifting sci-fi orbs */}
-            <motion.div
-                animate={{
-                    x: [0, 40, 0],
-                    y: [0, -40, 0],
-                    opacity: [0.1, 0.2, 0.1]
-                }}
-                transition={{ duration: 12, repeat: Infinity, ease: "linear" }}
-                className="absolute top-[-10%] right-[-10%] w-64 h-64 bg-cyan-500/20 rounded-full blur-[80px] pointer-events-none"
-            />
-
-            {/* Data Particles */}
-            {[...Array(5)].map((_, i) => (
-                <motion.div
-                    key={i}
-                    animate={{
-                        y: [-20, 1000],
-                        opacity: [0, 0.5, 0]
-                    }}
-                    transition={{
-                        duration: Math.random() * 10 + 10,
-                        repeat: Infinity,
-                        ease: "linear",
-                        delay: Math.random() * i
-                    }}
-                    style={{ left: `${Math.random() * 100}%` }}
-                    className="absolute w-[1px] h-12 bg-gradient-to-b from-blue-400/50 to-transparent pointer-events-none"
-                />
-            ))}
+            {/* static tech background elements */}
+            <div className="absolute inset-0 bg-grid-white pointer-events-none opacity-20" />
+            <div className="absolute top-[-10%] right-[-10%] w-64 h-64 bg-cyan-500/10 rounded-full blur-[80px] pointer-events-none" />
 
             {/* Brand */}
             <div className="h-16 flex items-center justify-between px-4 border-b border-white/[0.06] relative z-10">
@@ -426,112 +406,92 @@ function FinanceLayoutContent({
     );
 
     return (
-        <div className="flex h-screen w-full font-sans overflow-hidden text-white bg-[#121212]">
-            {/* Mobile Header */}
-            <div className="lg:hidden fixed top-0 left-0 right-0 h-14 bg-gradient-to-r from-[#0f0f1a]/95 via-[#12121f]/95 to-[#0f0f1a]/95 backdrop-blur-xl border-b border-white/[0.06] flex items-center justify-between px-4 z-40 shadow-lg shadow-black/20">
-                <button
-                    onClick={() => setSidebarOpen(true)}
-                    className="p-2 rounded-xl bg-white/[0.04] hover:bg-white/10 transition-all duration-200 border border-white/[0.06]"
+        <AnimatePresence mode="wait">
+            {isInitialLoading ? (
+                <motion.div
+                    key="loading"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="fixed inset-0 z-50"
                 >
-                    <Menu size={20} className="text-white/80" />
-                </button>
-                <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-md shadow-purple-500/20">
-                        <TrendingUp size={12} className="text-white" />
+                    <LoadingScreen />
+                </motion.div>
+            ) : (
+                <div key="content" className="flex h-screen w-full font-sans overflow-hidden text-white bg-[#121212]">
+                    {/* Mobile Header */}
+                    <div className="lg:hidden fixed top-0 left-0 right-0 h-14 bg-gradient-to-r from-[#0f0f1a]/95 via-[#12121f]/95 to-[#0f0f1a]/95 backdrop-blur-xl border-b border-white/[0.06] flex items-center justify-between px-4 z-40 shadow-lg shadow-black/20">
+                        <button
+                            onClick={() => setSidebarOpen(true)}
+                            className="p-2 rounded-xl bg-white/[0.04] hover:bg-white/10 transition-all duration-200 border border-white/[0.06]"
+                        >
+                            <Menu size={20} className="text-white/80" />
+                        </button>
+                        <div className="flex items-center gap-2">
+                            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-md shadow-purple-500/20">
+                                <TrendingUp size={12} className="text-white" />
+                            </div>
+                            <h1 className="text-lg font-black tracking-tight">
+                                <span className="bg-gradient-to-r from-white to-blue-100 bg-clip-text text-transparent">UPCARE</span>
+                            </h1>
+                        </div>
+                        <LanguageToggle />
                     </div>
-                    <h1 className="text-lg font-black tracking-tight">
-                        <span className="bg-gradient-to-r from-white to-blue-100 bg-clip-text text-transparent">UPCARE</span>
-                    </h1>
+
+                    {/* Mobile Overlay */}
+                    {sidebarOpen && (
+                        <div
+                            className="lg:hidden fixed inset-0 bg-black/60 z-40"
+                            onClick={() => setSidebarOpen(false)}
+                        />
+                    )}
+
+                    {/* Sidebar - Desktop */}
+                    <aside className="hidden lg:flex w-64 flex-col border-r border-white/[0.06] z-30 shadow-2xl shadow-black/50">
+                        <SidebarContent />
+                    </aside>
+
+                    {/* Sidebar - Mobile (Slide-in) */}
+                    <aside className={`lg:hidden fixed top-0 left-0 h-full w-80 flex flex-col border-r border-white/[0.06] z-50 transform transition-transform duration-300 ease-out shadow-2xl shadow-black/50 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"
+                        }`}>
+                        <SidebarContent />
+                    </aside>
+
+                    {/* Main Content Area */}
+                    <div className="flex-1 flex flex-col min-w-0 relative bg-[#05050a] overflow-hidden">
+                        {/* Sci-fi Base Layers */}
+                        <div className="absolute inset-0 bg-grid-white pointer-events-none opacity-30" />
+                        <div className="absolute inset-0 scanlines opacity-[0.4] pointer-events-none" />
+
+                        {/* Plasma Glows (Static) */}
+                        <div className="absolute top-[-10%] right-[-10%] w-[700px] h-[700px] bg-blue-600/5 rounded-full blur-[160px] pointer-events-none" />
+                        <div className="absolute bottom-[-20%] left-[-10%] w-[600px] h-[600px] bg-purple-600/5 rounded-full blur-[140px] pointer-events-none" />
+
+                        {/* static particles (Reduced) */}
+                        {[...Array(5)].map((_, i) => (
+                            <div
+                                key={i}
+                                style={{
+                                    top: `${10 + Math.random() * 80}%`,
+                                    left: `${5 + Math.random() * 90}%`
+                                }}
+                                className="absolute w-1 h-1 bg-cyan-400/20 rounded-sm pointer-events-none"
+                            />
+                        ))}
+
+                        {/* Static circuit line decor */}
+                        <div className="absolute top-[25%] left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-cyan-500/10 to-transparent pointer-events-none" />
+                        <div className="absolute bottom-[25%] left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-purple-500/10 to-transparent pointer-events-none" />
+
+                        {/* Content */}
+                        <main className="flex-1 overflow-y-auto p-4 pt-16 lg:pt-4 lg:p-6 relative z-10 scrollbar-thin">
+                            <div className="max-w-7xl mx-auto">
+                                {children}
+                            </div>
+                        </main>
+                    </div>
                 </div>
-                <LanguageToggle />
-            </div>
-
-            {/* Mobile Overlay */}
-            {sidebarOpen && (
-                <div
-                    className="lg:hidden fixed inset-0 bg-black/60 z-40"
-                    onClick={() => setSidebarOpen(false)}
-                />
             )}
-
-            {/* Sidebar - Desktop */}
-            <aside className="hidden lg:flex w-64 flex-col border-r border-white/[0.06] z-30 shadow-2xl shadow-black/50">
-                <SidebarContent />
-            </aside>
-
-            {/* Sidebar - Mobile (Slide-in) */}
-            <aside className={`lg:hidden fixed top-0 left-0 h-full w-80 flex flex-col border-r border-white/[0.06] z-50 transform transition-transform duration-300 ease-out shadow-2xl shadow-black/50 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"
-                }`}>
-                <SidebarContent />
-            </aside>
-
-            {/* Main Content Area */}
-            <div className="flex-1 flex flex-col min-w-0 relative bg-[#05050a] overflow-hidden">
-                {/* Sci-fi Base Layers */}
-                <div className="absolute inset-0 bg-grid-white pointer-events-none opacity-30" />
-                <div className="absolute inset-0 scanlines opacity-[0.4] pointer-events-none" />
-
-                {/* Plasma Glows */}
-                <motion.div
-                    animate={{
-                        scale: [1, 1.1, 1],
-                        opacity: [0.05, 0.15, 0.05],
-                        x: [0, 100, 0]
-                    }}
-                    transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
-                    className="absolute top-[-10%] right-[-10%] w-[700px] h-[700px] bg-blue-600/20 rounded-full blur-[160px] pointer-events-none"
-                />
-                <motion.div
-                    animate={{
-                        rotate: [0, 360],
-                    }}
-                    transition={{ duration: 40, repeat: Infinity, ease: "linear" }}
-                    className="absolute bottom-[-20%] left-[-10%] w-[600px] h-[600px] bg-purple-600/15 rounded-full blur-[140px] pointer-events-none"
-                />
-
-                {/* Cyber Particles (Floating Squares) */}
-                {[...Array(15)].map((_, i) => (
-                    <motion.div
-                        key={i}
-                        initial={{ opacity: 0, scale: 0 }}
-                        animate={{
-                            opacity: [0, 0.6, 0],
-                            scale: [0.5, 1, 0.5],
-                            y: [0, -200],
-                            x: [0, (i % 2 === 0 ? 30 : -30)]
-                        }}
-                        transition={{
-                            duration: 10 + Math.random() * 8,
-                            repeat: Infinity,
-                            delay: i * 0.5
-                        }}
-                        style={{
-                            top: `${10 + Math.random() * 80}%`,
-                            left: `${5 + Math.random() * 90}%`
-                        }}
-                        className="absolute w-1.5 h-1.5 border border-cyan-400/40 rounded-sm pointer-events-none shadow-[0_0_15px_rgba(34,211,238,0.5)]"
-                    />
-                ))}
-
-                {/* Floating Circuit Lines */}
-                <motion.div
-                    animate={{ opacity: [0.1, 0.4, 0.1], x: [-100, 100] }}
-                    transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
-                    className="absolute top-[25%] left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-cyan-500/30 to-transparent pointer-events-none"
-                />
-                <motion.div
-                    animate={{ opacity: [0.1, 0.4, 0.1], x: [100, -100] }}
-                    transition={{ duration: 12, repeat: Infinity, ease: "linear", delay: 3 }}
-                    className="absolute bottom-[25%] left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-purple-500/30 to-transparent pointer-events-none"
-                />
-
-                {/* Content */}
-                <main className="flex-1 overflow-y-auto p-4 pt-16 lg:pt-4 lg:p-6 relative z-10 scrollbar-thin">
-                    <div className="max-w-7xl mx-auto">
-                        {children}
-                    </div>
-                </main>
-            </div>
-        </div>
+        </AnimatePresence>
     );
 }
