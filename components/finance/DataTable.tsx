@@ -2,6 +2,7 @@
 
 import { useState, useMemo, ReactNode } from "react";
 import { ChevronLeft, ChevronRight, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
+import { useTranslation } from "@/lib/i18n";
 
 export interface Column<T> {
     key: string;
@@ -37,13 +38,15 @@ export default function DataTable<T extends { id?: string }>({
     columns,
     itemsPerPage = 15,
     onRowClick,
-    emptyMessage = "Không có dữ liệu",
-    showIndex = true,
-    colorScheme = "default",
     maxWidth = "w-full",
     layout = "auto",
+    emptyMessage,
+    showIndex = true,
+    colorScheme = "default",
 }: DataTableProps<T>) {
+    const { t, language } = useTranslation();
     const [currentPage, setCurrentPage] = useState(1);
+    const finalEmptyMessage = emptyMessage || t("no_data");
     const [sortConfig, setSortConfig] = useState<{ key: string; direction: "asc" | "desc" | null }>({
         key: "",
         direction: null,
@@ -208,7 +211,7 @@ export default function DataTable<T extends { id?: string }>({
             {/* Empty State */}
             {paginatedData.length === 0 && (
                 <div className="p-10 text-center text-white/30 text-lg">
-                    {emptyMessage}
+                    {finalEmptyMessage}
                 </div>
             )}
 
@@ -216,7 +219,7 @@ export default function DataTable<T extends { id?: string }>({
             {totalPages > 1 && (
                 <div className="flex flex-col sm:flex-row items-center justify-between p-4 border-t border-white/10 gap-4">
                     <div className="text-sm text-white/50 order-2 sm:order-1">
-                        Hiển thị {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, sortedData.length)} / {sortedData.length}
+                        {t("showing")} {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, sortedData.length)} {t("of")} {sortedData.length}
                     </div>
                     <div className="flex items-center gap-1 order-1 sm:order-2">
                         <button
@@ -278,15 +281,16 @@ export function AmountCell({ amount, type, currency }: { amount: number; type: "
 }
 
 export function StatusBadge({ status }: { status: "APPROVED" | "PENDING" | "REJECTED" | string }) {
+    const { t } = useTranslation();
     const styles = {
         APPROVED: "bg-green-500/20 text-green-400",
         PENDING: "bg-yellow-500/20 text-yellow-400",
         REJECTED: "bg-red-500/20 text-red-400",
     };
     const labels = {
-        APPROVED: "Đã duyệt",
-        PENDING: "Chờ duyệt",
-        REJECTED: "Từ chối",
+        APPROVED: t("approved"),
+        PENDING: t("pending"),
+        REJECTED: t("rejected"),
     };
     return (
         <span className={`px-2 py-1 rounded-lg text-xs font-medium ${styles[status as keyof typeof styles] || "bg-white/10 text-white/50"}`}>
@@ -296,9 +300,10 @@ export function StatusBadge({ status }: { status: "APPROVED" | "PENDING" | "REJE
 }
 
 export function DateCell({ date }: { date: string }) {
+    const { language } = useTranslation();
     return (
         <span className="text-white/70">
-            {new Date(date).toLocaleDateString("vi-VN")}
+            {new Date(date).toLocaleDateString(language === "vi" ? "vi-VN" : "en-US")}
         </span>
     );
 }

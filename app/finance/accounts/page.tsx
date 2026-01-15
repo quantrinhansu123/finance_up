@@ -14,8 +14,10 @@ import { Plus, Lock, Unlock, Edit2, History, Wallet, Trash2, Building2, Banknote
 import DataTableToolbar from "@/components/finance/DataTableToolbar";
 import { exportToCSV } from "@/lib/export";
 import DataTable, { ActionCell } from "@/components/finance/DataTable";
+import { useTranslation } from "@/lib/i18n";
 
 export default function AccountsPage() {
+    const { t } = useTranslation();
     const [accounts, setAccounts] = useState<Account[]>([]);
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [projects, setProjects] = useState<Record<string, string>>({});
@@ -62,7 +64,7 @@ export default function AccountsPage() {
     }, []);
 
     const toggleLock = async (acc: Account) => {
-        if (!confirm(`Bạn có chắc muốn ${acc.isLocked ? "MỞ KHÓA" : "KHÓA"} tài khoản "${acc.name}"?`)) return;
+        if (!confirm(t(acc.isLocked ? "unlock_confirm" : "lock_confirm").replace("{name}", acc.name))) return;
         try {
             await updateDoc(doc(db, "finance_accounts", acc.id), { isLocked: !acc.isLocked });
             fetchData();
@@ -74,20 +76,20 @@ export default function AccountsPage() {
     const deleteAccount = async (acc: Account) => {
         const hasTransactions = transactions.some(tx => tx.accountId === acc.id);
         if (hasTransactions) {
-            alert(`Không thể xóa tài khoản "${acc.name}" vì đã có giao dịch liên quan.\n\nBạn có thể KHÓA tài khoản thay vì xóa.`);
+            alert(t("delete_acc_has_tx").replace("{name}", acc.name));
             return;
         }
         if (acc.balance !== 0) {
-            alert(`Không thể xóa tài khoản "${acc.name}" vì số dư khác 0.`);
+            alert(t("delete_acc_balance_nonzero").replace("{name}", acc.name));
             return;
         }
-        if (!confirm(`Bạn có chắc muốn XÓA VĨNH VIỄN tài khoản "${acc.name}"?\n\nHành động này không thể hoàn tác!`)) return;
+        if (!confirm(t("delete_acc_confirm").replace("{name}", acc.name))) return;
         try {
             await deleteDoc(doc(db, "finance_accounts", acc.id));
             fetchData();
         } catch (e) {
             console.error("Failed to delete account", e);
-            alert("Lỗi khi xóa tài khoản");
+            alert(t("delete_failed_acc"));
         }
     };
 
@@ -133,32 +135,32 @@ export default function AccountsPage() {
     const currencies = Array.from(new Set(accounts.map(a => a.currency)));
     const types = Array.from(new Set(accounts.map(a => a.type)));
 
-    if (loading) return <div className="p-8 text-[var(--muted)] text-sm">Đang tải...</div>;
+    if (loading) return <div className="p-8 text-[var(--muted)] text-sm">{t("loading")}</div>;
 
     return (
         <div className="space-y-4">
             {/* Header */}
             <div className="flex items-center justify-between flex-wrap gap-3">
                 <div>
-                    <h1 className="text-xl font-bold text-white">Tài khoản Ngân hàng/Tiền mặt</h1>
-                    <p className="text-[10px] text-[var(--muted)]">Quản lý số dư và phân quyền</p>
+                    <h1 className="text-xl font-bold text-white">{t("accounts_title")}</h1>
+                    <p className="text-[10px] text-[var(--muted)]">{t("accounts_desc")}</p>
                 </div>
             </div>
 
             {/* Total Summary */}
             <div className="glass-card p-4 rounded-xl flex justify-between items-center bg-gradient-to-r from-emerald-900/30 to-transparent border border-emerald-500/20">
                 <div>
-                    <p className="text-[var(--muted)] text-xs uppercase font-semibold">Tổng thanh khoản (Quy đổi USD)</p>
+                    <p className="text-[var(--muted)] text-xs uppercase font-semibold">{t("total_liquidity")}</p>
                     <h2 className="text-2xl font-bold text-emerald-400 mt-1">${totalBalanceUSD.toLocaleString()}</h2>
                 </div>
                 <div className="text-right">
-                    <p className="text-xs text-[var(--muted)]">{accounts.length} tài khoản</p>
+                    <p className="text-xs text-[var(--muted)]">{t("account_count").replace("{count}", accounts.length.toString())}</p>
                 </div>
             </div>
 
             {/* Dashboard Toolbar */}
             <DataTableToolbar
-                searchPlaceholder="Tìm tên tài khoản..."
+                searchPlaceholder={t("search_accounts")}
                 onSearch={setSearchTerm}
                 activeFilters={activeFilters}
                 onFilterChange={(id, val) => setActiveFilters(prev => ({ ...prev, [id]: val }))}
@@ -167,28 +169,28 @@ export default function AccountsPage() {
                     setSearchTerm("");
                 }}
                 onExport={() => exportToCSV(filteredAccounts, "Danh_Sach_Tai_Khoan", {
-                    name: "Tên tài khoản",
-                    type: "Loại",
-                    currency: "Tiền tệ",
-                    balance: "Số dư",
+                    name: t("name"),
+                    type: t("type"),
+                    currency: t("currency"),
+                    balance: t("balance"),
                     projectId: "Mã dự án"
                 })}
                 onAdd={userRole === "ADMIN" ? () => setIsCreateModalOpen(true) : undefined}
-                addLabel="Thêm tài khoản"
+                addLabel={t("add_account")}
                 filters={[
                     {
                         id: "type",
-                        label: "Loại tài khoản",
+                        label: t("account_type"),
                         options: types.map(t => ({ value: t, label: t }))
                     },
                     {
                         id: "currency",
-                        label: "Tiền tệ",
+                        label: t("currency"),
                         options: currencies.map(c => ({ value: c, label: c }))
                     },
                     {
                         id: "projectId",
-                        label: "Dự án",
+                        label: t("projects"),
                         options: Object.entries(projects).map(([id, name]) => ({ value: id, label: name as string })),
                         advanced: true
                     }
@@ -199,12 +201,12 @@ export default function AccountsPage() {
             <DataTable
                 data={filteredAccounts}
                 colorScheme="green"
-                emptyMessage={accounts.length === 0 ? "Chưa có tài khoản nào" : "Không tìm thấy tài khoản phù hợp"}
+                emptyMessage={t("no_data")}
                 showIndex={false}
                 columns={[
                     {
                         key: "name",
-                        header: "Tên tài khoản",
+                        header: t("name"),
                         render: (acc) => (
                             <div className="flex items-center gap-2">
                                 {acc.isLocked && <Lock size={12} className="text-red-400" />}
@@ -214,7 +216,7 @@ export default function AccountsPage() {
                     },
                     {
                         key: "type",
-                        header: "Loại",
+                        header: t("type"),
                         render: (acc) => (
                             <span className="flex items-center gap-1 text-white/70">
                                 {getTypeIcon(acc.type)} {acc.type}
@@ -223,14 +225,14 @@ export default function AccountsPage() {
                     },
                     {
                         key: "currency",
-                        header: "Tiền tệ",
+                        header: t("currency"),
                         render: (acc) => (
                             <span className="bg-white/10 px-1.5 py-0.5 rounded text-[10px] font-mono">{acc.currency}</span>
                         )
                     },
                     {
                         key: "openingBalance",
-                        header: "Đầu kỳ",
+                        header: t("initial_balance"),
                         align: "right",
                         render: (acc) => (
                             <span className="text-white/70">{(acc.openingBalance || 0).toLocaleString()}</span>
@@ -238,7 +240,7 @@ export default function AccountsPage() {
                     },
                     {
                         key: "moneyIn",
-                        header: "Tổng thu",
+                        header: t("total_in"),
                         align: "right",
                         render: (acc) => {
                             const metrics = accountMetrics[acc.id] || { moneyIn: 0, moneyOut: 0, txCount: 0 };
@@ -247,7 +249,7 @@ export default function AccountsPage() {
                     },
                     {
                         key: "moneyOut",
-                        header: "Tổng chi",
+                        header: t("total_out"),
                         align: "right",
                         render: (acc) => {
                             const metrics = accountMetrics[acc.id] || { moneyIn: 0, moneyOut: 0, txCount: 0 };
@@ -256,13 +258,13 @@ export default function AccountsPage() {
                     },
                     {
                         key: "balance",
-                        header: "Số dư",
+                        header: t("balance"),
                         align: "right",
                         render: (acc) => <span className="font-bold text-white">{acc.balance.toLocaleString()}</span>
                     },
                     {
                         key: "project",
-                        header: "Dự án",
+                        header: t("projects"),
                         render: (acc) => acc.projectId ? (
                             <span className="text-blue-400 text-xs">{projects[acc.projectId] || "N/A"}</span>
                         ) : (
@@ -271,38 +273,38 @@ export default function AccountsPage() {
                     },
                     {
                         key: "actions",
-                        header: "Thao tác",
+                        header: t("actions"),
                         align: "center",
                         render: (acc) => (
                             <ActionCell>
                                 <button
                                     onClick={() => setEditingAccount(acc)}
                                     className="p-1.5 rounded hover:bg-white/10 text-white/40 hover:text-blue-400 transition-colors"
-                                    title="Sửa"
+                                    title={t("edit")}
                                 >
                                     <Edit2 size={14} />
                                 </button>
                                 <button
                                     onClick={() => toggleLock(acc)}
                                     className={`p-1.5 rounded transition-colors ${acc.isLocked
-                                            ? "text-red-400 hover:bg-red-500/20"
-                                            : "text-white/40 hover:text-yellow-400 hover:bg-white/10"
+                                        ? "text-red-400 hover:bg-red-500/20"
+                                        : "text-white/40 hover:text-yellow-400 hover:bg-white/10"
                                         }`}
-                                    title={acc.isLocked ? "Mở khóa" : "Khóa"}
+                                    title={t(acc.isLocked ? "unlock" : "lock")}
                                 >
                                     {acc.isLocked ? <Lock size={14} /> : <Unlock size={14} />}
                                 </button>
                                 <button
                                     onClick={() => deleteAccount(acc)}
                                     className="p-1.5 rounded hover:bg-red-500/20 text-white/40 hover:text-red-400 transition-colors"
-                                    title="Xóa"
+                                    title={t("delete")}
                                 >
                                     <Trash2 size={14} />
                                 </button>
                                 <Link
                                     href={`/finance/transactions?account=${acc.id}`}
                                     className="p-1.5 rounded hover:bg-white/10 text-white/40 hover:text-blue-400 transition-colors"
-                                    title="Xem lịch sử"
+                                    title={t("history")}
                                 >
                                     <History size={14} />
                                 </Link>

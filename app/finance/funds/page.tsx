@@ -8,8 +8,10 @@ import { History, X, Edit2, Trash2 } from "lucide-react";
 import DataTableToolbar from "@/components/finance/DataTableToolbar";
 import { exportToCSV } from "@/lib/export";
 import DataTable, { ActionCell } from "@/components/finance/DataTable";
+import { useTranslation } from "@/lib/i18n";
 
 export default function FundsPage() {
+    const { t } = useTranslation();
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [funds, setFunds] = useState<Fund[]>([]);
     const [loading, setLoading] = useState(true);
@@ -86,13 +88,13 @@ export default function FundsPage() {
 
     const handleDelete = async (e: React.MouseEvent, id: string) => {
         e.stopPropagation();
-        if (!confirm("Bạn có chắc muốn xóa quỹ này? Hành động này không thể hoàn tác.")) return;
+        if (!confirm(t("delete_fund_confirm"))) return;
         try {
             await deleteFund(id);
             fetchData();
         } catch (error) {
             console.error("Delete failed:", error);
-            alert("Xóa thất bại");
+            alert(t("delete_failed_fund"));
         }
     };
 
@@ -100,13 +102,13 @@ export default function FundsPage() {
         <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-3xl font-bold text-white">Quỹ & Nhóm Chi Phí</h1>
-                    <p className="text-[var(--muted)]">Quản lý ngân sách và phân bổ chi phí</p>
+                    <h1 className="text-3xl font-bold text-white">{t("funds_title")}</h1>
+                    <p className="text-[var(--muted)]">{t("funds_desc")}</p>
                 </div>
             </div>
 
             <DataTableToolbar
-                searchPlaceholder="Tìm tên quỹ..."
+                searchPlaceholder={t("search_funds")}
                 onSearch={setSearchTerm}
                 activeFilters={activeFilters}
                 onFilterChange={(id, val) => setActiveFilters(prev => ({ ...prev, [id]: val }))}
@@ -115,17 +117,17 @@ export default function FundsPage() {
                     setSearchTerm("");
                 }}
                 onExport={() => exportToCSV(filteredFunds, "Danh_Sach_Quy", {
-                    name: "Tên quỹ",
-                    description: "Mô tả",
-                    targetBudget: "Ngân sách",
-                    keywords: "Từ khóa"
+                    name: t("name"),
+                    description: t("description"),
+                    targetBudget: t("budget"),
+                    keywords: t("keywords")
                 })}
                 onAdd={handleCreate}
-                addLabel="Tạo Quỹ mới"
+                addLabel={t("create_fund")}
                 filters={[
                     {
                         id: "month",
-                        label: "Tháng báo cáo",
+                        label: t("report_month"),
                         options: Array.from(new Set(transactions.map(t => t.date.slice(0, 7)))).sort().reverse().map(m => ({ value: m, label: m }))
                     }
                 ]}
@@ -143,7 +145,7 @@ export default function FundsPage() {
                 columns={[
                     {
                         key: "name",
-                        header: "Tên quỹ",
+                        header: t("name"),
                         render: (fund) => (
                             <div className="font-medium text-white">
                                 {fund.name}
@@ -155,7 +157,7 @@ export default function FundsPage() {
                     },
                     {
                         key: "targetBudget",
-                        header: "Ngân sách",
+                        header: t("budget"),
                         align: "right",
                         render: (fund) => (
                             <span className="text-[var(--muted)]">
@@ -165,7 +167,7 @@ export default function FundsPage() {
                     },
                     {
                         key: "spent",
-                        header: "Đã chi (Tháng)",
+                        header: t("spent_month"),
                         align: "right",
                         render: (fund) => (
                             <span className="font-medium text-white">
@@ -175,7 +177,7 @@ export default function FundsPage() {
                     },
                     {
                         key: "pctBudget",
-                        header: "% Sử dụng",
+                        header: t("usage"),
                         align: "right",
                         render: (fund) => (
                             <div className="flex items-center justify-end gap-2">
@@ -195,7 +197,7 @@ export default function FundsPage() {
                     },
                     {
                         key: "keywords",
-                        header: "Từ khóa",
+                        header: t("keywords"),
                         render: (fund) => (
                             <div className="flex flex-wrap gap-1 max-w-[200px]">
                                 {fund.keywords && fund.keywords.length > 0 ? (
@@ -215,7 +217,7 @@ export default function FundsPage() {
                     },
                     {
                         key: "actions",
-                        header: "Actions",
+                        header: t("actions"),
                         align: "center",
                         width: "w-24",
                         render: (fund) => (
@@ -223,21 +225,21 @@ export default function FundsPage() {
                                 <button
                                     onClick={(e) => handleEdit(e, fund)}
                                     className="p-1.5 rounded hover:bg-white/10 text-[var(--muted)] hover:text-yellow-400 transition-colors"
-                                    title="Sửa"
+                                    title={t("edit")}
                                 >
                                     <Edit2 size={14} />
                                 </button>
                                 <button
                                     onClick={(e) => handleDelete(e, fund.id)}
                                     className="p-1.5 rounded hover:bg-red-500/20 text-[var(--muted)] hover:text-red-400 transition-colors"
-                                    title="Xóa"
+                                    title={t("delete")}
                                 >
                                     <Trash2 size={14} />
                                 </button>
                                 <button
                                     onClick={(e) => { e.stopPropagation(); setDetailFund(fund); }}
                                     className="p-1.5 rounded hover:bg-white/10 text-[var(--muted)] hover:text-blue-400 transition-colors"
-                                    title="Xem lịch sử"
+                                    title={t("history")}
                                 >
                                     <History size={14} />
                                 </button>
@@ -245,7 +247,7 @@ export default function FundsPage() {
                         )
                     }
                 ]}
-                emptyMessage={loading ? "Đang tải dữ liệu..." : funds.length === 0 ? "Chưa có quỹ nào. Hãy tạo quỹ mới." : "Không tìm thấy kết quả"}
+                emptyMessage={loading ? t("loading") : funds.length === 0 ? t("no_funds_created") : t("no_data")}
             />
 
             {/* Fund Detail Transaction Modal */}
@@ -258,16 +260,16 @@ export default function FundsPage() {
 
                         <div className="mb-6">
                             <h2 className="text-2xl font-bold text-white mb-1">{detailFund.name}</h2>
-                            <p className="text-[var(--muted)]">Giao dịch tháng {activeFilters.month}</p>
+                            <p className="text-[var(--muted)]">{t("tx_in_month").replace("{month}", activeFilters.month)}</p>
                         </div>
 
                         <div className="overflow-y-auto flex-1 pr-2">
                             <table className="w-full text-left text-sm">
                                 <thead className="bg-[#1a1a1a] text-[var(--muted)] sticky top-0 backdrop-blur-md uppercase text-xs font-semibold tracking-wider">
                                     <tr>
-                                        <th className="p-3 border-b border-white/10">Ngày</th>
-                                        <th className="p-3 border-b border-white/10">Mô tả / Danh mục</th>
-                                        <th className="p-3 border-b border-white/10 text-right">Số tiền</th>
+                                        <th className="p-3 border-b border-white/10">{t("date")}</th>
+                                        <th className="p-3 border-b border-white/10">{t("description")} / {t("categories")}</th>
+                                        <th className="p-3 border-b border-white/10 text-right">{t("amount")}</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-white/5">
@@ -286,14 +288,14 @@ export default function FundsPage() {
                                             </tr>
                                         ))}
                                     {getFundStats(detailFund).txs.length === 0 && (
-                                        <tr><td colSpan={3} className="p-8 text-center text-[var(--muted)]">Không có giao dịch trong tháng này</td></tr>
+                                        <tr><td colSpan={3} className="p-8 text-center text-[var(--muted)]">{t("tx_not_found_month")}</td></tr>
                                     )}
                                 </tbody>
                             </table>
                         </div>
 
                         <div className="mt-4 pt-4 border-t border-white/10 flex justify-between items-center">
-                            <span className="text-[var(--muted)]">Tổng chi tháng này:</span>
+                            <span className="text-[var(--muted)]">{t("total_spent_month")}</span>
                             <span className="text-xl font-bold text-red-400">
                                 {getFundStats(detailFund).spent.toLocaleString()}
                             </span>

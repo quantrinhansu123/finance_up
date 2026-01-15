@@ -10,6 +10,7 @@ import { Plus, Eye, Edit2, Trash2, Zap, X, Save } from "lucide-react";
 import DataTableToolbar from "@/components/finance/DataTableToolbar";
 import { exportToCSV } from "@/lib/export";
 import DataTable, { ActionCell } from "@/components/finance/DataTable";
+import { useTranslation } from "@/lib/i18n";
 
 const CURRENCY_COLORS: Record<string, string> = {
     "VND": "#ef4444",
@@ -19,6 +20,7 @@ const CURRENCY_COLORS: Record<string, string> = {
 };
 
 export default function FixedCostsPage() {
+    const { t } = useTranslation();
     const [costs, setCosts] = useState<FixedCost[]>([]);
     const [accounts, setAccounts] = useState<Account[]>([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -231,8 +233,8 @@ export default function FixedCostsPage() {
         <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-3xl font-bold text-white">Chi Phí Cố Định</h1>
-                    <p className="text-[var(--muted)]">Quản lý các khoản chi định kỳ (Thuê nhà, Lương, Server...)</p>
+                    <h1 className="text-3xl font-bold text-white">{t("fixed_costs")}</h1>
+                    <p className="text-[var(--muted)]">{t("fixed_costs_desc")}</p>
                 </div>
                 <div className="flex gap-4">
                     <button
@@ -241,13 +243,13 @@ export default function FixedCostsPage() {
                         className="glass-button px-4 py-2 rounded-lg font-medium bg-white/5 hover:bg-white/10 flex items-center gap-2 text-xs transition-colors"
                     >
                         <Zap size={14} className="text-yellow-400" />
-                        Tạo giao dịch tháng này
+                        {t("generate_monthly")}
                     </button>
                 </div>
             </div>
 
             <DataTableToolbar
-                searchPlaceholder="Tìm tên khoản chi..."
+                searchPlaceholder={t("search_cost")}
                 onSearch={setSearchTerm}
                 activeFilters={activeFilters}
                 onFilterChange={(id, val) => setActiveFilters(prev => ({ ...prev, [id]: val }))}
@@ -256,36 +258,36 @@ export default function FixedCostsPage() {
                     setSearchTerm("");
                 }}
                 onExport={() => exportToCSV(filteredCosts, "Chi_Phi_Co_Dinh", {
-                    name: "Tên khoản chi",
-                    amount: "Số tiền",
-                    currency: "Tiền tệ",
-                    cycle: "Chu kỳ",
-                    status: "Trạng thái",
-                    lastGenerated: "Tháng gần nhất"
+                    name: t("name"),
+                    amount: t("amount"),
+                    currency: t("currency"),
+                    cycle: t("cycle"),
+                    status: t("status"),
+                    lastGenerated: t("last_generated_month")
                 })}
                 onAdd={openCreateModal}
-                addLabel="Thêm Chi Phí"
+                addLabel={t("add_fixed_cost")}
                 filters={[
                     {
                         id: "status",
-                        label: "Trạng thái",
+                        label: t("status"),
                         options: [
-                            { value: "ON", label: "Đang bật" },
-                            { value: "OFF", label: "Đang tắt" }
+                            { value: "ON", label: t("on") },
+                            { value: "OFF", label: t("off") }
                         ]
                     },
                     {
                         id: "cycle",
-                        label: "Chu kỳ",
+                        label: t("cycle"),
                         options: [
-                            { value: "MONTHLY", label: "Hàng tháng" },
-                            { value: "QUARTERLY", label: "Hàng quý" },
-                            { value: "YEARLY", label: "Hàng năm" }
+                            { value: "MONTHLY", label: t("monthly") },
+                            { value: "QUARTERLY", label: t("quarterly") },
+                            { value: "YEARLY", label: t("yearly") }
                         ]
                     },
                     {
                         id: "accountId",
-                        label: "Tài khoản",
+                        label: t("accounts"),
                         options: accounts.map(a => ({ value: a.id, label: a.name })),
                         advanced: true
                     }
@@ -298,14 +300,14 @@ export default function FixedCostsPage() {
                 columns={[
                     {
                         key: "name",
-                        header: "Tên khoản chi",
+                        header: t("name"),
                         render: (cost) => (
                             <div className="font-bold text-white">{cost.name}</div>
                         )
                     },
                     {
                         key: "amount",
-                        header: "Số tiền",
+                        header: t("amount"),
                         align: "left",
                         render: (cost) => (
                             <div className="text-white">
@@ -316,25 +318,25 @@ export default function FixedCostsPage() {
                     },
                     {
                         key: "cycle",
-                        header: "Chu kỳ",
+                        header: t("cycle"),
                         render: (cost) => (
                             <span className="text-xs px-2 py-1 bg-white/5 rounded-full text-white/70">
-                                {cost.cycle === "MONTHLY" ? "Hàng tháng" : cost.cycle === "QUARTERLY" ? "Hàng quý" : "Hàng năm"}
+                                {cost.cycle === "MONTHLY" ? t("monthly") : cost.cycle === "QUARTERLY" ? t("quarterly") : t("yearly")}
                             </span>
                         )
                     },
                     {
                         key: "accountId",
-                        header: "Tài khoản trả",
+                        header: t("payment_account"),
                         render: (cost) => (
                             <div className="text-xs text-white/60">
-                                {accounts.find(a => a.id === cost.accountId)?.name || "Chưa gán"}
+                                {accounts.find(a => a.id === cost.accountId)?.name || t("unassigned")}
                             </div>
                         )
                     },
                     {
                         key: "status",
-                        header: "Trạng thái",
+                        header: t("status"),
                         align: "center",
                         render: (cost) => (
                             <div onClick={(e) => e.stopPropagation()}>
@@ -381,7 +383,7 @@ export default function FixedCostsPage() {
                         )
                     }
                 ]}
-                emptyMessage="Chưa có chi phí cố định nào"
+                emptyMessage={t("no_data")}
             />
 
             {/* Create/Edit Modal */}
@@ -393,17 +395,17 @@ export default function FixedCostsPage() {
                         </button>
                         <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
                             {selectedCost ? <Edit2 size={24} className="text-yellow-400" /> : <Plus size={24} className="text-blue-400" />}
-                            {selectedCost ? "Sửa Chi Phí Cố Định" : "Thêm Chi Phí Cố Định"}
+                            {selectedCost ? t("edit_fixed_cost") : t("create_fixed_cost")}
                         </h2>
                         <form onSubmit={handleSubmit} className="space-y-4">
                             <div>
-                                <label className="block text-sm font-medium text-[var(--muted)] mb-1">Tên khoản chi</label>
+                                <label className="block text-sm font-medium text-[var(--muted)] mb-1">{t("name")}</label>
                                 <input value={name} onChange={e => setName(e.target.value)} placeholder="VD: Tiền thuê nhà" className="glass-input w-full p-2 rounded-lg" required />
                             </div>
 
                             <div className="grid grid-cols-1 gap-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-[var(--muted)] mb-1">Số tiền & Tiền tệ</label>
+                                    <label className="block text-sm font-medium text-[var(--muted)] mb-1">{t("amount")} & {t("currency")}</label>
                                     <div className="flex gap-2">
                                         <div className="flex-1">
                                             <CurrencyInput
@@ -430,17 +432,17 @@ export default function FixedCostsPage() {
 
                             <div className="grid grid-cols-1 gap-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-[var(--muted)] mb-1">Chu kỳ lặp lại</label>
+                                    <label className="block text-sm font-medium text-[var(--muted)] mb-1">{t("cycle")}</label>
                                     <select value={cycle} onChange={e => setCycle(e.target.value as any)} className="glass-input w-full p-2 rounded-lg bg-[#1a1a1a] text-white border border-white/10">
-                                        <option value="MONTHLY" className="bg-[#1a1a1a] text-white">Hàng tháng</option>
-                                        <option value="QUARTERLY" className="bg-[#1a1a1a] text-white">Hàng quý</option>
-                                        <option value="YEARLY" className="bg-[#1a1a1a] text-white">Hàng năm</option>
+                                        <option value="MONTHLY" className="bg-[#1a1a1a] text-white">{t("monthly")}</option>
+                                        <option value="QUARTERLY" className="bg-[#1a1a1a] text-white">{t("quarterly")}</option>
+                                        <option value="YEARLY" className="bg-[#1a1a1a] text-white">{t("yearly")}</option>
                                     </select>
                                 </div>
                             </div>
 
                             <div>
-                                <label className="block text-sm font-medium text-[var(--muted)] mb-1">Tài khoản thanh toán mặc định</label>
+                                <label className="block text-sm font-medium text-[var(--muted)] mb-1">{t("default_payment_account")}</label>
                                 <select
                                     value={selectedAccountId}
                                     onChange={e => {
@@ -453,7 +455,7 @@ export default function FixedCostsPage() {
                                     }}
                                     className="glass-input w-full p-2 rounded-lg bg-[#1a1a1a] text-white border border-white/10"
                                 >
-                                    <option value="" className="bg-[#1a1a1a] text-white">Chọn tài khoản (Tùy chọn)</option>
+                                    <option value="" className="bg-[#1a1a1a] text-white">{t("select_account_optional")}</option>
                                     {accounts.map(acc => (
                                         <option key={acc.id} value={acc.id} className="bg-[#1a1a1a] text-white">{acc.name} ({acc.currency})</option>
                                     ))}
@@ -462,7 +464,7 @@ export default function FixedCostsPage() {
 
                             <button type="submit" className="flex items-center justify-center gap-2 w-full p-3 rounded-xl font-bold bg-blue-600 hover:bg-blue-500 text-white mt-4 border-none transition-all">
                                 <Save size={18} />
-                                {selectedCost ? "Cập nhật thay đổi" : "Lưu chi phí"}
+                                {selectedCost ? t("save") : t("save_cost")}
                             </button>
                         </form>
                     </div>
@@ -478,37 +480,37 @@ export default function FixedCostsPage() {
                         </button>
                         <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
                             <Eye size={24} className="text-blue-400" />
-                            Chi Tiết Chi Phí
+                            {t("cost_details")}
                         </h2>
                         <div className="space-y-4 text-sm">
                             <div className="flex justify-between border-b border-white/5 pb-2">
-                                <span className="text-[var(--muted)]">Tên khoản chi:</span>
+                                <span className="text-[var(--muted)]">{t("name")}:</span>
                                 <span className="text-white font-bold">{selectedCost.name}</span>
                             </div>
                             <div className="flex justify-between border-b border-white/5 pb-2">
-                                <span className="text-[var(--muted)]">Số tiền:</span>
+                                <span className="text-[var(--muted)]">{t("amount")}:</span>
                                 <span className="text-white font-bold">{new Intl.NumberFormat('vi-VN').format(selectedCost.amount)} {selectedCost.currency}</span>
                             </div>
                             <div className="flex justify-between border-b border-white/5 pb-2">
-                                <span className="text-[var(--muted)]">Chu kỳ:</span>
-                                <span className="text-white">{selectedCost.cycle === "MONTHLY" ? "Hàng tháng" : selectedCost.cycle === "QUARTERLY" ? "Hàng quý" : "Hàng năm"}</span>
+                                <span className="text-[var(--muted)]">{t("cycle")}:</span>
+                                <span className="text-white">{selectedCost.cycle === "MONTHLY" ? t("monthly") : selectedCost.cycle === "QUARTERLY" ? t("quarterly") : t("yearly")}</span>
                             </div>
                             <div className="flex justify-between border-b border-white/5 pb-2">
-                                <span className="text-[var(--muted)]">Tài khoản:</span>
-                                <span className="text-white">{accounts.find(a => a.id === selectedCost.accountId)?.name || "Chưa gán"}</span>
+                                <span className="text-[var(--muted)]">{t("accounts")}:</span>
+                                <span className="text-white">{accounts.find(a => a.id === selectedCost.accountId)?.name || t("unassigned")}</span>
                             </div>
                             <div className="flex justify-between border-b border-white/5 pb-2">
-                                <span className="text-[var(--muted)]">Trạng thái:</span>
-                                <span className={selectedCost.status === "ON" ? "text-green-500" : "text-gray-400"}>{selectedCost.status === "ON" ? "Đang bật" : "Đang tắt"}</span>
+                                <span className="text-[var(--muted)]">{t("status")}:</span>
+                                <span className={selectedCost.status === "ON" ? "text-green-500" : "text-gray-400"}>{selectedCost.status === "ON" ? t("on") : t("off")}</span>
                             </div>
                             <div className="flex justify-between border-b border-white/5 pb-2">
-                                <span className="text-[var(--muted)]">Tháng tạo gần nhất:</span>
-                                <span className="text-white">{selectedCost.lastGenerated || "Chưa tạo giao dịch"}</span>
+                                <span className="text-[var(--muted)]">{t("last_generated_month")}:</span>
+                                <span className="text-white">{selectedCost.lastGenerated || t("never_generated")}</span>
                             </div>
                         </div>
                         <button onClick={() => setIsViewModalOpen(false)} className="glass-button w-full p-3 rounded-xl font-bold bg-white/5 hover:bg-white/10 text-white mt-6 border-none flex items-center justify-center gap-2">
                             <X size={18} />
-                            Đóng
+                            {t("close")}
                         </button>
                     </div>
                 </div>

@@ -12,6 +12,7 @@ import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import Link from "next/link";
 import { BarChart3, Calendar } from "lucide-react";
+import { useTranslation } from "@/lib/i18n";
 
 const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884d8", "#82ca9d"];
 const FUND_COLORS: Record<string, string> = {
@@ -46,6 +47,7 @@ const FIXED_COST_CATEGORIES = [
 ];
 
 export default function DashboardPage() {
+    const { t, language } = useTranslation();
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [revenues, setRevenues] = useState<MonthlyRevenue[]>([]);
     const [funds, setFunds] = useState<Fund[]>([]);
@@ -184,14 +186,15 @@ export default function DashboardPage() {
         if (customDateFrom && customDateTo) {
             const from = new Date(customDateFrom);
             const to = new Date(customDateTo);
-            return `${from.toLocaleDateString('vi-VN')} - ${to.toLocaleDateString('vi-VN')}`;
+            const locale = language === "vi" ? 'vi-VN' : 'en-US';
+            return `${from.toLocaleDateString(locale)} - ${to.toLocaleDateString(locale)}`;
         }
         const labels: Record<DateRangePreset, string> = {
-            all: "Toàn bộ",
-            today: "Hôm nay",
-            this_week: "Tuần này",
-            this_month: "Tháng này",
-            this_year: "Năm nay"
+            all: t("all"),
+            today: t("today_label"),
+            this_week: t("week_label"),
+            this_month: t("month_label"),
+            this_year: t("year_label")
         };
         return labels[dateRangePreset];
     };
@@ -555,13 +558,13 @@ export default function DashboardPage() {
             const d = new Date(date);
 
             if (period === "day") {
-                dateLabel = d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+                dateLabel = d.toLocaleTimeString(language === "vi" ? 'vi-VN' : 'en-US', { hour: '2-digit', minute: '2-digit' });
             } else if (period === "month") {
-                dateLabel = d.toLocaleDateString('vi-VN', { day: 'numeric', month: 'short' });
+                dateLabel = d.toLocaleDateString(language === "vi" ? 'vi-VN' : 'en-US', { day: 'numeric', month: 'short' });
             } else if (period === "quarter") {
-                dateLabel = d.toLocaleDateString('vi-VN', { day: 'numeric', month: 'short' });
+                dateLabel = d.toLocaleDateString(language === "vi" ? 'vi-VN' : 'en-US', { day: 'numeric', month: 'short' });
             } else {
-                dateLabel = d.toLocaleDateString('vi-VN', { month: 'short', year: '2-digit' });
+                dateLabel = d.toLocaleDateString(language === "vi" ? 'vi-VN' : 'en-US', { month: 'short', year: '2-digit' });
             }
 
             const dateObj: any = { date: dateLabel };
@@ -620,28 +623,29 @@ export default function DashboardPage() {
 
     const formatCurrency = (val: number, currency?: string) => {
         if (currency && currency !== "USD") {
-            return new Intl.NumberFormat('vi-VN').format(val) + " " + currency;
+            const locale = language === "vi" ? 'vi-VN' : 'en-US';
+            return new Intl.NumberFormat(locale).format(val) + " " + currency;
         }
         return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(val);
     };
 
     const getPeriodLabel = () => {
         switch (viewPeriod) {
-            case "day": return "Hôm nay";
-            case "month": return "Tháng này";
-            case "quarter": return "Quý này";
-            case "year": return "Năm này";
+            case "day": return t("today_label");
+            case "month": return t("month_label");
+            case "quarter": return t("quarter_label");
+            case "year": return t("year_label");
         }
     };
 
-    if (loading) return <div className="p-8 text-[var(--muted)]">Loading Dashboard...</div>;
+    if (loading) return <div className="p-8 text-[var(--muted)]">{t("loading")}</div>;
 
     if (!canViewDashboard) {
         return (
             <div className="space-y-8">
                 <div>
-                    <h1 className="text-3xl font-bold text-white">Dashboard</h1>
-                    <p className="text-[var(--muted)]">Tổng quan tài chính</p>
+                    <h1 className="text-3xl font-bold text-white">{t("dashboard")}</h1>
+                    <p className="text-[var(--muted)]">{t("finance_overview")}</p>
                 </div>
 
                 <div className="glass-card p-8 rounded-xl text-center">
@@ -650,13 +654,13 @@ export default function DashboardPage() {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
                         </svg>
                     </div>
-                    <h3 className="text-xl font-semibold text-white mb-2">Chưa có quyền xem Dashboard</h3>
+                    <h3 className="text-xl font-semibold text-white mb-2">{t("no_dashboard_access")}</h3>
                     <p className="text-[var(--muted)] mb-4">
-                        Để xem Dashboard, bạn cần được phân quyền <strong className="text-blue-400">"Xem dashboard & báo cáo"</strong> trong ít nhất một dự án.
+                        {t("no_dashboard_desc")}
                     </p>
                     <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4 mb-4">
                         <p className="text-sm text-blue-400">
-                            💡 <strong>Hướng dẫn:</strong> Liên hệ quản trị viên hoặc chủ dự án để được cấp quyền truy cập.
+                            💡 <strong>{t("guide")}:</strong> {t("guide_desc")}
                         </p>
                     </div>
                     <div className="flex justify-center gap-3">
@@ -664,13 +668,13 @@ export default function DashboardPage() {
                             href="/finance/projects"
                             className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
                         >
-                            Xem dự án của tôi
+                            {t("my_projects")}
                         </Link>
                         <Link
                             href="/finance/profile"
                             className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors"
                         >
-                            Tài khoản của tôi
+                            {t("my_profile")}
                         </Link>
                     </div>
                 </div>
@@ -683,10 +687,10 @@ export default function DashboardPage() {
             {/* Header with Period Selector and Filters */}
             <div className="flex items-center justify-between flex-wrap gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold text-white">Tổng quan Tài chính</h1>
+                    <h1 className="text-3xl font-bold text-white">{t("finance_overview")}</h1>
                     <p className="text-[var(--muted)]">
                         {getDateRangeLabel()}
-                        {filterCurrency === "ALL" ? " • Quy đổi USD" : ` • ${filterCurrency}`}
+                        {filterCurrency === "ALL" ? ` • ${t("convert_usd")}` : ` • ${filterCurrency}`}
                         {filterProject && ` • ${projects.find(p => p.id === filterProject)?.name}`}
                     </p>
                 </div>
@@ -694,11 +698,11 @@ export default function DashboardPage() {
                     {/* Quick Date Presets */}
                     <div className="flex bg-white/5 rounded-lg p-0.5">
                         {([
-                            { key: "all", label: "Tất cả" },
-                            { key: "today", label: "Hôm nay" },
-                            { key: "this_week", label: "Tuần" },
-                            { key: "this_month", label: "Tháng" },
-                            { key: "this_year", label: "Năm" }
+                            { key: "all", label: t("all") },
+                            { key: "today", label: t("today") },
+                            { key: "this_week", label: t("week") },
+                            { key: "this_month", label: t("month") },
+                            { key: "this_year", label: t("year") }
                         ] as { key: DateRangePreset, label: string }[]).map(item => (
                             <button
                                 key={item.key}
@@ -724,8 +728,8 @@ export default function DashboardPage() {
                         >
                             <Calendar size={14} />
                             {customDateFrom && customDateTo
-                                ? `${new Date(customDateFrom).toLocaleDateString('vi-VN')} - ${new Date(customDateTo).toLocaleDateString('vi-VN')}`
-                                : "Chọn ngày"
+                                ? `${new Date(customDateFrom).toLocaleDateString(language === "vi" ? 'vi-VN' : 'en-US')} - ${new Date(customDateTo).toLocaleDateString(language === "vi" ? 'vi-VN' : 'en-US')}`
+                                : t("select_date")
                             }
                         </button>
 
@@ -733,7 +737,7 @@ export default function DashboardPage() {
                         {showDatePicker && (
                             <div className="absolute top-full right-0 mt-2 p-4 bg-[#1a1a1a] border border-white/10 rounded-xl shadow-xl z-50 min-w-[280px]">
                                 <div className="flex items-center justify-between mb-3">
-                                    <span className="text-sm font-medium text-white">Chọn khoảng thời gian</span>
+                                    <span className="text-sm font-medium text-white">{t("select_period")}</span>
                                     <button
                                         onClick={() => setShowDatePicker(false)}
                                         className="text-[var(--muted)] hover:text-white"
@@ -743,7 +747,7 @@ export default function DashboardPage() {
                                 </div>
                                 <div className="space-y-3">
                                     <div>
-                                        <label className="block text-xs text-[var(--muted)] mb-1">Từ ngày</label>
+                                        <label className="block text-xs text-[var(--muted)] mb-1">{t("from_date")}</label>
                                         <input
                                             type="date"
                                             value={customDateFrom}
@@ -752,7 +756,7 @@ export default function DashboardPage() {
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-xs text-[var(--muted)] mb-1">Đến ngày</label>
+                                        <label className="block text-xs text-[var(--muted)] mb-1">{t("to_date")}</label>
                                         <input
                                             type="date"
                                             value={customDateTo}
@@ -768,14 +772,14 @@ export default function DashboardPage() {
                                             }}
                                             className="flex-1 px-3 py-2 rounded-lg text-xs bg-white/5 hover:bg-white/10 text-[var(--muted)]"
                                         >
-                                            Xóa
+                                            {t("delete")}
                                         </button>
                                         <button
                                             onClick={applyCustomDateRange}
                                             disabled={!customDateFrom || !customDateTo}
                                             className="flex-1 px-3 py-2 rounded-lg text-xs bg-blue-500 hover:bg-blue-600 text-white disabled:opacity-50"
                                         >
-                                            Áp dụng
+                                            {t("apply")}
                                         </button>
                                     </div>
                                 </div>
@@ -789,7 +793,7 @@ export default function DashboardPage() {
                         onChange={(e) => setFilterProject(e.target.value)}
                         className="glass-input px-3 py-1.5 rounded-lg text-xs"
                     >
-                        <option value="">Tất cả dự án</option>
+                        <option value="">{t("all_projects")}</option>
                         {accessibleProjects.map(p => (
                             <option key={p.id} value={p.id}>{p.name}</option>
                         ))}
@@ -801,7 +805,7 @@ export default function DashboardPage() {
                         onChange={(e) => setFilterCurrency(e.target.value as Currency | "ALL")}
                         className="glass-input px-3 py-1.5 rounded-lg text-xs"
                     >
-                        <option value="ALL">Tất cả tiền tệ</option>
+                        <option value="ALL">{t("all_currencies")}</option>
                         <option value="VND">VND</option>
                         <option value="USD">USD</option>
                         <option value="KHR">KHR</option>
@@ -809,7 +813,7 @@ export default function DashboardPage() {
                     </select>
 
                     <Link href="/finance/transactions" className="glass-button px-3 py-1.5 rounded-lg text-xs">
-                        Xem giao dịch →
+                        {t("view")} {t("transactions")} →
                     </Link>
                 </div>
             </div>
@@ -820,7 +824,7 @@ export default function DashboardPage() {
                     <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
                         <span className="text-6xl">💰</span>
                     </div>
-                    <p className="text-[var(--muted)] text-sm font-medium uppercase mb-3">Tổng số dư</p>
+                    <p className="text-[var(--muted)] text-sm font-medium uppercase mb-3">{t("total_balance")}</p>
                     <div className="space-y-2">
                         {Object.entries(balanceByCurrency)
                             .filter(([_, balance]) => balance !== 0)
@@ -845,7 +849,7 @@ export default function DashboardPage() {
                     <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
                         <span className="text-6xl">📈</span>
                     </div>
-                    <p className="text-[var(--muted)] text-sm font-medium uppercase mb-3">Tiền vào ({getDateRangeLabel()})</p>
+                    <p className="text-[var(--muted)] text-sm font-medium uppercase mb-3">{t("money_in")} ({getDateRangeLabel()})</p>
                     <div className="space-y-2">
                         {Object.entries(periodInByCurrency)
                             .filter(([_, amount]) => amount !== 0)
@@ -870,7 +874,7 @@ export default function DashboardPage() {
                     <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
                         <span className="text-6xl">📉</span>
                     </div>
-                    <p className="text-[var(--muted)] text-sm font-medium uppercase mb-3">Tiền ra ({getDateRangeLabel()})</p>
+                    <p className="text-[var(--muted)] text-sm font-medium uppercase mb-3">{t("money_out")} ({getDateRangeLabel()})</p>
                     <div className="space-y-2">
                         {Object.entries(periodOutByCurrency)
                             .filter(([_, amount]) => amount !== 0)
@@ -892,17 +896,17 @@ export default function DashboardPage() {
                 </div>
 
                 <Link href="/finance/approvals" className="glass-card p-6 rounded-xl hover:bg-white/5 transition-colors cursor-pointer border-l-4 border-yellow-500 shadow-lg shadow-yellow-900/10">
-                    <p className="text-[var(--muted)] text-sm font-medium uppercase">Chờ duyệt</p>
+                    <p className="text-[var(--muted)] text-sm font-medium uppercase">{t("needs_action")}</p>
                     <h3 className="text-3xl font-bold text-yellow-400 mt-1">{pendingCount}</h3>
-                    <p className="text-xs text-[var(--muted)] mt-2">Cần xử lý</p>
+                    <p className="text-xs text-[var(--muted)] mt-2">{t("pending")}</p>
                 </Link>
             </div>
 
             {/* Account Cards - Compact */}
             <div className="glass-card p-4 rounded-xl border border-white/5">
                 <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-sm font-bold">💳 Tài khoản</h3>
-                    <Link href="/finance/accounts" className="text-xs text-[var(--muted)] hover:text-white">Quản lý →</Link>
+                    <h3 className="text-sm font-bold">💳 {t("accounts")}</h3>
+                    <Link href="/finance/accounts" className="text-xs text-[var(--muted)] hover:text-white">{t("manage")} →</Link>
                 </div>
                 <div className="flex flex-wrap gap-x-8 gap-y-6">
                     {Object.entries(
@@ -911,7 +915,7 @@ export default function DashboardPage() {
                             .filter(acc => !filterProject || !acc.projectId || acc.projectId === filterProject)
                             .reduce((groups, acc) => {
                                 const project = projects.find(p => p.id === acc.projectId);
-                                const groupName = project ? project.name : "Văn phòng / Cá nhân";
+                                const groupName = project ? project.name : t("unassigned_project");
                                 if (!groups[groupName]) groups[groupName] = [];
                                 groups[groupName].push(acc);
                                 return groups;
@@ -924,7 +928,7 @@ export default function DashboardPage() {
                                     {projectName}
                                 </h4>
                                 <span className="text-[9px] text-white/30 px-2 py-0.5 rounded-full border border-white/5 bg-white/5">
-                                    {projectAccounts.length} TK
+                                    {t("accounts_count").replace("{count}", projectAccounts.length.toString())}
                                 </span>
                             </div>
                             <div className="flex flex-wrap gap-3">
@@ -981,7 +985,7 @@ export default function DashboardPage() {
                         </div>
                     ))}
                     {accounts.length === 0 && (
-                        <div className="text-center text-[var(--muted)] py-2 text-xs">Chưa có tài khoản</div>
+                        <div className="text-center text-[var(--muted)] py-2 text-xs">{t("no_accounts")}</div>
                     )}
                 </div>
             </div>
@@ -989,11 +993,11 @@ export default function DashboardPage() {
             {/* Currency Breakdown Chart */}
             {currencyBreakdown.length > 0 && (
                 <div className="glass-card p-6 rounded-xl border border-white/5">
-                    <h3 className="text-lg font-bold mb-6">💵 Phân bổ Thu - Chi theo Loại tiền ({getPeriodLabel()} - Quy đổi {filterCurrency === "ALL" ? "USD" : filterCurrency})</h3>
+                    <h3 className="text-lg font-bold mb-6">💵 {t("currency_allocation")} ({getPeriodLabel()} - {t("convert_usd")} {filterCurrency === "ALL" ? "USD" : filterCurrency})</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                         {/* Income Pie Chart */}
                         <div className="flex flex-col">
-                            <p className="text-center text-sm font-medium text-[var(--muted)] mb-4">Thu vào theo Tiền tệ</p>
+                            <p className="text-center text-sm font-medium text-[var(--muted)] mb-4">{t("income_by_currency")}</p>
                             <div className="h-48 mb-6">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <PieChart>
@@ -1017,10 +1021,10 @@ export default function DashboardPage() {
                                             labelStyle={{ color: '#fff' }}
                                             formatter={(value: number, name: string, props: any) => {
                                                 const data = props.payload?.payload;
-                                                if (!data) return [formatCurrency(value, filterCurrency === "ALL" ? "USD" : filterCurrency), "Thu"];
+                                                if (!data) return [formatCurrency(value, filterCurrency === "ALL" ? "USD" : filterCurrency), t("income")];
                                                 return [
-                                                    `${new Intl.NumberFormat('vi-VN').format(data.originalIn || 0)} ${data.currency} (${formatCurrency(value, filterCurrency === "ALL" ? "USD" : filterCurrency)})`,
-                                                    "Thu"
+                                                    `${new Intl.NumberFormat(language === "vi" ? 'vi-VN' : 'en-US').format(data.originalIn || 0)} ${data.currency} (${formatCurrency(value, filterCurrency === "ALL" ? "USD" : filterCurrency)})`,
+                                                    t("income")
                                                 ];
                                             }}
                                         />
@@ -1041,14 +1045,14 @@ export default function DashboardPage() {
                                     </div>
                                 ))}
                                 {currencyBreakdown.filter(d => d.in > 0).length === 0 && (
-                                    <div className="text-[var(--muted)] text-sm text-center py-4">Chưa có dữ liệu thu</div>
+                                    <div className="text-[var(--muted)] text-sm text-center py-4">{t("no_income_data")}</div>
                                 )}
                             </div>
                         </div>
 
                         {/* Expense Pie Chart */}
                         <div className="flex flex-col">
-                            <p className="text-center text-sm font-medium text-[var(--muted)] mb-4">Chi ra theo Tiền tệ</p>
+                            <p className="text-center text-sm font-medium text-[var(--muted)] mb-4">{t("expense_by_currency")}</p>
                             <div className="h-48 mb-6">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <PieChart>
@@ -1072,10 +1076,10 @@ export default function DashboardPage() {
                                             labelStyle={{ color: '#fff' }}
                                             formatter={(value: number, name: string, props: any) => {
                                                 const data = props.payload?.payload;
-                                                if (!data) return [formatCurrency(value, filterCurrency === "ALL" ? "USD" : filterCurrency), "Chi"];
+                                                if (!data) return [formatCurrency(value, filterCurrency === "ALL" ? "USD" : filterCurrency), t("expense")];
                                                 return [
-                                                    `${new Intl.NumberFormat('vi-VN').format(data.originalOut || 0)} ${data.currency} (${formatCurrency(value, filterCurrency === "ALL" ? "USD" : filterCurrency)})`,
-                                                    "Chi"
+                                                    `${new Intl.NumberFormat(language === "vi" ? 'vi-VN' : 'en-US').format(data.originalOut || 0)} ${data.currency} (${formatCurrency(value, filterCurrency === "ALL" ? "USD" : filterCurrency)})`,
+                                                    t("expense")
                                                 ];
                                             }}
                                         />
@@ -1096,7 +1100,7 @@ export default function DashboardPage() {
                                     </div>
                                 ))}
                                 {currencyBreakdown.filter(d => d.out > 0).length === 0 && (
-                                    <div className="text-[var(--muted)] text-sm text-center py-4">Chưa có dữ liệu chi</div>
+                                    <div className="text-[var(--muted)] text-sm text-center py-4">{t("no_expense_data")}</div>
                                 )}
                             </div>
                         </div>
@@ -1108,7 +1112,7 @@ export default function DashboardPage() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Expense Breakdown */}
                 <div className="glass-card p-6 rounded-xl border border-white/5">
-                    <h3 className="text-lg font-bold mb-4">📊 Tỷ lệ chi ({getPeriodLabel()})</h3>
+                    <h3 className="text-lg font-bold mb-4">📊 {t("expense_ratio")} ({getPeriodLabel()})</h3>
                     <div className="h-48 mb-4">
                         <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
@@ -1121,14 +1125,14 @@ export default function DashboardPage() {
                                     labelStyle={{ color: '#fff' }}
                                     formatter={(value: number, name: string, props: any) => {
                                         const data = props.payload?.payload;
-                                        if (!data) return [formatCurrency(value, filterCurrency === "ALL" ? "USD" : filterCurrency), "Chi phí"];
+                                        if (!data) return [formatCurrency(value, filterCurrency === "ALL" ? "USD" : filterCurrency), t("expense")];
                                         const originals = data.originals;
                                         const originalStr = Object.entries(originals || {})
                                             .map(([curr, amt]) => `${new Intl.NumberFormat('vi-VN').format(amt as number)} ${curr}`)
                                             .join(' + ');
                                         return [
                                             `${originalStr || '0'} (${filterCurrency === "ALL" ? formatCurrency(value) : formatCurrency(value, filterCurrency)})`,
-                                            "Chi phí"
+                                            t("expense")
                                         ];
                                     }}
                                 />
@@ -1147,13 +1151,13 @@ export default function DashboardPage() {
                                 </span>
                             </div>
                         ))}
-                        {catData.length === 0 && <div className="text-[var(--muted)] text-sm text-center py-4">Chưa có dữ liệu</div>}
+                        {catData.length === 0 && <div className="text-[var(--muted)] text-sm text-center py-4">{t("no_data")}</div>}
                     </div>
                 </div>
 
                 {/* Income Breakdown */}
                 <div className="glass-card p-6 rounded-xl border border-white/5">
-                    <h3 className="text-lg font-bold mb-4">💰 Tỷ lệ thu ({getPeriodLabel()})</h3>
+                    <h3 className="text-lg font-bold mb-4">💰 {t("income_ratio")} ({getPeriodLabel()})</h3>
                     <div className="h-48 mb-4">
                         <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
@@ -1171,14 +1175,14 @@ export default function DashboardPage() {
                                     labelStyle={{ color: '#fff' }}
                                     formatter={(value: number, name: string, props: any) => {
                                         const data = props.payload?.payload;
-                                        if (!data) return [formatCurrency(value, filterCurrency === "ALL" ? "USD" : filterCurrency), "Thu nhập"];
+                                        if (!data) return [formatCurrency(value, filterCurrency === "ALL" ? "USD" : filterCurrency), t("income")];
                                         const originals = data.originals;
                                         const originalStr = Object.entries(originals || {})
                                             .map(([curr, amt]) => `${new Intl.NumberFormat('vi-VN').format(amt as number)} ${curr}`)
                                             .join(' + ');
                                         return [
                                             `${originalStr || '0'} (${filterCurrency === "ALL" ? formatCurrency(value) : formatCurrency(value, filterCurrency)})`,
-                                            "Thu nhập"
+                                            t("income")
                                         ];
                                     }}
                                 />
@@ -1197,7 +1201,7 @@ export default function DashboardPage() {
                                 </span>
                             </div>
                         ))}
-                        {Object.entries(categoryTotals).filter(([_, d]) => d.in > 0).length === 0 && <div className="text-[var(--muted)] text-sm text-center py-4">Chưa có dữ liệu</div>}
+                        {Object.entries(categoryTotals).filter(([_, d]) => d.in > 0).length === 0 && <div className="text-[var(--muted)] text-sm text-center py-4">{t("no_data")}</div>}
                     </div>
                 </div>
             </div>
@@ -1206,7 +1210,7 @@ export default function DashboardPage() {
             {/* Category Trend Area Chart */}
             <div className="glass-card p-6 rounded-xl border border-white/5">
                 <h3 className="text-lg font-bold mb-6">
-                    Biến động Chi phí theo Hạng mục ({getPeriodLabel()})
+                    {t("cost_fluctuation")} ({getPeriodLabel()})
                 </h3>
                 <div className="h-80">
                     <ResponsiveContainer width="100%" height="100%">
@@ -1263,7 +1267,7 @@ export default function DashboardPage() {
 
             {/* Fund Expense Cards */}
             <div className="glass-card p-6 rounded-xl border border-white/5">
-                <h3 className="text-lg font-bold mb-4">Chi theo Quỹ ({getPeriodLabel()})</h3>
+                <h3 className="text-lg font-bold mb-4">{t("expense_by_fund")} ({getPeriodLabel()})</h3>
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                     {Object.entries(fundExpenses).map(([name, amount]) => (
                         <div key={name} className="bg-white/5 rounded-xl p-4 border border-white/10">
@@ -1279,14 +1283,14 @@ export default function DashboardPage() {
                             </div>
                             {periodOut > 0 && (
                                 <div className="text-xs text-[var(--muted)] mt-1">
-                                    {((amount / periodOut) * 100).toFixed(1)}% tổng chi
+                                    {t("total_expense_percent").replace("{percent}", ((amount / periodOut) * 100).toFixed(1))}
                                 </div>
                             )}
                         </div>
                     ))}
                     {Object.keys(fundExpenses).length === 0 && (
                         <div className="col-span-full text-center text-[var(--muted)] py-4">
-                            Chưa có dữ liệu quỹ. Vui lòng tạo quỹ và gắn giao dịch.
+                            {t("no_fund_data")}
                         </div>
                     )}
                 </div>
@@ -1294,7 +1298,7 @@ export default function DashboardPage() {
 
             {/* Project Expense Comparison by Category */}
             <div className="glass-card p-6 rounded-xl border border-white/5">
-                <h3 className="text-lg font-bold mb-6">📊 So sánh Chi phí theo Danh mục giữa các Dự án ({getPeriodLabel()})</h3>
+                <h3 className="text-lg font-bold mb-6">📊 {t("project_comparison")} ({getPeriodLabel()})</h3>
 
                 {(() => {
                     // Prepare data for project expense comparison
@@ -1316,7 +1320,7 @@ export default function DashboardPage() {
                             const project = projects.find(p => p.id === tx.projectId);
                             if (!project) return;
 
-                            const category = tx.parentCategory || tx.category || "Khác";
+                            const category = tx.parentCategory || tx.category || t("all");
                             allCategories.add(category);
 
                             if (!projectExpenseByCategory[project.name]) {
@@ -1407,13 +1411,13 @@ export default function DashboardPage() {
                                 <table className="w-full text-sm">
                                     <thead>
                                         <tr className="border-b border-white/10">
-                                            <th className="text-left p-3 text-[var(--muted)] font-medium">Danh mục</th>
+                                            <th className="text-left p-3 text-[var(--muted)] font-medium">{t("categories")}</th>
                                             {projectNames.map(projectName => (
                                                 <th key={projectName} className="text-right p-3 text-[var(--muted)] font-medium">
                                                     {projectName}
                                                 </th>
                                             ))}
-                                            <th className="text-right p-3 text-[var(--muted)] font-medium">Tổng</th>
+                                            <th className="text-right p-3 text-[var(--muted)] font-medium">{t("all")}</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -1443,7 +1447,7 @@ export default function DashboardPage() {
                     ) : (
                         <div className="text-center py-8 text-[var(--muted)]">
                             <BarChart3 size={40} className="mx-auto mb-3 opacity-50" />
-                            <p>Chưa có dữ liệu chi phí để so sánh</p>
+                            <p>{t("no_comp_data")}</p>
                         </div>
                     );
                 })()}
@@ -1452,13 +1456,13 @@ export default function DashboardPage() {
             {/* Project Summary with Chart */}
             <div className="glass-card p-6 rounded-xl border border-white/5">
                 <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-bold">📁 Thu Chi theo Dự án ({getPeriodLabel()})</h3>
+                    <h3 className="text-lg font-bold">📁 {t("income_expense_by_project")} ({getPeriodLabel()})</h3>
                     {projects.filter(p => projectStats[p.id] && (projectStats[p.id].in > 0 || projectStats[p.id].out > 0)).length > 5 && (
                         <button
                             onClick={() => setShowAllProjects(!showAllProjects)}
                             className="text-sm text-blue-400 hover:text-blue-300 transition-colors"
                         >
-                            {showAllProjects ? "Thu gọn ↑" : `Xem tất cả ↓`}
+                            {showAllProjects ? `${t("collapse")} ↑` : `${t("view_all")} ↓`}
                         </button>
                     )}
                 </div>
@@ -1485,8 +1489,8 @@ export default function DashboardPage() {
                                 formatter={(value: number) => filterCurrency === "ALL" ? formatCurrency(value) : formatCurrency(value, filterCurrency)}
                             />
                             <Legend />
-                            <Bar dataKey="thu" name="Thu" fill="#4ade80" radius={[0, 4, 4, 0]} />
-                            <Bar dataKey="chi" name="Chi" fill="#f87171" radius={[0, 4, 4, 0]} />
+                            <Bar dataKey="thu" name={t("income")} fill="#4ade80" radius={[0, 4, 4, 0]} />
+                            <Bar dataKey="chi" name={t("expense")} fill="#f87171" radius={[0, 4, 4, 0]} />
                         </BarChart>
                     </ResponsiveContainer>
                 </div>
@@ -1495,12 +1499,12 @@ export default function DashboardPage() {
                     <table className="w-full text-left text-sm">
                         <thead className="bg-[#1a1a1a] text-[var(--muted)] text-xs uppercase font-semibold tracking-wider">
                             <tr>
-                                <th className="p-4 border-b border-white/10">Dự án</th>
-                                <th className="p-4 border-b border-white/10 text-right">Ngân sách</th>
-                                <th className="p-4 border-b border-white/10 text-right">Thu</th>
-                                <th className="p-4 border-b border-white/10 text-right">Chi</th>
-                                <th className="p-4 border-b border-white/10 text-right">Còn lại</th>
-                                <th className="p-4 border-b border-white/10 text-right">% Sử dụng</th>
+                                <th className="p-4 border-b border-white/10">{t("projects")}</th>
+                                <th className="p-4 border-b border-white/10 text-right">{t("budget")}</th>
+                                <th className="p-4 border-b border-white/10 text-right">{t("income")}</th>
+                                <th className="p-4 border-b border-white/10 text-right">{t("expense")}</th>
+                                <th className="p-4 border-b border-white/10 text-right">{t("remaining")}</th>
+                                <th className="p-4 border-b border-white/10 text-right">{t("usage")}</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-white/5">
@@ -1558,7 +1562,7 @@ export default function DashboardPage() {
                             {projects.filter(p => projectStats[p.id] && (projectStats[p.id].in > 0 || projectStats[p.id].out > 0)).length === 0 && (
                                 <tr>
                                     <td colSpan={6} className="p-8 text-center text-[var(--muted)]">
-                                        Chưa có dữ liệu dự án trong kỳ này
+                                        {t("no_data")}
                                     </td>
                                 </tr>
                             )}
@@ -1570,11 +1574,11 @@ export default function DashboardPage() {
             {/* Daily Category Stats - Accordion Style */}
             <div className="glass-card p-6 rounded-xl border border-white/5">
                 <div className="flex items-center justify-between mb-4 gap-4">
-                    <h3 className="text-lg font-bold">Chi tiết theo ngày ({getPeriodLabel()})</h3>
+                    <h3 className="text-lg font-bold">{t("daily_details")} ({getPeriodLabel()})</h3>
                     <div className="flex items-center gap-2">
                         <input
                             type="text"
-                            placeholder="Tìm hạng mục..."
+                            placeholder={t("search_category_detail")}
                             value={dailySearchTerm}
                             onChange={(e) => setDailySearchTerm(e.target.value)}
                             className="glass-input px-3 py-2 rounded-lg text-sm w-48"
@@ -1584,7 +1588,7 @@ export default function DashboardPage() {
                                 onClick={() => setShowAllDays(!showAllDays)}
                                 className="text-sm text-blue-400 hover:text-blue-300 transition-colors whitespace-nowrap"
                             >
-                                {showAllDays ? "Thu gọn" : `Xem thêm (${dailyCategoryStats.length})`}
+                                {showAllDays ? t("collapse") : `${t("view_more")} (${dailyCategoryStats.length})`}
                             </button>
                         )}
                     </div>
@@ -1616,28 +1620,28 @@ export default function DashboardPage() {
                                                 <span className="text-2xl group-open:rotate-90 transition-transform">▶</span>
                                                 <div>
                                                     <div className="font-bold text-white">
-                                                        {new Date(date).toLocaleDateString('vi-VN', { weekday: 'short', day: 'numeric', month: 'short' })}
+                                                        {new Date(date).toLocaleDateString(language === "vi" ? 'vi-VN' : 'en-US', { weekday: 'short', day: 'numeric', month: 'short' })}
                                                     </div>
                                                     <div className="text-xs text-[var(--muted)]">
-                                                        {Object.keys(categories).length} hạng mục
+                                                        {t("num_categories").replace("{count}", Object.keys(categories).length.toString())}
                                                     </div>
                                                 </div>
                                             </div>
                                             <div className="flex items-center gap-4">
                                                 <div className="text-right">
-                                                    <div className="text-xs text-[var(--muted)]">Thu</div>
+                                                    <div className="text-xs text-[var(--muted)]">{t("income")}</div>
                                                     <div className="text-sm font-bold text-green-400">
                                                         {dailyIn > 0 ? (filterCurrency === "ALL" ? formatCurrency(dailyIn) : formatCurrency(dailyIn, filterCurrency)) : "-"}
                                                     </div>
                                                 </div>
                                                 <div className="text-right">
-                                                    <div className="text-xs text-[var(--muted)]">Chi</div>
+                                                    <div className="text-xs text-[var(--muted)]">{t("expense")}</div>
                                                     <div className="text-sm font-bold text-red-400">
                                                         {dailyOut > 0 ? (filterCurrency === "ALL" ? formatCurrency(dailyOut) : formatCurrency(dailyOut, filterCurrency)) : "-"}
                                                     </div>
                                                 </div>
                                                 <div className="text-right min-w-[100px]">
-                                                    <div className="text-xs text-[var(--muted)]">Biến động</div>
+                                                    <div className="text-xs text-[var(--muted)]">{t("fluctuation")}</div>
                                                     <div className={`text-sm font-bold ${dailyDiff >= 0 ? "text-green-400" : "text-red-400"}`}>
                                                         {dailyDiff >= 0 ? "↑" : "↓"} {filterCurrency === "ALL" ? formatCurrency(Math.abs(dailyDiff)) : formatCurrency(Math.abs(dailyDiff), filterCurrency)}
                                                     </div>
@@ -1683,7 +1687,7 @@ export default function DashboardPage() {
                         })}
                     {dailyCategoryStats.length === 0 && (
                         <div className="text-center text-[var(--muted)] py-8">
-                            Chưa có dữ liệu
+                            {t("no_data")}
                         </div>
                     )}
                 </div>
@@ -1692,7 +1696,7 @@ export default function DashboardPage() {
             {/* Salary Ratio Section */}
             {salaryRatios.length > 0 && (
                 <div className="glass-card p-6 rounded-xl border border-white/5">
-                    <h3 className="text-lg font-bold mb-4">Tỷ lệ Lương / Doanh thu ({getPeriodLabel()})</h3>
+                    <h3 className="text-lg font-bold mb-4">{t("salary_revenue_ratio")} ({getPeriodLabel()})</h3>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         {salaryRatios.map((item) => (
                             <div key={item.name} className="relative">
@@ -1720,7 +1724,7 @@ export default function DashboardPage() {
                 {/* High Value Transactions */}
                 <div className="glass-card p-6 rounded-xl border-l-4 border-red-500 shadow-lg shadow-red-900/10">
                     <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-                        <span className="text-red-400">⚠️</span> Khoản chi lớn (&gt;5 triệu / &gt;$100)
+                        <span className="text-red-400">⚠️</span> {t("large_expenses")}
                     </h3>
                     {highValueTxs.length > 0 ? (
                         <div className="space-y-3">
@@ -1728,7 +1732,7 @@ export default function DashboardPage() {
                                 <div key={tx.id} className="flex justify-between items-center p-3 bg-white/5 rounded-lg border border-white/5">
                                     <div>
                                         <div className="font-medium text-white">{tx.category}</div>
-                                        <div className="text-xs text-[var(--muted)]">{new Date(tx.date).toLocaleDateString()}</div>
+                                        <div className="text-xs text-[var(--muted)]">{new Date(tx.date).toLocaleDateString(language === "vi" ? 'vi-VN' : 'en-US')}</div>
                                     </div>
                                     <div className="text-right">
                                         <div className="font-bold text-red-400">{tx.amount.toLocaleString()} {tx.currency}</div>
@@ -1743,14 +1747,14 @@ export default function DashboardPage() {
                             ))}
                         </div>
                     ) : (
-                        <p className="text-[var(--muted)] text-center py-4">Không có khoản chi lớn</p>
+                        <p className="text-[var(--muted)] text-center py-4">{t("no_large_expenses")}</p>
                     )}
                 </div>
 
                 {/* Pending Approvals */}
                 <div className="glass-card p-6 rounded-xl border-l-4 border-yellow-500 shadow-lg shadow-yellow-900/10">
                     <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-                        <span className="text-yellow-400">⏳</span> Đang chờ duyệt
+                        <span className="text-yellow-400">⏳</span> {t("pending_approvals")}
                     </h3>
                     {pendingTxs.length > 0 ? (
                         <div className="space-y-3">
@@ -1764,11 +1768,11 @@ export default function DashboardPage() {
                                 </div>
                             ))}
                             <Link href="/finance/approvals" className="block text-center text-sm text-blue-400 hover:text-blue-300 mt-2">
-                                Xem tất cả →
+                                {t("view_all")} →
                             </Link>
                         </div>
                     ) : (
-                        <p className="text-[var(--muted)] text-center py-4">✓ Không có giao dịch chờ duyệt</p>
+                        <p className="text-[var(--muted)] text-center py-4">{t("no_pending_approvals")}</p>
                     )}
                 </div>
             </div>
@@ -1776,18 +1780,18 @@ export default function DashboardPage() {
             {/* Recent Transactions Table */}
             <div className="glass-card rounded-xl overflow-hidden border border-white/5">
                 <div className="p-6 border-b border-white/5 flex justify-between items-center bg-[#1a1a1a]">
-                    <h3 className="text-lg font-bold">Giao dịch gần đây</h3>
-                    <Link href="/finance/transactions" className="text-sm text-blue-400 hover:text-blue-300">Xem tất cả</Link>
+                    <h3 className="text-lg font-bold">{t("recent_transactions")}</h3>
+                    <Link href="/finance/transactions" className="text-sm text-blue-400 hover:text-blue-300">{t("view_all")}</Link>
                 </div>
                 <div className="overflow-x-auto">
                     <table className="w-full text-left">
                         <thead className="bg-[#1a1a1a] text-[var(--muted)] text-xs uppercase font-semibold tracking-wider">
                             <tr>
-                                <th className="p-4 border-b border-white/10">Ngày</th>
-                                <th className="p-4 border-b border-white/10">Mô tả</th>
-                                <th className="p-4 border-b border-white/10">Số tiền</th>
-                                <th className="p-4 border-b border-white/10">Tiền tệ</th>
-                                <th className="p-4 border-b border-white/10">Trạng thái</th>
+                                <th className="p-4 border-b border-white/10">{t("date")}</th>
+                                <th className="p-4 border-b border-white/10">{t("description")}</th>
+                                <th className="p-4 border-b border-white/10">{t("amount")}</th>
+                                <th className="p-4 border-b border-white/10">{t("currency")}</th>
+                                <th className="p-4 border-b border-white/10">{t("status")}</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-white/5">
@@ -1798,7 +1802,7 @@ export default function DashboardPage() {
                                 .map(tx => (
                                     <tr key={tx.id} className="hover:bg-white/5 transition-colors">
                                         <td className="p-4 text-[var(--muted)]">
-                                            {new Date(tx.date).toLocaleDateString('vi-VN')}
+                                            {new Date(tx.date).toLocaleDateString(language === "vi" ? 'vi-VN' : 'en-US')}
                                         </td>
                                         <td className="p-4">
                                             <div className="font-medium text-white">{tx.category}</div>
@@ -1819,7 +1823,7 @@ export default function DashboardPage() {
                                                 tx.status === "PENDING" ? "bg-yellow-500/20 text-yellow-400" :
                                                     "bg-red-500/20 text-red-400"
                                                 }`}>
-                                                {tx.status === "APPROVED" ? "Đã duyệt" : tx.status === "PENDING" ? "Chờ duyệt" : "Từ chối"}
+                                                {tx.status === "APPROVED" ? t("approved") : tx.status === "PENDING" ? t("pending") : t("rejected")}
                                             </span>
                                         </td>
                                     </tr>

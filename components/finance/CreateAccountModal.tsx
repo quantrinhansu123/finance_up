@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { createAccount, getProjects } from "@/lib/finance";
 import { Currency, Project } from "@/types/finance";
 import { X } from "lucide-react";
+import { useTranslation } from "@/lib/i18n";
 
 interface CreateAccountModalProps {
     isOpen: boolean;
@@ -36,6 +37,7 @@ const EXPENSE_CATEGORIES = [
 ];
 
 export default function CreateAccountModal({ isOpen, onClose, onSuccess }: CreateAccountModalProps) {
+    const { t } = useTranslation();
     const [name, setName] = useState("");
     const [type, setType] = useState<AccountType>("BANK");
     const [currency, setCurrency] = useState<Currency>("VND");
@@ -90,10 +92,10 @@ export default function CreateAccountModal({ isOpen, onClose, onSuccess }: Creat
                     type: "IN",
                     amount: numBalance,
                     currency,
-                    category: "Số dư đầu kỳ",
+                    category: t("opening_balance_cat"),
                     accountId: accountId,
                     projectId: projectId || undefined,
-                    description: "Khởi tạo tài khoản",
+                    description: t("init_account_desc"),
                     date: new Date().toISOString(),
                     status: "APPROVED",
                     createdBy: "System",
@@ -128,38 +130,37 @@ export default function CreateAccountModal({ isOpen, onClose, onSuccess }: Creat
                     <X size={18} />
                 </button>
 
-                <h2 className="text-lg font-bold mb-4">Thêm tài khoản mới</h2>
+                <h2 className="text-lg font-bold mb-4">{t("add_account_title")}</h2>
 
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
-                        <label className="block text-xs font-medium text-[var(--muted)] mb-1">Tên tài khoản</label>
+                        <label className="block text-xs font-medium text-[var(--muted)] mb-1">{t("account_name_label")}</label>
                         <input
                             type="text"
                             value={name}
                             onChange={(e) => setName(e.target.value)}
                             className="glass-input w-full p-2 rounded-lg text-sm"
-                            placeholder="VD: Vietcombank, Tiền mặt VP..."
+                            placeholder={t("account_name_placeholder")}
                             required
                         />
                     </div>
 
                     <div>
-                        <label className="block text-xs font-medium text-[var(--muted)] mb-1">Loại tài khoản</label>
+                        <label className="block text-xs font-medium text-[var(--muted)] mb-1">{t("account_type_label")}</label>
                         <div className="grid grid-cols-3 gap-2">
                             {[
-                                { value: "BANK", label: "Ngân hàng", icon: "🏦" },
-                                { value: "CASH", label: "Tiền mặt", icon: "💵" },
-                                { value: "E-WALLET", label: "Ví điện tử", icon: "📱" },
+                                { value: "BANK", label: t("bank"), icon: "🏦" },
+                                { value: "CASH", label: t("cash"), icon: "💵" },
+                                { value: "E-WALLET", label: t("e_wallet"), icon: "📱" },
                             ].map(opt => (
                                 <button
                                     key={opt.value}
                                     type="button"
                                     onClick={() => setType(opt.value as AccountType)}
-                                    className={`p-2 rounded-lg border text-xs font-medium transition-all ${
-                                        type === opt.value
+                                    className={`p-2 rounded-lg border text-xs font-medium transition-all ${type === opt.value
                                             ? "border-blue-500 bg-blue-500/20 text-blue-400"
                                             : "border-white/10 hover:border-white/20 text-[var(--muted)]"
-                                    }`}
+                                        }`}
                                 >
                                     <div className="text-lg mb-1">{opt.icon}</div>
                                     {opt.label}
@@ -169,13 +170,13 @@ export default function CreateAccountModal({ isOpen, onClose, onSuccess }: Creat
                     </div>
 
                     <div>
-                        <label className="block text-xs font-medium text-[var(--muted)] mb-1">Gán vào dự án (tuỳ chọn)</label>
+                        <label className="block text-xs font-medium text-[var(--muted)] mb-1">{t("link_to_project")}</label>
                         <select
                             value={projectId}
                             onChange={(e) => setProjectId(e.target.value)}
                             className="glass-input w-full p-2 rounded-lg text-sm"
                         >
-                            <option value="">-- Tài khoản chung --</option>
+                            <option value="">{t("general_account")}</option>
                             {projects.map(p => (
                                 <option key={p.id} value={p.id}>{p.name}</option>
                             ))}
@@ -184,7 +185,7 @@ export default function CreateAccountModal({ isOpen, onClose, onSuccess }: Creat
 
                     <div className="grid grid-cols-2 gap-3">
                         <div>
-                            <label className="block text-xs font-medium text-[var(--muted)] mb-1">Tiền tệ</label>
+                            <label className="block text-xs font-medium text-[var(--muted)] mb-1">{t("currency")}</label>
                             <select
                                 value={currency}
                                 onChange={(e) => setCurrency(e.target.value as Currency)}
@@ -197,7 +198,7 @@ export default function CreateAccountModal({ isOpen, onClose, onSuccess }: Creat
                             </select>
                         </div>
                         <div>
-                            <label className="block text-xs font-medium text-[var(--muted)] mb-1">Số dư ban đầu</label>
+                            <label className="block text-xs font-medium text-[var(--muted)] mb-1">{t("initial_balance_label")}</label>
                             <input
                                 type="number"
                                 value={balance}
@@ -219,9 +220,9 @@ export default function CreateAccountModal({ isOpen, onClose, onSuccess }: Creat
                                 className="w-4 h-4 rounded"
                             />
                             <div>
-                                <span className="text-sm font-medium text-white">🔒 Khóa loại tiền</span>
+                                <span className="text-sm font-medium text-white">🔒 {t("lock_currency")}</span>
                                 <p className="text-xs text-[var(--muted)]">
-                                    Tài khoản chỉ được chi tiền {currency}, không được chi loại tiền khác
+                                    {t("lock_currency_desc").replace("{currency}", currency)}
                                 </p>
                             </div>
                         </label>
@@ -231,11 +232,11 @@ export default function CreateAccountModal({ isOpen, onClose, onSuccess }: Creat
                     <div className="p-3 bg-white/5 rounded-lg border border-white/10">
                         <div className="flex items-center justify-between mb-2">
                             <div>
-                                <span className="text-sm font-medium text-white">📋 Giới hạn hạng mục chi</span>
+                                <span className="text-sm font-medium text-white">📋 {t("limit_categories")}</span>
                                 <p className="text-xs text-[var(--muted)]">
-                                    {allowedCategories.length === 0 
-                                        ? "Cho phép tất cả hạng mục" 
-                                        : `Chỉ cho phép ${allowedCategories.length} hạng mục`}
+                                    {allowedCategories.length === 0
+                                        ? t("allow_all_categories")
+                                        : t("allow_x_categories").replace("{count}", allowedCategories.length.toString())}
                                 </p>
                             </div>
                             <button
@@ -243,10 +244,10 @@ export default function CreateAccountModal({ isOpen, onClose, onSuccess }: Creat
                                 onClick={() => setShowCategorySelector(!showCategorySelector)}
                                 className="text-xs text-blue-400 hover:text-blue-300"
                             >
-                                {showCategorySelector ? "Ẩn" : "Chọn"}
+                                {showCategorySelector ? t("collapse") : t("filter")}
                             </button>
                         </div>
-                        
+
                         {showCategorySelector && (
                             <div className="mt-3 pt-3 border-t border-white/10">
                                 <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto">
@@ -255,11 +256,10 @@ export default function CreateAccountModal({ isOpen, onClose, onSuccess }: Creat
                                             key={cat}
                                             type="button"
                                             onClick={() => toggleCategory(cat)}
-                                            className={`px-2 py-1 rounded text-xs transition-all ${
-                                                allowedCategories.includes(cat)
+                                            className={`px-2 py-1 rounded text-xs transition-all ${allowedCategories.includes(cat)
                                                     ? "bg-blue-500/30 text-blue-400 border border-blue-500/50"
                                                     : "bg-white/5 text-[var(--muted)] border border-white/10 hover:border-white/20"
-                                            }`}
+                                                }`}
                                         >
                                             {cat}
                                         </button>
@@ -271,7 +271,7 @@ export default function CreateAccountModal({ isOpen, onClose, onSuccess }: Creat
                                         onClick={() => setAllowedCategories([])}
                                         className="mt-2 text-xs text-red-400 hover:text-red-300"
                                     >
-                                        Xóa tất cả
+                                        {t("clear_all")}
                                     </button>
                                 )}
                             </div>
@@ -283,7 +283,7 @@ export default function CreateAccountModal({ isOpen, onClose, onSuccess }: Creat
                         disabled={loading || !name.trim()}
                         className="w-full p-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-medium text-sm transition-colors"
                     >
-                        {loading ? "Đang tạo..." : "Tạo tài khoản"}
+                        {loading ? t("creating") : t("create_account_btn")}
                     </button>
                 </form>
             </div>

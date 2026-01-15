@@ -12,6 +12,7 @@ import { doc, setDoc, updateDoc, deleteDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { getUserRole, Role } from "@/lib/permissions";
 import DataTable, { ActionCell } from "@/components/finance/DataTable";
+import { useTranslation } from "@/lib/i18n";
 
 const FINANCE_ROLES: { value: FinanceRole; label: string }[] = [
     { value: "ADMIN", label: "Quản trị viên" },
@@ -32,6 +33,7 @@ const POSITIONS: { value: Position; label: string }[] = [
 ];
 
 export default function UsersPage() {
+    const { t } = useTranslation();
     const router = useRouter();
     const [users, setUsers] = useState<UserProfile[]>([]);
     const [loading, setLoading] = useState(true);
@@ -135,7 +137,7 @@ export default function UsersPage() {
 
     const handleSave = async () => {
         if (!formData.displayName.trim() || !formData.email.trim()) {
-            alert("Vui lòng nhập tên và email");
+            alert(!formData.displayName.trim() ? t("name_required") : t("email_required"));
             return;
         }
 
@@ -175,14 +177,14 @@ export default function UsersPage() {
             setIsModalOpen(false);
         } catch (error) {
             console.error("Failed to save user", error);
-            alert("Lỗi khi lưu người dùng");
+            alert(t("save_failed_user"));
         } finally {
             setSaving(false);
         }
     };
 
     const handleDelete = async (user: UserProfile) => {
-        if (!confirm(`Bạn có chắc muốn xóa người dùng "${user.displayName}"?\n\nHành động này không thể hoàn tác!`)) {
+        if (!confirm(t("delete_user_confirm").replace("{name}", user.displayName || ""))) {
             return;
         }
 
@@ -191,45 +193,45 @@ export default function UsersPage() {
             await fetchUsers();
         } catch (error) {
             console.error("Failed to delete user", error);
-            alert("Lỗi khi xóa người dùng");
+            alert(t("delete_failed_user"));
         }
     };
 
     const canManageUsers = userRole === "ADMIN";
 
-    if (loading) return <div className="p-8 text-[var(--muted)]">Đang tải...</div>;
+    if (loading) return <div className="p-8 text-[var(--muted)]">{t("loading")}</div>;
 
     return (
         <div className="space-y-4">
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-3xl font-bold text-white">Quản lý Người dùng</h1>
-                    <p className="text-[var(--muted)]">Xem và quản lý thông tin người dùng hệ thống</p>
+                    <h1 className="text-3xl font-bold text-white">{t("users_title")}</h1>
+                    <p className="text-[var(--muted)]">{t("users_desc")}</p>
                 </div>
             </div>
 
             {/* Stats */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="glass-card p-4 rounded-xl border border-white/5">
-                    <div className="text-xs text-[var(--muted)] uppercase">Tổng người dùng</div>
+                    <div className="text-xs text-[var(--muted)] uppercase">{t("total_users")}</div>
                     <div className="text-2xl font-bold text-white mt-1">{users.length}</div>
                 </div>
                 <div className="glass-card p-4 rounded-xl border border-blue-500/20">
-                    <div className="text-xs text-[var(--muted)] uppercase">Đã duyệt</div>
+                    <div className="text-xs text-[var(--muted)] uppercase">{t("approved_users")}</div>
                     <div className="text-2xl font-bold text-blue-400 mt-1">
                         {users.filter(u => u.approved).length}
                     </div>
                 </div>
                 <div className="glass-card p-4 rounded-xl border border-green-500/20">
-                    <div className="text-xs text-[var(--muted)] uppercase">Đang hiển thị</div>
+                    <div className="text-xs text-[var(--muted)] uppercase">{t("visible_users")}</div>
                     <div className="text-2xl font-bold text-green-400 mt-1">{filteredUsers.length}</div>
                 </div>
             </div>
 
             {/* Toolbar */}
             <DataTableToolbar
-                searchPlaceholder="Tìm tên hoặc email..."
+                searchPlaceholder={t("search_users")}
                 onSearch={setSearchTerm}
                 activeFilters={activeFilters}
                 onFilterChange={(id, val) => setActiveFilters(prev => ({ ...prev, [id]: val }))}
@@ -238,33 +240,36 @@ export default function UsersPage() {
                     setSearchTerm("");
                 }}
                 onExport={() => exportToCSV(filteredUsers, "Danh_Sach_Nguoi_Dung", {
-                    displayName: "Tên",
-                    email: "Email",
-                    phoneNumber: "Số điện thoại",
-                    position: "Chức vụ",
-                    financeRole: "Vai trò tài chính",
-                    approved: "Trạng thái duyệt"
+                    displayName: t("name"),
+                    email: t("email"),
+                    phoneNumber: t("phone"),
+                    position: t("position"),
+                    financeRole: t("finance_role"),
+                    approved: t("status")
                 })}
                 onAdd={canManageUsers ? openCreateModal : undefined}
-                addLabel="Thêm người dùng"
+                addLabel={t("add_user")}
                 filters={[
                     {
                         id: "financeRole",
-                        label: "Vai trò tài chính",
-                        options: FINANCE_ROLES.map(r => ({ value: r.value, label: r.label }))
+                        label: t("finance_role"),
+                        options: FINANCE_ROLES.map(r => ({
+                            value: r.value,
+                            label: t(r.value.toLowerCase() as any) || r.label
+                        }))
                     },
                     {
                         id: "position",
-                        label: "Chức vụ",
+                        label: t("position"),
                         options: POSITIONS.map(p => ({ value: p.value, label: p.label })),
                         advanced: true
                     },
                     {
                         id: "approved",
-                        label: "Trạng thái",
+                        label: t("status"),
                         options: [
-                            { value: "true", label: "Đã duyệt" },
-                            { value: "false", label: "Chưa duyệt" }
+                            { value: "true", label: t("approved_status") },
+                            { value: "false", label: t("waiting_approval") }
                         ],
                         advanced: true
                     }
@@ -278,7 +283,7 @@ export default function UsersPage() {
                 columns={[
                     {
                         key: "displayName",
-                        header: "Tên",
+                        header: t("name"),
                         render: (user: UserProfile) => {
                             const displayName = user.employment?.fullName || user.displayName || "Unknown";
                             return (
@@ -295,12 +300,12 @@ export default function UsersPage() {
                     },
                     {
                         key: "email",
-                        header: "Email",
+                        header: t("email"),
                         className: "text-[var(--muted)]"
                     },
                     {
                         key: "position",
-                        header: "Chức vụ",
+                        header: t("position"),
                         render: (user: UserProfile) => (
                             <span className="text-[var(--muted)]">
                                 {user.employment?.position || user.position || "-"}
@@ -309,7 +314,7 @@ export default function UsersPage() {
                     },
                     {
                         key: "phoneNumber",
-                        header: "Số điện thoại",
+                        header: t("phone"),
                         render: (user: UserProfile) => (
                             <span className="text-[var(--muted)]">
                                 {user.employment?.phone || user.phoneNumber || "-"}
@@ -318,20 +323,20 @@ export default function UsersPage() {
                     },
                     {
                         key: "approved",
-                        header: "Trạng thái",
+                        header: t("status"),
                         align: "center",
                         render: (user: UserProfile) => (
                             <span className={`px-2 py-1 rounded text-xs font-medium ${user.approved
                                 ? "bg-green-500/20 text-green-400"
                                 : "bg-yellow-500/20 text-yellow-400"
                                 }`}>
-                                {user.approved ? "Đã duyệt" : "Chờ duyệt"}
+                                {user.approved ? t("approved_status") : t("waiting_approval")}
                             </span>
                         )
                     },
                     {
                         key: "actions",
-                        header: "Thao tác",
+                        header: t("actions"),
                         align: "center",
                         render: (user: UserProfile) => (
                             <ActionCell>
@@ -340,14 +345,14 @@ export default function UsersPage() {
                                         <button
                                             onClick={(e) => { e.stopPropagation(); openEditModal(user); }}
                                             className="p-1.5 rounded hover:bg-white/10 text-[var(--muted)] hover:text-blue-400 transition-colors"
-                                            title="Sửa"
+                                            title={t("edit")}
                                         >
                                             <Edit2 size={14} />
                                         </button>
                                         <button
                                             onClick={(e) => { e.stopPropagation(); handleDelete(user); }}
                                             className="p-1.5 rounded hover:bg-red-500/20 text-[var(--muted)] hover:text-red-400 transition-colors"
-                                            title="Xóa"
+                                            title={t("delete")}
                                         >
                                             <Trash2 size={14} />
                                         </button>
@@ -356,7 +361,7 @@ export default function UsersPage() {
                                 <button
                                     onClick={(e) => { e.stopPropagation(); router.push(`/finance/transactions?user=${user.uid}`); }}
                                     className="p-1.5 rounded hover:bg-white/10 text-[var(--muted)] hover:text-green-400 transition-colors"
-                                    title="Xem lịch sử giao dịch"
+                                    title={t("trans_history")}
                                 >
                                     <History size={14} />
                                 </button>
@@ -364,7 +369,7 @@ export default function UsersPage() {
                         )
                     }
                 ]}
-                emptyMessage="Không tìm thấy người dùng"
+                emptyMessage={t("no_data")}
             />
 
             {/* Create/Edit Modal */}
@@ -384,10 +389,10 @@ export default function UsersPage() {
                             </div>
                             <div>
                                 <h2 className="text-2xl font-bold">
-                                    {editingUser ? "Sửa thông tin người dùng" : "Thêm người dùng mới"}
+                                    {editingUser ? t("edit_user") : t("create_user")}
                                 </h2>
                                 <p className="text-sm text-[var(--muted)]">
-                                    {editingUser ? "Cập nhật thông tin người dùng" : "Tạo tài khoản người dùng mới"}
+                                    {editingUser ? t("edit_user_desc") : t("create_user_desc")}
                                 </p>
                             </div>
                         </div>
@@ -396,14 +401,14 @@ export default function UsersPage() {
                             {/* Display Name */}
                             <div>
                                 <label className="block text-sm font-medium text-white mb-2">
-                                    Tên hiển thị <span className="text-red-400">*</span>
+                                    {t("user_display_name")} <span className="text-red-400">*</span>
                                 </label>
                                 <input
                                     type="text"
                                     value={formData.displayName}
                                     onChange={(e) => setFormData(prev => ({ ...prev, displayName: e.target.value }))}
                                     className="glass-input w-full px-4 py-2 rounded-lg"
-                                    placeholder="Nhập tên người dùng"
+                                    placeholder={t("enter_user_name")}
                                 />
                             </div>
 
@@ -421,14 +426,14 @@ export default function UsersPage() {
                                     disabled={!!editingUser}
                                 />
                                 {editingUser && (
-                                    <p className="text-xs text-[var(--muted)] mt-1">Email không thể thay đổi</p>
+                                    <p className="text-xs text-[var(--muted)] mt-1">{t("email_not_changeable")}</p>
                                 )}
                             </div>
 
                             {/* Phone Number */}
                             <div>
                                 <label className="block text-sm font-medium text-white mb-2">
-                                    Số điện thoại
+                                    {t("phone")}
                                 </label>
                                 <input
                                     type="tel"
@@ -442,7 +447,7 @@ export default function UsersPage() {
                             {/* Position */}
                             <div>
                                 <label className="block text-sm font-medium text-white mb-2">
-                                    Chức vụ
+                                    {t("position")}
                                 </label>
                                 <SearchableSelect
                                     options={POSITIONS.map(p => ({
@@ -452,8 +457,8 @@ export default function UsersPage() {
                                     }))}
                                     value={formData.position}
                                     onChange={(val) => setFormData(prev => ({ ...prev, position: val as Position }))}
-                                    placeholder="Chọn chức vụ"
-                                    searchPlaceholder="Tìm chức vụ..."
+                                    placeholder={t("select_position")}
+                                    searchPlaceholder={t("search_position")}
                                 />
                             </div>
 
@@ -461,25 +466,25 @@ export default function UsersPage() {
                             <div>
                                 <label className="block text-sm font-medium text-white mb-2 flex items-center gap-2">
                                     <Shield size={16} />
-                                    Vai trò tài chính
+                                    {t("finance_role")}
                                 </label>
                                 <SearchableSelect
                                     options={FINANCE_ROLES.map(r => ({
                                         id: r.value,
-                                        label: r.label,
+                                        label: t(r.value.toLowerCase() as any) || r.label,
                                         icon: r.value === "ADMIN" ? "👑" : r.value === "ACCOUNTANT" ? "📊" : r.value === "TREASURER" ? "💰" : r.value === "MANAGER" ? "🔧" : "👤"
                                     }))}
                                     value={formData.financeRole}
                                     onChange={(val) => setFormData(prev => ({ ...prev, financeRole: val as FinanceRole }))}
-                                    placeholder="Chọn vai trò"
-                                    searchPlaceholder="Tìm vai trò..."
+                                    placeholder={t("select_role")}
+                                    searchPlaceholder={t("search_role")}
                                 />
                             </div>
 
                             {/* Monthly Salary */}
                             <div>
                                 <label className="block text-sm font-medium text-white mb-2">
-                                    Lương tháng (VND)
+                                    {t("monthly_salary")}
                                 </label>
                                 <input
                                     type="number"
@@ -501,7 +506,7 @@ export default function UsersPage() {
                                     className="w-5 h-5 rounded border-gray-600 bg-transparent text-green-500 focus:ring-green-500"
                                 />
                                 <label htmlFor="approved" className="text-sm font-medium text-white cursor-pointer">
-                                    Tài khoản đã được duyệt
+                                    {t("account_approved")}
                                 </label>
                             </div>
                         </div>
@@ -512,7 +517,7 @@ export default function UsersPage() {
                                 onClick={() => setIsModalOpen(false)}
                                 className="px-4 py-2 rounded-lg text-sm font-medium hover:bg-white/10 transition-colors"
                             >
-                                Hủy
+                                {t("cancel")}
                             </button>
                             <button
                                 onClick={handleSave}
@@ -522,12 +527,12 @@ export default function UsersPage() {
                                 {saving ? (
                                     <>
                                         <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
-                                        Đang lưu...
+                                        {t("saving_user")}
                                     </>
                                 ) : (
                                     <>
                                         <Save size={16} />
-                                        {editingUser ? "Cập nhật" : "Tạo mới"}
+                                        {editingUser ? t("update") : t("create_now")}
                                     </>
                                 )}
                             </button>

@@ -11,6 +11,7 @@ import {
 } from "@/lib/permissions";
 import { getProjects } from "@/lib/finance";
 import { Project } from "@/types/finance";
+import { LanguageProvider, useTranslation } from "@/lib/i18n";
 import {
     LayoutDashboard,
     ArrowDownToLine,
@@ -30,14 +31,28 @@ import {
     ChevronRight,
     UserCircle
 } from "lucide-react";
+import LanguageToggle from "@/components/finance/LanguageToggle";
 
 export default function FinanceLayout({
     children,
 }: {
     children: React.ReactNode;
 }) {
+    return (
+        <LanguageProvider>
+            <FinanceLayoutContent>{children}</FinanceLayoutContent>
+        </LanguageProvider>
+    );
+}
+
+function FinanceLayoutContent({
+    children,
+}: {
+    children: React.ReactNode;
+}) {
     const pathname = usePathname();
     const router = useRouter();
+    const { t } = useTranslation();
     const [userRole, setUserRole] = useState<Role>("USER");
     const [user, setUser] = useState<any>(null);
     const [projects, setProjects] = useState<Project[]>([]);
@@ -45,10 +60,10 @@ export default function FinanceLayout({
 
     // Default all groups to collapsed
     const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({
-        "Tổng quan": true,
-        "Thu & Chi": true,
-        "Quản lý": true,
-        "Hệ thống": true
+        "overview": true,
+        "income_expense": true,
+        "management": true,
+        "system": true
     });
 
     useEffect(() => {
@@ -136,7 +151,7 @@ export default function FinanceLayout({
         navGroups.forEach(group => {
             const hasActiveItem = group.items.some(item => pathname === item.href);
             if (hasActiveItem) {
-                setCollapsedGroups(prev => ({ ...prev, [group.title]: false }));
+                setCollapsedGroups(prev => ({ ...prev, [group.id]: false }));
             }
         });
     }, [pathname]);
@@ -160,52 +175,46 @@ export default function FinanceLayout({
 
     const navGroups = [
         {
-            title: "Tổng quan",
+            id: "overview",
+            title: t("overview"),
             items: [
-                { name: "Dashboard", href: "/finance", icon: <LayoutDashboard size={18} /> }
+                { name: t("dashboard"), href: "/finance", icon: <LayoutDashboard size={18} /> }
             ]
         },
         {
-            title: "Thu & Chi",
+            id: "income_expense",
+            title: t("income_expense"),
             items: [
-                // Chỉ hiện Thu tiền nếu user có quyền create_income trong ít nhất 1 dự án
-                ...(userPermissions.canCreateIncome ? [{ name: "Thu tiền", href: "/finance/income", icon: <ArrowDownToLine size={18} /> }] : []),
-                // Chỉ hiện Chi tiền nếu user có quyền create_expense trong ít nhất 1 dự án
-                ...(userPermissions.canCreateExpense ? [{ name: "Chi tiền", href: "/finance/expense", icon: <ArrowUpFromLine size={18} /> }] : []),
-                // Chỉ hiện Chuyển tiền nếu là ADMIN
-                ...(userRole === "ADMIN" ? [{ name: "Chuyển tiền", href: "/finance/transfer", icon: <ArrowRightLeft size={18} /> }] : []),
-                // Chỉ hiện Phê duyệt nếu user có quyền approve trong ít nhất 1 dự án hoặc là ADMIN
-                ...(userPermissions.canApprove ? [{ name: "Phê duyệt", href: "/finance/approvals", icon: <CheckSquare size={18} /> }] : []),
-                // Chỉ hiện Giao dịch nếu user có quyền xem giao dịch
-                ...(userPermissions.canViewTransactions ? [{ name: "Giao dịch", href: "/finance/transactions", icon: <ArrowRightLeft size={18} /> }] : []),
+                ...(userPermissions.canCreateIncome ? [{ name: t("income"), href: "/finance/income", icon: <ArrowDownToLine size={18} /> }] : []),
+                ...(userPermissions.canCreateExpense ? [{ name: t("expense"), href: "/finance/expense", icon: <ArrowUpFromLine size={18} /> }] : []),
+                ...(userRole === "ADMIN" ? [{ name: t("transfer"), href: "/finance/transfer", icon: <ArrowRightLeft size={18} /> }] : []),
+                ...(userPermissions.canApprove ? [{ name: t("approvals"), href: "/finance/approvals", icon: <CheckSquare size={18} /> }] : []),
+                ...(userPermissions.canViewTransactions ? [{ name: t("transactions"), href: "/finance/transactions", icon: <ArrowRightLeft size={18} /> }] : []),
             ]
         },
         {
-            title: "Quản lý",
+            id: "management",
+            title: t("management"),
             items: [
-                // Dự án - hiện nếu user có quyền xem ít nhất 1 dự án hoặc là ADMIN
-                ...(userRole === "ADMIN" || userPermissions.hasAccessibleProjects ? [{ name: "Dự án", href: "/finance/projects", icon: <FolderOpen size={18} /> }] : []),
-                // Các mục khác chỉ ADMIN mới thấy
+                ...(userRole === "ADMIN" || userPermissions.hasAccessibleProjects ? [{ name: t("projects"), href: "/finance/projects", icon: <FolderOpen size={18} /> }] : []),
                 ...(userRole === "ADMIN" ? [
-                    { name: "Tài khoản", href: "/finance/accounts", icon: <CreditCard size={18} /> },
-                    { name: "Quỹ/Nhóm", href: "/finance/funds", icon: <PiggyBank size={18} /> },
-                    { name: "Danh mục", href: "/finance/categories", icon: <ScrollText size={18} /> },
-                    { name: "Chi phí cố định", href: "/finance/fixed-costs", icon: <Pin size={18} /> },
+                    { name: t("accounts"), href: "/finance/accounts", icon: <CreditCard size={18} /> },
+                    { name: t("funds"), href: "/finance/funds", icon: <PiggyBank size={18} /> },
+                    { name: t("categories"), href: "/finance/categories", icon: <ScrollText size={18} /> },
+                    { name: t("fixed_costs"), href: "/finance/fixed-costs", icon: <Pin size={18} /> },
                 ] : [])
             ]
         },
         {
-            title: "Hệ thống",
+            id: "system",
+            title: t("system"),
             items: [
-                // Báo cáo - hiện nếu user có quyền view_reports trong ít nhất 1 dự án hoặc là ADMIN
-                ...(userPermissions.canViewReports ? [{ name: "Báo cáo", href: "/finance/reports", icon: <FileBarChart size={18} /> }] : []),
-                // Chỉ ADMIN mới thấy Người dùng, Nhật ký
+                ...(userPermissions.canViewReports ? [{ name: t("reports"), href: "/finance/reports", icon: <FileBarChart size={18} /> }] : []),
                 ...(userRole === "ADMIN" ? [
-                    { name: "Người dùng", href: "/finance/users", icon: <Users size={18} /> },
-                    { name: "Nhật ký", href: "/finance/logs", icon: <ScrollText size={18} /> },
+                    { name: t("users"), href: "/finance/users", icon: <Users size={18} /> },
+                    { name: t("logs"), href: "/finance/logs", icon: <ScrollText size={18} /> },
                 ] : []),
-                // Tài khoản của tôi - tất cả đều thấy
-                { name: "Tài khoản của tôi", href: "/finance/profile", icon: <UserCircle size={18} /> },
+                { name: t("my_profile"), href: "/finance/profile", icon: <UserCircle size={18} /> },
             ]
         }
     ];
@@ -217,13 +226,16 @@ export default function FinanceLayout({
                 <h1 className="text-lg font-bold text-white tracking-widest uppercase">
                     Dolab<span className="text-blue-500">.</span>
                 </h1>
-                {/* Close button - mobile only */}
-                <button
-                    onClick={() => setSidebarOpen(false)}
-                    className="lg:hidden p-1 rounded hover:bg-white/10 transition-colors"
-                >
-                    <X size={20} />
-                </button>
+                <div className="flex items-center gap-2">
+                    <LanguageToggle />
+                    {/* Close button - mobile only */}
+                    <button
+                        onClick={() => setSidebarOpen(false)}
+                        className="lg:hidden p-1 rounded hover:bg-white/10 transition-colors"
+                    >
+                        <X size={20} />
+                    </button>
+                </div>
             </div>
 
             {/* User Snippet */}
@@ -236,7 +248,7 @@ export default function FinanceLayout({
                         <div className="overflow-hidden min-w-0">
                             <h4 className="font-medium text-white text-xs truncate">{user.displayName}</h4>
                             <p className="text-[10px] text-white/40 uppercase tracking-wider">
-                                {userRole === "ADMIN" ? "Quản trị viên" : "Thành viên"}
+                                {userRole === "ADMIN" ? t("approved") : t("members")}
                             </p>
                         </div>
                     </div>
@@ -252,26 +264,26 @@ export default function FinanceLayout({
 
                     // Group icons mapping
                     const groupIcons: Record<string, React.ReactNode> = {
-                        "Tổng quan": <LayoutDashboard size={16} />,
-                        "Thu & Chi": <ArrowRightLeft size={16} />,
-                        "Quản lý": <FolderOpen size={16} />,
-                        "Hệ thống": <Users size={16} />
+                        "overview": <LayoutDashboard size={16} />,
+                        "income_expense": <ArrowRightLeft size={16} />,
+                        "management": <FolderOpen size={16} />,
+                        "system": <Users size={16} />
                     };
 
                     return (
-                        <div key={group.title} className="mb-1">
+                        <div key={group.id} className="mb-1">
                             <button
-                                onClick={() => toggleGroup(group.title)}
+                                onClick={() => toggleGroup(group.id)}
                                 className={`w-full flex items-center gap-2 px-3 py-2.5 text-xs font-bold uppercase tracking-wider rounded-xl transition-all duration-200 ${hasActiveItem
-                                        ? "bg-gradient-to-r from-blue-600/30 to-purple-600/20 text-white border border-blue-500/30 shadow-lg shadow-blue-500/10"
-                                        : "text-white/60 hover:text-white hover:bg-white/5"
+                                    ? "bg-gradient-to-r from-blue-600/30 to-purple-600/20 text-white border border-blue-500/30 shadow-lg shadow-blue-500/10"
+                                    : "text-white/60 hover:text-white hover:bg-white/5"
                                     }`}
                             >
                                 <span className={`p-1.5 rounded-lg transition-all ${hasActiveItem
-                                        ? "bg-blue-500 text-white shadow-md shadow-blue-500/50"
-                                        : "bg-white/10 text-white/60"
+                                    ? "bg-blue-500 text-white shadow-md shadow-blue-500/50"
+                                    : "bg-white/10 text-white/60"
                                     }`}>
-                                    {groupIcons[group.title]}
+                                    {groupIcons[group.id]}
                                 </span>
                                 <span className="flex-1 text-left">{group.title}</span>
                                 <span className={`transition-transform duration-200 ${isCollapsed ? "" : "rotate-90"}`}>
@@ -289,8 +301,8 @@ export default function FinanceLayout({
                                                 key={item.href}
                                                 href={item.href}
                                                 className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all duration-200 ${isActive
-                                                        ? "bg-white/10 text-white font-medium border-l-2 border-blue-400 -ml-[2px] pl-[14px]"
-                                                        : "text-white/50 hover:bg-white/5 hover:text-white"
+                                                    ? "bg-white/10 text-white font-medium border-l-2 border-blue-400 -ml-[2px] pl-[14px]"
+                                                    : "text-white/50 hover:bg-white/5 hover:text-white"
                                                     }`}
                                             >
                                                 <span className={`flex-shrink-0 ${isActive ? "text-blue-400" : ""}`}>{item.icon}</span>
@@ -311,7 +323,7 @@ export default function FinanceLayout({
                     onClick={handleLogout}
                     className="flex items-center gap-2 px-3 py-2 w-full rounded-lg text-[var(--muted)] hover:bg-red-500/10 hover:text-red-400 transition-all text-sm"
                 >
-                    <span>Đăng xuất</span>
+                    <span>{t("logout")}</span>
                 </button>
             </div>
         </>
@@ -330,7 +342,7 @@ export default function FinanceLayout({
                 <h1 className="text-base font-bold text-white tracking-widest uppercase">
                     Dolab<span className="text-blue-500">.</span>
                 </h1>
-                <div className="w-8" /> {/* Spacer */}
+                <LanguageToggle />
             </div>
 
             {/* Mobile Overlay */}

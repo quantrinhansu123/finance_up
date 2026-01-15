@@ -10,10 +10,12 @@ import CurrencyInput from "@/components/finance/CurrencyInput";
 import DataTableToolbar from "@/components/finance/DataTableToolbar";
 import { exportToCSV } from "@/lib/export";
 import DataTable, { ActionCell } from "@/components/finance/DataTable";
+import { useTranslation } from "@/lib/i18n";
 
 const ITEMS_PER_PAGE = 10;
 
 export default function ProjectsPage() {
+    const { t } = useTranslation();
     const [allProjects, setAllProjects] = useState<Project[]>([]);
     const [projects, setProjects] = useState<Project[]>([]);
     const [currentUser, setCurrentUser] = useState<any>(null);
@@ -125,7 +127,7 @@ export default function ProjectsPage() {
         e.preventDefault();
 
         if (userRole !== "ADMIN") {
-            alert("Bạn không có quyền thực hiện thao tác này");
+            alert(t("no_permission"));
             return;
         }
 
@@ -167,17 +169,17 @@ export default function ProjectsPage() {
 
         // Chỉ ADMIN mới được xóa
         if (userRole !== "ADMIN") {
-            alert("Chỉ quản trị viên mới có quyền xóa dự án");
+            alert(t("no_permission"));
             return;
         }
 
-        if (!confirm("Bạn có chắc chắn muốn xóa dự án này?")) return;
+        if (!confirm(t("confirm_delete"))) return;
         try {
             await deleteProject(id);
             setAllProjects(prev => prev.filter(p => p.id !== id));
         } catch (error) {
             console.error("Delete failed", error);
-            alert("Xóa thất bại");
+            alert(t("delete_failed"));
         }
     };
 
@@ -201,17 +203,16 @@ export default function ProjectsPage() {
             <div className="space-y-8">
                 <div className="flex items-center justify-between">
                     <div>
-                        <h1 className="text-3xl font-bold text-white">Dự án</h1>
-                        <p className="text-[var(--muted)]">Quản lý dự án và P&L</p>
+                        <h1 className="text-3xl font-bold text-white">{t("projects")}</h1>
+                        <p className="text-[var(--muted)]">{t("projects_desc")}</p>
                     </div>
                 </div>
 
                 <div className="glass-card p-8 rounded-xl text-center">
                     <ShieldX size={48} className="mx-auto text-[var(--muted)] mb-4" />
-                    <h3 className="text-xl font-semibold text-white mb-2">Không có quyền truy cập</h3>
+                    <h3 className="text-xl font-semibold text-white mb-2">{t("no_access")}</h3>
                     <p className="text-[var(--muted)]">
-                        Bạn chưa được phân quyền vào bất kỳ dự án nào.
-                        Vui lòng liên hệ quản trị viên để được cấp quyền.
+                        {t("no_project_access_desc")}
                     </p>
                 </div>
             </div>
@@ -226,8 +227,8 @@ export default function ProjectsPage() {
         <div className="space-y-8">
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-3xl font-bold text-white">Dự án</h1>
-                    <p className="text-[var(--muted)]">Quản lý dự án và P&L</p>
+                    <h1 className="text-3xl font-bold text-white">{t("projects")}</h1>
+                    <p className="text-[var(--muted)]">{t("projects_desc")}</p>
                 </div>
             </div>
 
@@ -235,15 +236,14 @@ export default function ProjectsPage() {
             {userRole !== "ADMIN" && (
                 <div className="glass-card p-4 rounded-xl bg-blue-500/10 border border-blue-500/20">
                     <p className="text-sm text-blue-400">
-                        📋 Bạn chỉ có thể xem các dự án mà bạn được phân quyền tham gia ({projects.length} dự án).
-                        Liên hệ quản trị viên để được thêm vào dự án khác.
+                        {t("limited_project_view").replace("{count}", projects.length.toString())}
                     </p>
                 </div>
             )}
 
             {/* Toolbar */}
             <DataTableToolbar
-                searchPlaceholder="Tìm kiếm dự án..."
+                searchPlaceholder={t("search_projects")}
                 onSearch={setSearchTerm}
                 activeFilters={activeFilters}
                 onFilterChange={(id, val) => setActiveFilters(prev => ({ ...prev, [id]: val }))}
@@ -252,25 +252,25 @@ export default function ProjectsPage() {
                     setSearchTerm("");
                 }}
                 onExport={() => exportToCSV(filteredProjects, "Danh_Sach_Du_An", {
-                    name: "Tên dự án",
-                    description: "Mô tả",
-                    status: "Trạng thái",
-                    budget: "Ngân sách",
-                    currency: "Tiền tệ",
-                    totalRevenue: "Doanh thu",
-                    totalExpense: "Chi phí"
+                    name: t("name"),
+                    description: t("description"),
+                    status: t("status"),
+                    budget: t("budget"),
+                    currency: t("currency"),
+                    totalRevenue: t("revenue"),
+                    totalExpense: t("expenses")
                 })}
                 onAdd={canCreateProject ? openCreateModal : undefined}
-                addLabel="Tạo dự án mới"
+                addLabel={t("create_project")}
                 filters={[
                     {
                         id: "status",
-                        label: "Trạng thái",
+                        label: t("status"),
                         options: [
-                            { value: "ALL", label: "Tất cả trạng thái" },
-                            { value: "ACTIVE", label: "Đang hoạt động" },
-                            { value: "PAUSED", label: "Tạm dừng" },
-                            { value: "COMPLETED", label: "Hoàn thành" }
+                            { value: "ALL", label: t("all_status") },
+                            { value: "ACTIVE", label: t("active") },
+                            { value: "PAUSED", label: t("paused") },
+                            { value: "COMPLETED", label: t("completed") }
                         ]
                     }
                 ]}
@@ -281,7 +281,7 @@ export default function ProjectsPage() {
                 columns={[
                     {
                         key: "name",
-                        header: "Project Name",
+                        header: t("name"),
                         render: (p) => (
                             <div
                                 onClick={() => router.push(`/finance/projects/${p.id}`)}
@@ -289,14 +289,14 @@ export default function ProjectsPage() {
                             >
                                 <div className="font-medium text-white">{p.name}</div>
                                 <div className="text-xs text-[var(--muted)] font-normal line-clamp-1 max-w-[200px] mt-0.5">
-                                    {p.description || "No description"}
+                                    {p.description || t("no_description")}
                                 </div>
                             </div>
                         )
                     },
                     {
                         key: "members",
-                        header: "Members",
+                        header: t("members"),
                         render: (p) => (
                             <div className="flex items-center gap-1 text-[var(--muted)]">
                                 <Users size={14} />
@@ -306,7 +306,7 @@ export default function ProjectsPage() {
                     },
                     {
                         key: "totalRevenue",
-                        header: "Revenue",
+                        header: t("revenue"),
                         align: "right",
                         render: (p) => (
                             <span className="font-medium text-green-400">
@@ -316,7 +316,7 @@ export default function ProjectsPage() {
                     },
                     {
                         key: "totalExpense",
-                        header: "Expense",
+                        header: t("expenses"),
                         align: "right",
                         render: (p) => (
                             <span className="font-medium text-red-400">
@@ -326,20 +326,22 @@ export default function ProjectsPage() {
                     },
                     {
                         key: "status",
-                        header: "Status",
+                        header: t("status"),
                         align: "center",
                         render: (p) => (
                             <span className={`text-[10px] uppercase font-bold px-2 py-1 rounded ${p.status === "ACTIVE" ? "bg-green-500/10 text-green-500" :
                                 p.status === "COMPLETED" ? "bg-blue-500/10 text-blue-500" :
                                     "bg-gray-500/10 text-gray-500"
                                 }`}>
-                                {p.status === "ACTIVE" ? "Doing" : p.status}
+                                {p.status === "ACTIVE" ? t("active") :
+                                    p.status === "COMPLETED" ? t("completed") :
+                                        t("paused")}
                             </span>
                         )
                     },
                     {
                         key: "profit",
-                        header: "Profit",
+                        header: t("profit"),
                         align: "right",
                         render: (p) => (
                             <span className="font-bold text-white">
@@ -349,7 +351,7 @@ export default function ProjectsPage() {
                     },
                     {
                         key: "actions",
-                        header: "Actions",
+                        header: t("actions"),
                         align: "center",
                         width: "w-24",
                         render: (p) => (
@@ -357,7 +359,7 @@ export default function ProjectsPage() {
                                 <button
                                     onClick={(e) => { e.stopPropagation(); router.push(`/finance/projects/${p.id}`); }}
                                     className="p-1.5 rounded hover:bg-white/10 text-[var(--muted)] hover:text-blue-400 transition-colors"
-                                    title="Xem chi tiết"
+                                    title={t("view_detail")}
                                 >
                                     <Eye size={14} />
                                 </button>
@@ -366,14 +368,14 @@ export default function ProjectsPage() {
                                         <button
                                             onClick={(e) => openEditModal(p, e)}
                                             className="p-1.5 rounded hover:bg-white/10 text-[var(--muted)] hover:text-yellow-400 transition-colors"
-                                            title="Sửa"
+                                            title={t("edit")}
                                         >
                                             <Edit2 size={14} />
                                         </button>
                                         <button
                                             onClick={(e) => handleDelete(p.id, e)}
                                             className="p-1.5 rounded hover:bg-red-500/20 text-[var(--muted)] hover:text-red-400 transition-colors"
-                                            title="Xóa"
+                                            title={t("delete")}
                                         >
                                             <Trash2 size={14} />
                                         </button>
@@ -385,7 +387,7 @@ export default function ProjectsPage() {
                 ]}
                 itemsPerPage={ITEMS_PER_PAGE}
                 onRowClick={(p) => router.push(`/finance/projects/${p.id}`)}
-                emptyMessage={searchTerm || activeFilters.status !== "ALL" ? "Không tìm thấy dự án phù hợp" : "Chưa có dự án nào"}
+                emptyMessage={t("no_data")}
             />
 
             {
@@ -397,28 +399,28 @@ export default function ProjectsPage() {
                             </button>
                             <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
                                 {selectedProject ? <Edit2 size={24} className="text-yellow-400" /> : <Plus size={24} className="text-blue-400" />}
-                                {selectedProject ? "Sửa dự án" : "Tạo dự án mới"}
+                                {selectedProject ? t("edit_project") : t("create_project")}
                             </h2>
                             <form onSubmit={handleSubmit} className="space-y-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-[var(--muted)] mb-1">Tên dự án</label>
+                                    <label className="block text-sm font-medium text-[var(--muted)] mb-1">{t("name")}</label>
                                     <input value={name} onChange={e => setName(e.target.value)} className="glass-input w-full p-2 rounded-lg" required />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-[var(--muted)] mb-1">Mô tả</label>
+                                    <label className="block text-sm font-medium text-[var(--muted)] mb-1">{t("description")}</label>
                                     <textarea value={desc} onChange={e => setDesc(e.target.value)} className="glass-input w-full p-2 rounded-lg" rows={3} />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-[var(--muted)] mb-1">Trạng thái</label>
+                                    <label className="block text-sm font-medium text-[var(--muted)] mb-1">{t("status")}</label>
                                     <select value={status} onChange={e => setStatus(e.target.value as any)} className="glass-input w-full p-2 rounded-lg">
-                                        <option value="ACTIVE">Đang hoạt động</option>
-                                        <option value="PAUSED">Tạm dừng</option>
-                                        <option value="COMPLETED">Hoàn thành</option>
+                                        <option value="ACTIVE">{t("active")}</option>
+                                        <option value="PAUSED">{t("paused")}</option>
+                                        <option value="COMPLETED">{t("completed")}</option>
                                     </select>
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-sm font-medium text-[var(--muted)] mb-1">Ngân sách</label>
+                                        <label className="block text-sm font-medium text-[var(--muted)] mb-1">{t("budget")}</label>
                                         <CurrencyInput
                                             value={budget}
                                             onChange={setBudget}
@@ -427,7 +429,7 @@ export default function ProjectsPage() {
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium text-[var(--muted)] mb-1">Tiền tệ</label>
+                                        <label className="block text-sm font-medium text-[var(--muted)] mb-1">{t("currency")}</label>
                                         <select value={currency} onChange={e => setCurrency(e.target.value as any)} className="glass-input w-full p-2 rounded-lg">
                                             <option value="USD">USD</option>
                                             <option value="VND">VND</option>
@@ -438,7 +440,7 @@ export default function ProjectsPage() {
 
                                 <button type="submit" className="flex items-center justify-center gap-2 w-full p-3 rounded-xl font-bold bg-blue-600 hover:bg-blue-500 text-white mt-4 border-none transition-all">
                                     <Save size={18} />
-                                    {selectedProject ? "Cập nhật dự án" : "Tạo dự án ngay"}
+                                    {selectedProject ? t("update_project") : t("create_project_now")}
                                 </button>
                             </form>
                         </div>

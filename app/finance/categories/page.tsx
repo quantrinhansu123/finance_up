@@ -24,6 +24,7 @@ import DataTableToolbar from "@/components/finance/DataTableToolbar";
 import { exportToCSV } from "@/lib/export";
 import DataTable, { ActionCell } from "@/components/finance/DataTable";
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
+import { useTranslation } from "@/lib/i18n";
 
 const MASTER_CATEGORIES_COL = "finance_master_categories";
 
@@ -42,6 +43,7 @@ interface CategoryStats {
 }
 
 export default function MasterCategoriesPage() {
+    const { t } = useTranslation();
     const [categories, setCategories] = useState<MasterCategory[]>([]);
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [projects, setProjects] = useState<Project[]>([]);
@@ -220,7 +222,7 @@ export default function MasterCategoriesPage() {
 
     const handleDeleteCategory = async (category: MasterCategory, e: React.MouseEvent) => {
         e.stopPropagation();
-        if (!confirm(`Bạn có chắc chắn muốn xóa danh mục "${category.name}"?`)) return;
+        if (!confirm(t('confirm_delete').replace('?', ` "${category.name}"?`))) return;
 
         setSaving(true);
         try {
@@ -231,7 +233,7 @@ export default function MasterCategoriesPage() {
             }
         } catch (error) {
             console.error("Error deleting category:", error);
-            alert("Lỗi khi xóa danh mục");
+            alert(t('delete_failed'));
         } finally {
             setSaving(false);
         }
@@ -303,7 +305,7 @@ export default function MasterCategoriesPage() {
                             <div>
                                 <h1 className="text-2xl font-bold text-white">{selectedCategory.name}</h1>
                                 <p className="text-sm text-[var(--muted)]">
-                                    {selectedCategory.type === "INCOME" ? "Danh mục Thu" : "Danh mục Chi"}
+                                    {selectedCategory.type === "INCOME" ? t("income_cat") : t("expense_cat")}
                                 </p>
                             </div>
                         </div>
@@ -313,18 +315,18 @@ export default function MasterCategoriesPage() {
                 {/* Summary Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="glass-card p-4 rounded-xl">
-                        <p className="text-sm text-[var(--muted)]">Tổng số tiền</p>
+                        <p className="text-sm text-[var(--muted)]">{t("total_amount")}</p>
                         <p className={`text-2xl font-bold ${selectedCategory.type === "INCOME" ? "text-green-400" : "text-red-400"
                             }`}>
                             {formatCurrency(stats.totalAmount, "VND")}
                         </p>
                     </div>
                     <div className="glass-card p-4 rounded-xl">
-                        <p className="text-sm text-[var(--muted)]">Số giao dịch</p>
+                        <p className="text-sm text-[var(--muted)]">{t("transaction_count")}</p>
                         <p className="text-2xl font-bold text-white">{stats.transactionCount}</p>
                     </div>
                     <div className="glass-card p-4 rounded-xl">
-                        <p className="text-sm text-[var(--muted)]">Số dự án</p>
+                        <p className="text-sm text-[var(--muted)]">{t("projects")}</p>
                         <p className="text-2xl font-bold text-white">{stats.projectBreakdown.length}</p>
                     </div>
                 </div>
@@ -336,7 +338,7 @@ export default function MasterCategoriesPage() {
                         <div className="glass-card p-6 rounded-xl">
                             <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
                                 <BarChart3 size={20} />
-                                Phân bổ theo dự án
+                                {t("project_allocation")}
                             </h3>
                             <div className="h-64">
                                 <ResponsiveContainer width="100%" height="100%">
@@ -363,7 +365,7 @@ export default function MasterCategoriesPage() {
                         <div className="glass-card p-6 rounded-xl">
                             <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
                                 <BarChart3 size={20} />
-                                So sánh số tiền
+                                {t("amount_comparison")}
                             </h3>
                             <div className="h-64">
                                 <ResponsiveContainer width="100%" height="100%">
@@ -384,7 +386,7 @@ export default function MasterCategoriesPage() {
                                                 borderRadius: '8px',
                                                 color: '#fff'
                                             }}
-                                            formatter={(value: number) => [formatCurrency(value, "VND"), "Số tiền"]}
+                                            formatter={(value: number) => [formatCurrency(value, "VND"), t("amount")]}
                                         />
                                         <Bar
                                             dataKey="amount"
@@ -403,7 +405,7 @@ export default function MasterCategoriesPage() {
                     <div className="p-4 border-b border-white/10">
                         <h3 className="text-lg font-semibold text-white flex items-center gap-2">
                             <BarChart3 size={20} />
-                            So sánh chi tiết giữa các dự án
+                            {t("detailed_comparison")}
                         </h3>
                     </div>
 
@@ -412,12 +414,12 @@ export default function MasterCategoriesPage() {
                             <table className="w-full">
                                 <thead>
                                     <tr className="border-b border-white/10">
-                                        <th className="text-left p-4 text-sm font-medium text-[var(--muted)]">Dự án</th>
-                                        <th className="text-right p-4 text-sm font-medium text-[var(--muted)]">Số tiền</th>
-                                        <th className="text-right p-4 text-sm font-medium text-[var(--muted)]">Số GD</th>
-                                        <th className="text-right p-4 text-sm font-medium text-[var(--muted)]">Tỷ lệ</th>
-                                        <th className="text-left p-4 text-sm font-medium text-[var(--muted)]">Danh mục con</th>
-                                        <th className="p-4 text-sm font-medium text-[var(--muted)]">Biểu đồ</th>
+                                        <th className="text-left p-4 text-sm font-medium text-[var(--muted)]">{t("projects")}</th>
+                                        <th className="text-right p-4 text-sm font-medium text-[var(--muted)]">{t("amount")}</th>
+                                        <th className="text-right p-4 text-sm font-medium text-[var(--muted)]">{t("transaction_count")}</th>
+                                        <th className="text-right p-4 text-sm font-medium text-[var(--muted)]">{t("ratio")}</th>
+                                        <th className="text-left p-4 text-sm font-medium text-[var(--muted)]">{t("sub_category")}</th>
+                                        <th className="p-4 text-sm font-medium text-[var(--muted)]">{t("chart")}</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -479,7 +481,7 @@ export default function MasterCategoriesPage() {
                     ) : (
                         <div className="p-8 text-center text-[var(--muted)]">
                             <BarChart3 size={40} className="mx-auto mb-3 opacity-50" />
-                            <p>Chưa có giao dịch nào thuộc danh mục này</p>
+                            <p>{t("no_data")}</p>
                         </div>
                     )}
                 </div>
@@ -493,13 +495,13 @@ export default function MasterCategoriesPage() {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-3xl font-bold text-white">Danh mục Gốc</h1>
-                    <p className="text-[var(--muted)]">Quản lý danh mục thu chi chung</p>
+                    <h1 className="text-3xl font-bold text-white">{t("root_category")}</h1>
+                    <p className="text-[var(--muted)]">{t("categories_desc")}</p>
                 </div>
             </div>
 
             <DataTableToolbar
-                searchPlaceholder="Tìm tên danh mục..."
+                searchPlaceholder={t("search_category")}
                 onSearch={setSearchTerm}
                 activeFilters={activeFilters}
                 onFilterChange={(id, val) => setActiveFilters(prev => ({ ...prev, [id]: val }))}
@@ -508,21 +510,21 @@ export default function MasterCategoriesPage() {
                     setSearchTerm("");
                 }}
                 onExport={() => exportToCSV(filteredCategories, "Danh_Sach_Danh_Muc", {
-                    name: "Tên danh mục",
-                    type: "Loại",
-                    description: "Mô tả",
-                    isActive: "Trạng thái"
+                    name: t("name"),
+                    type: t("type"),
+                    description: t("description"),
+                    isActive: t("status")
                 })}
                 onAdd={handleAddCategory}
-                addLabel="Thêm danh mục"
+                addLabel={t("add_category")}
                 filters={[
                     {
                         id: "type",
-                        label: "Tất cả loại",
+                        label: t("all_types"),
                         options: [
-                            { value: "ALL", label: "Tất cả loại" },
-                            { value: "INCOME", label: "Thu tiền" },
-                            { value: "EXPENSE", label: "Chi tiền" }
+                            { value: "ALL", label: t("all_types") },
+                            { value: "INCOME", label: t("income") },
+                            { value: "EXPENSE", label: t("expense") }
                         ]
                     }
                 ]}
@@ -535,7 +537,7 @@ export default function MasterCategoriesPage() {
                 columns={[
                     {
                         key: "name",
-                        header: "Danh mục",
+                        header: t("categories"),
                         render: (cat: any) => (
                             <div className="flex items-center gap-3">
                                 <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${cat.type === "INCOME"
@@ -558,19 +560,19 @@ export default function MasterCategoriesPage() {
                     },
                     {
                         key: "type",
-                        header: "Loại",
+                        header: t("type"),
                         render: (cat: any) => (
                             <span className={`px-2 py-1 rounded text-xs font-medium ${cat.type === "INCOME"
                                 ? "bg-green-500/20 text-green-400"
                                 : "bg-red-500/20 text-red-400"
                                 }`}>
-                                {cat.type === "INCOME" ? "Thu" : "Chi"}
+                                {cat.type === "INCOME" ? t("inc") : t("exp")}
                             </span>
                         )
                     },
                     {
                         key: "totalAmount",
-                        header: "Tổng tiền",
+                        header: t("total_amount"),
                         align: "right",
                         render: (cat: any) => (
                             <span className={`font-medium ${cat.type === "INCOME" ? "text-green-400" : "text-red-400"}`}>
@@ -580,7 +582,7 @@ export default function MasterCategoriesPage() {
                     },
                     {
                         key: "transactionCount",
-                        header: "Số GD",
+                        header: t("transaction_count"),
                         align: "right",
                         render: (cat: any) => (
                             <span className="text-[var(--muted)]">{cat.transactionCount}</span>
@@ -588,7 +590,7 @@ export default function MasterCategoriesPage() {
                     },
                     {
                         key: "isActive",
-                        header: "Trạng thái",
+                        header: t("status"),
                         align: "center",
                         render: (cat: any) => (
                             <button
@@ -598,13 +600,13 @@ export default function MasterCategoriesPage() {
                                     : "bg-gray-500/20 text-gray-400 hover:bg-gray-500/30"
                                     }`}
                             >
-                                {cat.isActive ? "Hoạt động" : "Tạm dừng"}
+                                {cat.isActive ? t("active") : t("inactive")}
                             </button>
                         )
                     },
                     {
                         key: "actions",
-                        header: "Thao tác",
+                        header: t("actions"),
                         align: "right",
                         sortable: false,
                         render: (cat: any) => (
@@ -625,7 +627,7 @@ export default function MasterCategoriesPage() {
                         )
                     }
                 ]}
-                emptyMessage="Không có danh mục nào"
+                emptyMessage={t("no_data")}
             />
 
             {/* Modal */}
@@ -634,7 +636,7 @@ export default function MasterCategoriesPage() {
                     <div className="glass-card w-full max-w-md p-6 rounded-2xl relative">
                         <div className="flex items-center justify-between mb-6">
                             <h2 className="text-xl font-bold text-white">
-                                {editingCategory ? "Chỉnh sửa danh mục" : "Thêm danh mục gốc"}
+                                {editingCategory ? t("edit_category") : t("add_root_category")}
                             </h2>
                             <button
                                 onClick={() => setIsModalOpen(false)}
@@ -647,7 +649,7 @@ export default function MasterCategoriesPage() {
                         <div className="space-y-4">
                             <div>
                                 <label className="block text-sm font-medium text-[var(--muted)] mb-2">
-                                    Loại danh mục
+                                    {t("category_type")}
                                 </label>
                                 <div className="flex gap-2">
                                     <button
@@ -659,7 +661,7 @@ export default function MasterCategoriesPage() {
                                             }`}
                                     >
                                         <TrendingUp size={20} className="mx-auto mb-1" />
-                                        <div className="text-sm font-medium">Thu</div>
+                                        <div className="text-sm font-medium">{t("inc")}</div>
                                     </button>
                                     <button
                                         type="button"
@@ -670,14 +672,14 @@ export default function MasterCategoriesPage() {
                                             }`}
                                     >
                                         <TrendingDown size={20} className="mx-auto mb-1" />
-                                        <div className="text-sm font-medium">Chi</div>
+                                        <div className="text-sm font-medium">{t("exp")}</div>
                                     </button>
                                 </div>
                             </div>
 
                             <div>
                                 <label className="block text-sm font-medium text-[var(--muted)] mb-2">
-                                    Tên danh mục *
+                                    {t("category_name")}
                                 </label>
                                 <input
                                     type="text"
@@ -691,7 +693,7 @@ export default function MasterCategoriesPage() {
 
                             <div>
                                 <label className="block text-sm font-medium text-[var(--muted)] mb-2">
-                                    Mô tả
+                                    {t("description")}
                                 </label>
                                 <textarea
                                     value={categoryDescription}
@@ -708,7 +710,7 @@ export default function MasterCategoriesPage() {
                                     onClick={() => setIsModalOpen(false)}
                                     className="flex-1 px-4 py-3 rounded-lg border border-white/20 text-[var(--muted)] hover:text-white hover:border-white/40 transition-colors"
                                 >
-                                    Hủy
+                                    {t("cancel")}
                                 </button>
                                 <button
                                     onClick={handleSaveCategory}
@@ -721,12 +723,12 @@ export default function MasterCategoriesPage() {
                                     {saving ? (
                                         <>
                                             <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                            Đang lưu...
+                                            {t("saving")}
                                         </>
                                     ) : (
                                         <>
                                             <Save size={16} />
-                                            {editingCategory ? "Cập nhật" : "Thêm mới"}
+                                            {editingCategory ? t("update") : t("add_new")}
                                         </>
                                     )}
                                 </button>
