@@ -5,6 +5,7 @@ import { X, User, CheckCircle, Calendar, Wallet, FileText, Image as ImageIcon, D
 import { useEffect, useState } from "react";
 import { getUserById } from "@/lib/users";
 import { UserProfile } from "@/types/user";
+import { useTranslation } from "@/lib/i18n";
 
 interface TransactionDetailModalProps {
     transaction: Transaction | null;
@@ -21,6 +22,7 @@ export default function TransactionDetailModal({
     accountName,
     projectName
 }: TransactionDetailModalProps) {
+    const { t, language } = useTranslation();
     const [creatorInfo, setCreatorInfo] = useState<UserProfile | null>(null);
     const [approverInfo, setApproverInfo] = useState<UserProfile | null>(null);
     const [loadingUsers, setLoadingUsers] = useState(false);
@@ -76,9 +78,9 @@ export default function TransactionDetailModal({
 
     const getStatusLabel = (status: string) => {
         switch (status) {
-            case "APPROVED": return "Đã duyệt";
-            case "PENDING": return "Chờ duyệt";
-            case "REJECTED": return "Từ chối";
+            case "APPROVED": return t("approved");
+            case "PENDING": return t("pending");
+            case "REJECTED": return t("rejected");
             default: return status;
         }
     };
@@ -104,10 +106,10 @@ export default function TransactionDetailModal({
                     </div>
                     <div className="flex-1">
                         <h2 className="text-2xl font-bold text-white">
-                            Chi tiết giao dịch
+                            {t("transaction_detail")}
                         </h2>
                         <p className="text-sm text-[var(--muted)]">
-                            {transaction.type === "IN" ? "Phiếu thu" : "Phiếu chi"}
+                            {transaction.type === "IN" ? t("income_ticket") : t("expense_ticket")}
                         </p>
                     </div>
                     <div className={`px-4 py-2 rounded-lg border ${getStatusColor(transaction.status)}`}>
@@ -120,7 +122,7 @@ export default function TransactionDetailModal({
                     ? "bg-green-500/10 border border-green-500/20"
                     : "bg-red-500/10 border border-red-500/20"
                     }`}>
-                    <div className="text-sm text-[var(--muted)] mb-1">Số tiền</div>
+                    <div className="text-sm text-[var(--muted)] mb-1">{t("amount")}</div>
                     <div className={`text-3xl font-bold ${transaction.type === "IN" ? "text-green-400" : "text-red-400"
                         }`}>
                         {transaction.type === "IN" ? "+" : "-"}
@@ -134,7 +136,7 @@ export default function TransactionDetailModal({
                         <div>
                             <div className="flex items-center gap-2 text-sm text-[var(--muted)] mb-1">
                                 <Calendar size={14} />
-                                Ngày giao dịch
+                                {t("date")}
                             </div>
                             <div className="text-white font-medium">
                                 {new Date(transaction.date).toLocaleString('vi-VN', {
@@ -150,7 +152,7 @@ export default function TransactionDetailModal({
                         <div>
                             <div className="flex items-center gap-2 text-sm text-[var(--muted)] mb-1">
                                 <Wallet size={14} />
-                                Tài khoản
+                                {t("account")}
                             </div>
                             <div className="text-white font-medium">
                                 {accountName || transaction.accountId}
@@ -161,7 +163,7 @@ export default function TransactionDetailModal({
                             <div>
                                 <div className="flex items-center gap-2 text-sm text-[var(--muted)] mb-1">
                                     <FileText size={14} />
-                                    Dự án
+                                    {t("project")}
                                 </div>
                                 <div className="text-white font-medium">{projectName}</div>
                             </div>
@@ -171,7 +173,7 @@ export default function TransactionDetailModal({
                     <div className="space-y-4">
                         <div>
                             <div className="text-sm text-[var(--muted)] mb-1">
-                                {transaction.type === "IN" ? "Nguồn thu" : "Danh mục"}
+                                {transaction.type === "IN" ? t("source") : t("category")}
                             </div>
                             <div className="text-white font-medium">
                                 {transaction.source || transaction.category || "-"}
@@ -180,14 +182,14 @@ export default function TransactionDetailModal({
 
                         {transaction.parentCategory && (
                             <div>
-                                <div className="text-sm text-[var(--muted)] mb-1">Danh mục cha</div>
+                                <div className="text-sm text-[var(--muted)] mb-1">{t("parent_category")}</div>
                                 <div className="text-white font-medium">{transaction.parentCategory}</div>
                             </div>
                         )}
 
                         {transaction.fundId && (
                             <div>
-                                <div className="text-sm text-[var(--muted)] mb-1">Quỹ</div>
+                                <div className="text-sm text-[var(--muted)] mb-1">{t("funds")}</div>
                                 <div className="text-white font-medium">{transaction.fundId}</div>
                             </div>
                         )}
@@ -197,7 +199,7 @@ export default function TransactionDetailModal({
                 {/* Description */}
                 {transaction.description && (
                     <div className="mb-6">
-                        <div className="text-sm text-[var(--muted)] mb-2">Ghi chú</div>
+                        <div className="text-sm text-[var(--muted)] mb-2">{t("description")}</div>
                         <div className="p-4 bg-white/5 rounded-lg text-white">
                             {transaction.description}
                         </div>
@@ -210,10 +212,10 @@ export default function TransactionDetailModal({
                     <div className="p-4 bg-white/5 rounded-xl border border-white/10">
                         <div className="flex items-center gap-2 text-sm text-[var(--muted)] mb-3">
                             <User size={14} />
-                            Người tạo
+                            {t("creator")}
                         </div>
                         {loadingUsers ? (
-                            <div className="text-sm text-[var(--muted)]">Đang tải...</div>
+                            <div className="text-sm text-[var(--muted)]">{t("loading")}</div>
                         ) : creatorInfo ? (
                             <div className="flex items-center gap-3">
                                 <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-sm font-bold">
@@ -230,7 +232,7 @@ export default function TransactionDetailModal({
                             </div>
                         ) : (
                             <div className="text-sm text-white">
-                                {transaction.createdBy || transaction.userId || "Không rõ"}
+                                {transaction.createdBy || transaction.userId || t("unknown")}
                             </div>
                         )}
                         <div className="text-xs text-[var(--muted)] mt-2">
@@ -243,10 +245,10 @@ export default function TransactionDetailModal({
                         <div className="p-4 bg-green-500/5 rounded-xl border border-green-500/20">
                             <div className="flex items-center gap-2 text-sm text-green-400 mb-3">
                                 <CheckCircle size={14} />
-                                Người duyệt
+                                {t("approver")}
                             </div>
                             {loadingUsers ? (
-                                <div className="text-sm text-[var(--muted)]">Đang tải...</div>
+                                <div className="text-sm text-[var(--muted)]">{t("loading")}</div>
                             ) : approverInfo ? (
                                 <div className="flex items-center gap-3">
                                     <div className="w-10 h-10 rounded-full bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center text-sm font-bold">
@@ -273,7 +275,7 @@ export default function TransactionDetailModal({
                     <div className="mb-6">
                         <div className="flex items-center gap-2 text-sm text-[var(--muted)] mb-3">
                             <ImageIcon size={14} />
-                            Hình ảnh đính kèm ({transaction.images.length})
+                            {t("attached_images_count").replace("{count}", transaction.images.length.toString())}
                         </div>
                         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                             {transaction.images.map((url: string, index: number) => (
@@ -304,7 +306,7 @@ export default function TransactionDetailModal({
                         onClick={onClose}
                         className="px-6 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors"
                     >
-                        Đóng
+                        {t("close")}
                     </button>
                 </div>
             </div>

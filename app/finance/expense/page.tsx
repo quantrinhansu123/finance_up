@@ -17,6 +17,7 @@ import TransactionDetailModal from "@/components/finance/TransactionDetailModal"
 import { WizardProgress, WizardStepPanel, WizardSummaryItem } from "@/components/finance/TransactionWizard";
 import DataTable, { AmountCell, DateCell, TextCell, StatusBadge, ActionCell } from "@/components/finance/DataTable";
 import { Eye } from "lucide-react";
+import { useTranslation } from "@/lib/i18n";
 
 const EXPENSE_CATEGORIES = [
     "Thuế", "Long Heng", "Cước vận chuyển", "Cước vận chuyển HN-HCM", "Cước vận chuyển HCM-HN",
@@ -26,13 +27,15 @@ const EXPENSE_CATEGORIES = [
 ];
 const CURRENCY_FLAGS: Record<string, string> = { "VND": "🇻🇳", "USD": "🇺🇸", "KHR": "🇰🇭", "TRY": "🇹🇷" };
 
-const WIZARD_STEPS = [
-    { id: 1, label: "Dự án", icon: FolderOpen, description: "Chọn dự án" },
-    { id: 2, label: "Tài khoản", icon: CreditCard, description: "Chọn tài khoản" },
-    { id: 3, label: "Chi tiết", icon: Receipt, description: "Nhập thông tin" },
-];
-
 export default function ExpensePage() {
+    const { t } = useTranslation();
+
+    const WIZARD_STEPS = useMemo(() => [
+        { id: 1, label: t("project"), icon: FolderOpen, description: t("select_project") },
+        { id: 2, label: t("account"), icon: CreditCard, description: t("select_account_expense") },
+        { id: 3, label: t("detail"), icon: Receipt, description: t("enter_info") },
+    ], [t]);
+
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [accounts, setAccounts] = useState<Account[]>([]);
     const [projects, setProjects] = useState<Project[]>([]);
@@ -202,7 +205,7 @@ export default function ExpensePage() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!canCreateExpense) { alert("Bạn không có quyền tạo khoản chi trong dự án này"); return; }
+        if (!canCreateExpense) { alert(t("no_create_expense_permission")); return; }
         setSubmitting(true);
         try {
             const numAmount = parseFloat(amount);
@@ -230,15 +233,15 @@ export default function ExpensePage() {
 
             resetForm();
             fetchTransactions();
-            alert(needsApproval ? "⚠️ Khoản chi lớn - Đã chuyển sang CHỜ DUYỆT" : "✓ Đã thêm khoản chi thành công!");
-        } catch (error) { console.error(error); alert("Lỗi khi thêm khoản chi"); }
+            alert(needsApproval ? t("large_expense_warning") : t("create_expense_success"));
+        } catch (error) { console.error(error); alert(t("create_expense_error")); }
         finally { setSubmitting(false); }
     };
 
     const handleAddNewCategory = async () => {
-        if (!newCategoryName.trim()) { alert("Vui lòng nhập tên danh mục"); return; }
-        if (!selectedParentCategoryId) { alert("Vui lòng chọn danh mục cha"); return; }
-        if (!selectedProject) { alert("Vui lòng chọn dự án trước"); return; }
+        if (!newCategoryName.trim()) { alert(t("enter_category_name")); return; }
+        if (!selectedParentCategoryId) { alert(t("select_parent_category")); return; }
+        if (!selectedProject) { alert(t("select_project_first")); return; }
         setSavingCategory(true);
         try {
             const userId = currentUser?.uid || currentUser?.id || "unknown";
@@ -261,7 +264,7 @@ export default function ExpensePage() {
     const getAccountName = (id: string) => accounts.find(a => a.id === id)?.name || "-";
     const getProjectName = (id: string) => projects.find(p => p.id === id)?.name || "-";
 
-    if (loading) return <div className="p-8 text-[var(--muted)]">Đang tải...</div>;
+    if (loading) return <div className="p-8 text-[var(--muted)]">{t("loading")}</div>;
 
     return (
         <div className="space-y-6">
@@ -270,12 +273,12 @@ export default function ExpensePage() {
                 <div className="p-3 rounded-2xl bg-gradient-to-br from-red-500 to-orange-600 shadow-lg shadow-red-500/25">
                     <Receipt className="w-6 h-6 text-white" />
                 </div>
-                <div><h1 className="text-2xl font-bold text-white">Chi tiền</h1><p className="text-sm text-white/50">Quản lý khoản chi</p></div>
+                <div><h1 className="text-2xl font-bold text-white">{t("create_expense_transaction")}</h1><p className="text-sm text-white/50">{t("manage_expense")}</p></div>
                 <button
                     onClick={() => { setShowForm(!showForm); if (!showForm) resetForm(); }}
                     className={`ml-auto px-4 py-2 rounded-xl font-bold transition-all flex items-center gap-2 ${showForm ? "bg-white/10 text-white hover:bg-white/20" : "bg-red-600 text-white hover:bg-red-500 shadow-lg shadow-red-500/25"}`}
                 >
-                    {showForm ? "Đóng" : "＋ Tạo khoản chi"}
+                    {showForm ? t("close") : "－ " + t("create_expense_transaction")}
                 </button>
             </div>
 
@@ -290,8 +293,8 @@ export default function ExpensePage() {
                     <form onSubmit={handleSubmit} className="space-y-4">
                         {/* Step 1: Project */}
                         <WizardStepPanel
-                            title="Chọn dự án"
-                            description="Dự án sẽ ghi nhận khoản chi"
+                            title={t("select_project")}
+                            description={t("project_expense_desc")}
                             icon={FolderOpen}
                             isActive={wizardStep === 1}
                             isCompleted={wizardStep > 1}
@@ -305,18 +308,18 @@ export default function ExpensePage() {
                                 options={accessibleProjects.map(p => ({ id: p.id, label: p.name, subLabel: p.status === "ACTIVE" ? "" : p.status }))}
                                 value={projectId}
                                 onChange={val => { setProjectId(val); setAccountId(""); }}
-                                placeholder="Tìm và chọn dự án..."
+                                placeholder={t("search_projects")}
                                 required
                             />
                             {userRole !== "ADMIN" && accessibleProjects.length === 0 && (
-                                <p className="flex items-center gap-2 mt-3 text-xs text-yellow-400"><AlertCircle size={14} /> Bạn chưa được gán vào dự án nào</p>
+                                <p className="flex items-center gap-2 mt-3 text-xs text-yellow-400"><AlertCircle size={14} /> {t("no_assigned_project")}</p>
                             )}
                         </WizardStepPanel>
 
                         {/* Step 2: Account */}
                         <WizardStepPanel
-                            title="Chọn tài khoản chi"
-                            description="Tài khoản sẽ trừ tiền"
+                            title={t("select_account_expense")}
+                            description={t("account_expense_desc")}
                             icon={CreditCard}
                             isActive={wizardStep === 2}
                             isCompleted={wizardStep > 2}
@@ -336,12 +339,12 @@ export default function ExpensePage() {
                                 }))}
                                 value={accountId}
                                 onChange={setAccountId}
-                                placeholder="Tìm và chọn tài khoản..."
+                                placeholder={t("search_accounts")}
                                 required
                             />
                             {selectedAccount && (
                                 <div className="mt-3 p-3 bg-black/20 rounded-xl flex items-center justify-between">
-                                    <span className="text-sm text-white/60">Số dư hiện tại</span>
+                                    <span className="text-sm text-white/60">{t("current_balance")}</span>
                                     <span className={`font-bold ${selectedAccount.balance >= 0 ? "text-green-400" : "text-red-400"}`}>
                                         {selectedAccount.balance.toLocaleString()} {selectedAccount.currency}
                                     </span>
@@ -351,8 +354,8 @@ export default function ExpensePage() {
 
                         {/* Step 3: Details */}
                         <WizardStepPanel
-                            title="Nhập chi tiết khoản chi"
-                            description="Thông tin số tiền và hạng mục"
+                            title={t("enter_expense_details")}
+                            description={t("expense_details_desc")}
                             icon={Receipt}
                             isActive={wizardStep === 3}
                             colorScheme="red"
@@ -364,15 +367,15 @@ export default function ExpensePage() {
                                 {/* Summary of previous steps */}
                                 <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl">
                                     <div className="flex flex-wrap gap-4 text-sm">
-                                        <WizardSummaryItem label="Dự án" value={selectedProject?.name || ""} icon="📁" />
-                                        <WizardSummaryItem label="Tài khoản" value={selectedAccount?.name || ""} icon="💳" />
-                                        <WizardSummaryItem label="Số dư" value={`${selectedAccount?.balance.toLocaleString()} ${selectedAccount?.currency}`} icon="💰" />
+                                        <WizardSummaryItem label={t("project")} value={selectedProject?.name || ""} icon="📁" />
+                                        <WizardSummaryItem label={t("account")} value={selectedAccount?.name || ""} icon="💳" />
+                                        <WizardSummaryItem label={t("balance")} value={`${selectedAccount?.balance.toLocaleString()} ${selectedAccount?.currency}`} icon="💰" />
                                     </div>
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-xs text-white/50 mb-1.5">Số tiền <span className="text-red-400">*</span></label>
+                                        <label className="block text-xs text-white/50 mb-1.5">{t("amount")} <span className="text-red-400">*</span></label>
                                         <CurrencyInput
                                             value={amount}
                                             onChange={setAmount}
@@ -382,57 +385,60 @@ export default function ExpensePage() {
                                         />
                                         {isOverBalance && (
                                             <div className="mt-2 p-3 bg-red-500/10 border border-red-500/30 rounded-xl">
-                                                <p className="flex items-center gap-2 text-sm text-red-400 font-medium"><AlertCircle size={16} /> Vượt quá số dư tài khoản!</p>
-                                                <p className="text-xs text-red-400/70 mt-1">Số dư: {selectedAccount?.balance.toLocaleString()} {selectedAccount?.currency} • Thiếu: {Math.abs(remainingBalance).toLocaleString()} {selectedAccount?.currency}</p>
+                                                <p className="flex items-center gap-2 text-sm text-red-400 font-medium"><AlertCircle size={16} /> {t("exceed_balance_warning")}</p>
+                                                <p className="text-xs text-red-400/70 mt-1">{t("balance")}: {selectedAccount?.balance.toLocaleString()} {selectedAccount?.currency} • {t("missing_amount")}: {Math.abs(remainingBalance).toLocaleString()} {selectedAccount?.currency}</p>
                                             </div>
                                         )}
                                         {!isOverBalance && requiresApproval() && (
-                                            <p className="flex items-center gap-1 mt-1.5 text-xs text-yellow-400"><AlertCircle size={12} /> Số tiền lớn - Cần Admin duyệt</p>
+                                            <p className="flex items-center gap-1 mt-1.5 text-xs text-yellow-400"><AlertCircle size={12} /> {t("large_amount_approval")}</p>
                                         )}
                                         {!isOverBalance && amount && parseFloat(amount) > 0 && (
-                                            <p className="mt-1.5 text-xs text-white/40">Số dư sau chi: <span className={`font-medium ${remainingBalance >= 0 ? "text-green-400" : "text-red-400"}`}>{remainingBalance.toLocaleString()} {selectedAccount?.currency}</span></p>
+                                            <p className="mt-1.5 text-xs text-white/40">{t("balance_after_expense")}: <span className={`font-medium ${remainingBalance >= 0 ? "text-green-400" : "text-red-400"}`}>{remainingBalance.toLocaleString()} {selectedAccount?.currency}</span></p>
                                         )}
                                     </div>
-                                    <div>
-                                        <label className="block text-xs text-white/50 mb-1.5">Hạng mục <span className="text-red-400">*</span></label>
-                                        <SearchableSelectWithAdd
-                                            options={allowedCategories.map(cat => ({ id: cat, label: cat }))}
-                                            value={category}
-                                            onChange={setCategory}
-                                            onAddNew={() => setIsAddCategoryModalOpen(true)}
-                                            placeholder="Chọn hạng mục..."
-                                            addNewLabel="➕ Thêm hạng mục mới"
-                                        />
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="block text-xs text-white/50 mb-1.5">{t("category")} <span className="text-red-400">*</span></label>
+                                            <SearchableSelectWithAdd
+                                                options={allowedCategories.map(cat => ({ id: cat, label: cat }))}
+                                                value={category}
+                                                onChange={setCategory}
+                                                onAddNew={() => setIsAddCategoryModalOpen(true)}
+                                                placeholder={t("select_source_placeholder")}
+                                                addNewLabel={"➕ " + t("add_new_source")}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs text-white/50 mb-1.5">{t("expense_fund_optional")}</label>
+                                            <SearchableSelect
+                                                options={funds.map(f => ({ id: f.id, label: f.name }))}
+                                                value={fundId}
+                                                onChange={setFundId}
+                                                placeholder={t("select_fund")}
+                                            />
+                                        </div>
                                     </div>
                                 </div>
 
                                 <div>
-                                    <label className="block text-xs text-white/50 mb-1.5">Quỹ chi (tùy chọn)</label>
-                                    <select value={fundId} onChange={e => setFundId(e.target.value)} className="w-full p-3 bg-black/30 border border-white/10 rounded-xl text-white focus:border-red-500/50 focus:outline-none">
-                                        <option value="">Không chọn</option>
-                                        {funds.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <label className="block text-xs text-white/50 mb-1.5">Chứng từ đính kèm</label>
+                                    <label className="block text-xs text-white/50 mb-1.5">{t("attached_documents")}</label>
                                     <label className="flex items-center justify-center gap-2 p-4 border-2 border-dashed border-white/10 rounded-xl cursor-pointer hover:border-red-500/30 hover:bg-red-500/5 transition-colors">
                                         <Upload size={20} className="text-white/40" />
-                                        <span className="text-sm text-white/40">{files.length > 0 ? `${files.length} file đã chọn` : "Chọn ảnh chứng từ (tối đa 2)"}</span>
+                                        <span className="text-sm text-white/40">{files.length > 0 ? t("files_selected").replace("{count}", files.length.toString()) : t("select_voucher_images").replace("{count}", "2")}</span>
                                         <input type="file" multiple accept="image/*" onChange={e => setFiles(Array.from(e.target.files || []).slice(0, 2))} className="hidden" />
                                     </label>
                                 </div>
 
                                 <div>
-                                    <label className="block text-xs text-white/50 mb-1.5">Ghi chú</label>
-                                    <input type="text" value={description} onChange={e => setDescription(e.target.value)} className="w-full p-3 bg-black/30 border border-white/10 rounded-xl text-white focus:border-red-500/50 focus:outline-none" placeholder="Mô tả khoản chi..." />
+                                    <label className="block text-xs text-white/50 mb-1.5">{t("description")}</label>
+                                    <input type="text" value={description} onChange={e => setDescription(e.target.value)} className="w-full p-3 bg-black/30 border border-white/10 rounded-xl text-white focus:border-red-500/50 focus:outline-none" placeholder={t("describe_expense_placeholder")} />
                                 </div>
 
-                                <button type="submit" disabled={submitting || !amount || parseFloat(amount) <= 0} className="w-full p-4 rounded-xl font-bold text-white bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-500 hover:to-orange-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-red-500/25 flex items-center justify-center gap-2">
+                                <button type="submit" disabled={submitting || !amount || parseFloat(amount) <= 0 || (selectedAccount && parseFloat(amount) > selectedAccount.balance)} className="w-full p-4 rounded-xl font-bold text-white bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-500 hover:to-orange-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-red-500/25 flex items-center justify-center gap-2">
                                     {submitting ? (
-                                        <><div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Đang lưu...</>
+                                        <><div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> {t("saving")}</>
                                     ) : (
-                                        <>✓ Hoàn tất - Lưu khoản chi</>
+                                        <>✓ {t("save_expense")}</>
                                     )}
                                 </button>
                             </div>
@@ -445,20 +451,20 @@ export default function ExpensePage() {
             <div className="space-y-4">
                 <div className="rounded-2xl bg-white/5 border border-white/10 p-4">
                     <DataTableToolbar
-                        searchPlaceholder="Tìm kiếm hạng mục, nội dung..."
+                        searchPlaceholder={t("search_placeholder")}
                         onSearch={setSearchTerm}
                         activeFilters={activeFilters}
                         onFilterChange={(id, val) => setActiveFilters(prev => ({ ...prev, [id]: val }))}
                         enableDateRange={true}
                         onReset={() => { setActiveFilters({ startDate: "", endDate: "", date: "", projectId: "", accountId: "", status: "", fundId: "", category: "" }); setSearchTerm(""); }}
-                        onExport={() => exportToCSV(transactions, "Chi_Tien", { date: "Ngày", amount: "Số tiền", currency: "Tiền tệ", category: "Tiêu đề", description: "Ghi chú", status: "Trạng thái" })}
+                        onExport={() => exportToCSV(transactions, "Chi_Tien", { date: t("date"), amount: t("amount"), currency: t("currency"), category: t("category"), description: t("description"), status: t("status") })}
                         filters={[
-                            { id: "status", label: "Trạng thái", options: [{ value: "APPROVED", label: "Đã duyệt" }, { value: "PENDING", label: "Chờ duyệt" }, { value: "REJECTED", label: "Từ chối" }] },
-                            { id: "projectId", label: "Dự án", options: projects.map(p => ({ value: p.id, label: p.name })) },
-                            { id: "accountId", label: "Tài khoản", options: accounts.map(a => ({ value: a.id, label: a.name })), advanced: true },
-                            { id: "category", label: "Hạng mục", options: Array.from(new Set(transactions.map(t => t.category))).filter(Boolean).map(c => ({ value: c!, label: c! })), advanced: true },
-                            { id: "fundId", label: "Quỹ chi", options: funds.map(f => ({ value: f.id, label: f.name })), advanced: true },
-                            { id: "date", label: "Ngày", options: Array.from(new Set(transactions.map(t => t.date.split("T")[0]))).sort().reverse().map(d => ({ value: d, label: d })), advanced: true }
+                            { id: "status", label: t("status"), options: [{ value: "APPROVED", label: t("approved") }, { value: "PENDING", label: t("pending") }, { value: "REJECTED", label: t("rejected") }] },
+                            { id: "projectId", label: t("project"), options: projects.map(p => ({ value: p.id, label: p.name })) },
+                            { id: "accountId", label: t("account"), options: accounts.map(a => ({ value: a.id, label: a.name })), advanced: true },
+                            { id: "category", label: t("category"), options: Array.from(new Set(transactions.map(t => t.category))).filter(Boolean).map(c => ({ value: c!, label: c! })), advanced: true },
+                            { id: "fundId", label: t("expense_fund_optional"), options: funds.map(f => ({ value: f.id, label: f.name })), advanced: true },
+                            { id: "date", label: t("date"), options: Array.from(new Set(transactions.map(t => t.date.split("T")[0]))).sort().reverse().map(d => ({ value: d, label: d })), advanced: true }
                         ]}
                     />
                 </div>
@@ -467,48 +473,48 @@ export default function ExpensePage() {
                     data={transactions}
                     colorScheme="red"
                     onRowClick={(tx) => { setSelectedTransaction(tx); setIsDetailModalOpen(true); }}
-                    emptyMessage="Chưa có khoản chi nào"
+                    emptyMessage={t("no_expense_records")}
                     columns={[
                         {
                             key: "date",
-                            header: "Ngày",
+                            header: t("date"),
                             render: (tx) => <DateCell date={tx.date} />
                         },
                         {
                             key: "amount",
-                            header: "Số tiền",
+                            header: t("amount"),
                             align: "right",
                             render: (tx) => <AmountCell amount={tx.amount} type="OUT" currency={tx.currency} />
                         },
                         {
                             key: "category",
-                            header: "Hạng mục",
+                            header: t("category"),
                             render: (tx) => <TextCell primary={tx.category || ""} secondary={tx.description} />
                         },
                         {
                             key: "account",
-                            header: "Tài khoản",
+                            header: t("account"),
                             render: (tx) => <span className="text-white/70">{getAccountName(tx.accountId)}</span>
                         },
                         {
                             key: "project",
-                            header: "Dự án",
+                            header: t("project"),
                             render: (tx) => <span className="text-white/70">{tx.projectId ? getProjectName(tx.projectId) : "-"}</span>
                         },
                         {
                             key: "status",
-                            header: "Trạng thái",
+                            header: t("status"),
                             align: "center",
                             render: (tx) => <StatusBadge status={tx.status} />
                         },
                         {
                             key: "actions",
-                            header: "Chi tiết",
+                            header: t("detail"),
                             align: "center",
                             render: (tx) => (
                                 <ActionCell>
-                                    <button 
-                                        onClick={() => { setSelectedTransaction(tx); setIsDetailModalOpen(true); }} 
+                                    <button
+                                        onClick={() => { setSelectedTransaction(tx); setIsDetailModalOpen(true); }}
                                         className="p-1.5 rounded hover:bg-white/10 text-white/40 hover:text-blue-400 transition-colors"
                                     >
                                         <Eye size={16} />
@@ -536,28 +542,28 @@ export default function ExpensePage() {
                         <button onClick={() => { setIsAddCategoryModalOpen(false); setNewCategoryName(""); }} className="absolute top-4 right-4 text-[var(--muted)] hover:text-white text-xl">✕</button>
                         <div className="flex items-center gap-3 mb-6">
                             <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-red-500 to-rose-600 flex items-center justify-center"><Plus size={24} className="text-white" /></div>
-                            <div><h2 className="text-2xl font-bold text-white">Thêm hạng mục chi mới</h2><p className="text-sm text-[var(--muted)]">Dự án: {selectedProject?.name}</p></div>
+                            <div><h2 className="text-2xl font-bold text-white">{t("add_category")}</h2><p className="text-sm text-[var(--muted)]">{t("project")}: {selectedProject?.name}</p></div>
                         </div>
                         <div className="space-y-4">
                             <div>
-                                <label className="block text-sm font-medium text-white mb-2">Danh mục cha <span className="text-red-400">*</span></label>
+                                <label className="block text-sm font-medium text-white mb-2">{t("parent_category")} <span className="text-red-400">*</span></label>
                                 <select value={selectedParentCategoryId} onChange={(e) => setSelectedParentCategoryId(e.target.value)} className="w-full px-4 py-3 bg-black/30 border border-white/10 rounded-lg text-white focus:border-red-500/50 focus:outline-none" required>
-                                    <option value="">Chọn danh mục cha...</option>
+                                    <option value="">{t("parent_category")}...</option>
                                     {masterCategories.filter(c => c.type === "EXPENSE").map(cat => (<option key={cat.id} value={cat.id}>{cat.name}</option>))}
                                 </select>
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-white mb-2">Tên hạng mục <span className="text-red-400">*</span></label>
-                                <input type="text" value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} className="glass-input w-full px-4 py-3 rounded-lg" placeholder="VD: Thuê văn phòng, Marketing,..." autoFocus onKeyDown={(e) => { if (e.key === "Enter" && newCategoryName.trim()) handleAddNewCategory(); }} />
+                                <label className="block text-sm font-medium text-white mb-2">{t("category_name")} <span className="text-red-400">*</span></label>
+                                <input type="text" value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} className="glass-input w-full px-4 py-3 rounded-lg" placeholder={t("category_name_placeholder")} autoFocus onKeyDown={(e) => { if (e.key === "Enter" && newCategoryName.trim()) handleAddNewCategory(); }} />
                             </div>
                             <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3">
-                                <p className="text-xs text-blue-400">💡 Danh mục này sẽ được thêm vào dự án <strong>{selectedProject?.name}</strong> và có thể sử dụng cho các khoản chi sau.</p>
+                                <p className="text-xs text-blue-400" dangerouslySetInnerHTML={{ __html: "💡 " + t("add_category_hint").replace("{project}", selectedProject?.name || "") }} />
                             </div>
                         </div>
                         <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-white/10">
-                            <button onClick={() => { setIsAddCategoryModalOpen(false); setNewCategoryName(""); }} className="px-4 py-2 rounded-lg text-sm font-medium hover:bg-white/10 transition-colors">Hủy</button>
+                            <button onClick={() => { setIsAddCategoryModalOpen(false); setNewCategoryName(""); }} className="px-4 py-2 rounded-lg text-sm font-medium hover:bg-white/10 transition-colors">{t("cancel")}</button>
                             <button onClick={handleAddNewCategory} disabled={savingCategory || !newCategoryName.trim()} className="glass-button px-6 py-2 rounded-lg text-sm font-bold bg-red-500/20 hover:bg-red-500/30 text-red-400 border-red-500/30 disabled:opacity-50 flex items-center gap-2">
-                                {savingCategory ? (<><div className="w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin" />Đang lưu...</>) : (<><Plus size={16} />Thêm mới</>)}
+                                {savingCategory ? (<><div className="w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin" />{t("saving")}</>) : (<><Plus size={16} />{t("add_new")}</>)}
                             </button>
                         </div>
                     </div>

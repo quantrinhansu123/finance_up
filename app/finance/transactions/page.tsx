@@ -8,8 +8,10 @@ import Link from "next/link";
 import DataTableToolbar from "@/components/finance/DataTableToolbar";
 import { exportToCSV } from "@/lib/export";
 import DataTable, { AmountCell, DateCell, TextCell, StatusBadge, ImageCell } from "@/components/finance/DataTable";
+import { useTranslation } from "@/lib/i18n";
 
 export default function TransactionsPage() {
+    const { t } = useTranslation();
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [loading, setLoading] = useState(true);
     const [currentUser, setCurrentUser] = useState<any>(null);
@@ -141,21 +143,21 @@ export default function TransactionsPage() {
         <div className="space-y-8">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold text-white">Lịch sử Giao dịch</h1>
-                    <p className="text-[var(--muted)]">Xem tất cả giao dịch thu chi</p>
+                    <h1 className="text-3xl font-bold text-white">{t("transaction_history")}</h1>
+                    <p className="text-[var(--muted)]">{t("view_all_transactions")}</p>
                 </div>
                 <div className="flex gap-3">
                     <Link
                         href="/finance/income"
                         className="glass-button px-4 py-2 rounded-xl font-medium flex items-center gap-2 bg-green-600/20 text-green-400 border-green-600/30 hover:bg-green-600/30"
                     >
-                        💰 Thu tiền
+                        💰 {t("income")}
                     </Link>
                     <Link
                         href="/finance/expense"
                         className="glass-button px-4 py-2 rounded-xl font-medium flex items-center gap-2 bg-red-600/20 text-red-400 border-red-600/30 hover:bg-red-600/30"
                     >
-                        💸 Chi tiền
+                        💸 {t("expense")}
                     </Link>
                 </div>
             </div>
@@ -163,19 +165,19 @@ export default function TransactionsPage() {
             {/* Quick Stats */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="glass-card p-4 rounded-xl">
-                    <p className="text-xs text-[var(--muted)] uppercase">Tổng giao dịch</p>
+                    <p className="text-xs text-[var(--muted)] uppercase">{t("quick_stats_total_tx")}</p>
                     <p className="text-2xl font-bold text-white">{transactions.length}</p>
                 </div>
                 <div className="glass-card p-4 rounded-xl">
-                    <p className="text-xs text-[var(--muted)] uppercase">Tổng thu</p>
+                    <p className="text-xs text-[var(--muted)] uppercase">{t("quick_stats_total_in")}</p>
                     <p className="text-2xl font-bold text-green-400">+{totalIn.toLocaleString()}</p>
                 </div>
                 <div className="glass-card p-4 rounded-xl">
-                    <p className="text-xs text-[var(--muted)] uppercase">Tổng chi</p>
+                    <p className="text-xs text-[var(--muted)] uppercase">{t("quick_stats_total_out")}</p>
                     <p className="text-2xl font-bold text-red-400">-{totalOut.toLocaleString()}</p>
                 </div>
                 <div className="glass-card p-4 rounded-xl">
-                    <p className="text-xs text-[var(--muted)] uppercase">Chờ duyệt</p>
+                    <p className="text-xs text-[var(--muted)] uppercase">{t("quick_stats_pending")}</p>
                     <p className="text-2xl font-bold text-yellow-400">{pendingCount}</p>
                 </div>
             </div>
@@ -183,7 +185,7 @@ export default function TransactionsPage() {
             {/* Reusable Toolbar */}
             <div className="rounded-2xl bg-white/5 border border-white/10 p-4">
                 <DataTableToolbar
-                    searchPlaceholder="Tìm mã GD, nội dung, người tạo..."
+                    searchPlaceholder={t("search_transaction_placeholder")}
                     onSearch={setSearchTerm}
                     activeFilters={activeFilters}
                     onFilterChange={(id, val) => setActiveFilters(prev => ({ ...prev, [id]: val }))}
@@ -202,50 +204,50 @@ export default function TransactionsPage() {
                     }}
                     onExport={() => {
                         exportToCSV(transactions, "Giao_Dich", {
-                            date: "Ngày",
-                            type: "Loại",
-                            amount: "Số tiền",
-                            currency: "Tiện tệ",
-                            category: "Hạng mục",
-                            source: "Nguồn",
-                            description: "Ghi chú",
-                            status: "Trạng thái",
-                            createdBy: "Người tạo"
+                            date: t("date"),
+                            type: t("type"),
+                            amount: t("amount"),
+                            currency: t("currency"),
+                            category: t("category"),
+                            source: t("source"),
+                            description: t("description"),
+                            status: t("status"),
+                            createdBy: t("creator")
                         });
                     }}
                     filters={[
                         {
                             id: "type",
-                            label: "Tất cả loại",
+                            label: t("all_types"),
                             options: [
-                                { value: "IN", label: "💰 Thu tiền" },
-                                { value: "OUT", label: "💸 Chi tiền" }
+                                { value: "IN", label: `💰 ${t("income")}` },
+                                { value: "OUT", label: `💸 ${t("expense")}` }
                             ]
                         },
                         {
                             id: "status",
-                            label: "Trạng thái",
+                            label: t("status"),
                             options: [
-                                { value: "APPROVED", label: "✓ Đã duyệt" },
-                                { value: "PENDING", label: "⏳ Chờ duyệt" },
-                                { value: "REJECTED", label: "✗ Từ chối" }
+                                { value: "APPROVED", label: `✓ ${t("approved")}` },
+                                { value: "PENDING", label: `⏳ ${t("pending")}` },
+                                { value: "REJECTED", label: `✗ ${t("rejected_label")}` }
                             ]
                         },
                         {
                             id: "projectId",
-                            label: "Dự án",
+                            label: t("project"),
                             options: accessibleProjects.map(p => ({ value: p.id, label: p.name })),
                             advanced: true
                         },
                         {
                             id: "accountId",
-                            label: "Tài khoản",
+                            label: t("account"),
                             options: accounts.map(a => ({ value: a.id, label: a.name })),
                             advanced: true
                         },
                         {
                             id: "date",
-                            label: "Ngày",
+                            label: t("date"),
                             options: Array.from(new Set(transactions.map(t => t.date.split("T")[0]))).sort().reverse().map(d => ({ value: d, label: d })),
                             advanced: true
                         }
@@ -259,48 +261,48 @@ export default function TransactionsPage() {
                 <DataTable
                     data={transactions}
                     colorScheme="blue"
-                    emptyMessage="Không tìm thấy giao dịch"
+                    emptyMessage={t("no_transactions_found")}
                     columns={[
                         {
                             key: "date",
-                            header: "Ngày",
+                            header: t("date"),
                             render: (tx) => <DateCell date={tx.date} />
                         },
                         {
                             key: "amount",
-                            header: "Số tiền",
+                            header: t("amount"),
                             align: "right",
                             render: (tx) => <AmountCell amount={tx.amount} type={tx.type} currency={tx.currency} />
                         },
                         {
                             key: "category",
-                            header: "Nguồn/Hạng mục",
+                            header: t("category_source"),
                             render: (tx) => <TextCell primary={tx.type === "IN" ? (tx.source || tx.category || "") : (tx.category || "")} secondary={tx.description} />
                         },
                         {
                             key: "account",
-                            header: "Tài khoản",
+                            header: t("account"),
                             render: (tx) => <span className="text-white font-medium">{getAccountName(tx.accountId)}</span>
                         },
                         {
                             key: "project",
-                            header: "Dự án",
+                            header: t("project"),
                             render: (tx) => <span className="text-white font-medium">{tx.projectId ? getProjectName(tx.projectId) : "-"}</span>
                         },
                         {
                             key: "user",
-                            header: "Người tạo",
+                            header: t("creator"),
                             render: (tx) => <span className="text-xs text-white/70">{tx.createdBy}</span>
                         },
                         {
                             key: "images",
-                            header: "Ảnh",
+                            header: t("images"),
                             align: "center",
                             render: (tx) => <ImageCell images={tx.images} />
                         },
                         {
                             key: "status",
-                            header: "Trạng thái",
+                            header: t("status"),
                             align: "center",
                             render: (tx) => <StatusBadge status={tx.status} />
                         }

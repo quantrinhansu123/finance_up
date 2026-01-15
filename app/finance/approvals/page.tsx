@@ -10,6 +10,7 @@ import { getUserRole, hasProjectPermission } from "@/lib/permissions";
 import { useRouter } from "next/navigation";
 import { ShieldX } from "lucide-react";
 import DataTable, { DateCell } from "@/components/finance/DataTable";
+import { useTranslation } from "@/lib/i18n";
 
 type ApprovalTab = "all" | "high_value" | "pending";
 
@@ -24,6 +25,7 @@ interface ApprovalLog {
 }
 
 export default function ApprovalsPage() {
+    const { t } = useTranslation();
     const router = useRouter();
     const [pendingTransactions, setPendingTransactions] = useState<Transaction[]>([]);
     const [loading, setLoading] = useState(true);
@@ -54,19 +56,19 @@ export default function ApprovalsPage() {
                 setLoading(false);
                 return;
             }
-            
+
             const parsed = JSON.parse(u);
             const role = getUserRole(parsed);
             const userId = parsed.uid || parsed.id;
-            
+
             const [txs, accs, allProjects] = await Promise.all([
-                getTransactions(), 
+                getTransactions(),
                 getAccounts(),
                 getProjects()
             ]);
-            
+
             setAccounts(accs);
-            
+
             // ADMIN có full quyền
             if (role === "ADMIN") {
                 setCanApprove(true);
@@ -74,17 +76,17 @@ export default function ApprovalsPage() {
                 setApprovalProjectIds(allProjects.map(p => p.id));
             } else {
                 // Lấy các project mà user có quyền approve_transactions
-                const projectsWithApproval = allProjects.filter(p => 
+                const projectsWithApproval = allProjects.filter(p =>
                     hasProjectPermission(userId, p, "approve_transactions", parsed)
                 );
-                
+
                 if (projectsWithApproval.length > 0) {
                     setCanApprove(true);
                     const projectIds = projectsWithApproval.map(p => p.id);
                     setApprovalProjectIds(projectIds);
-                    
+
                     // Lọc giao dịch PENDING thuộc các project có quyền
-                    const filteredTxs = txs.filter(t => 
+                    const filteredTxs = txs.filter(t =>
                         t.status === "PENDING" && t.projectId && projectIds.includes(t.projectId)
                     );
                     setPendingTransactions(filteredTxs);
@@ -127,7 +129,7 @@ export default function ApprovalsPage() {
 
     const handleApprove = async (tx: Transaction) => {
         if (!currentUser) return alert("Error: User not found");
-        if (!confirm("Xác nhận DUYỆT giao dịch này?")) return;
+        if (!confirm(t("verify_approve_tx"))) return;
 
         try {
             // 1. Update Status
@@ -162,7 +164,7 @@ export default function ApprovalsPage() {
             fetchData();
         } catch (error) {
             console.error("Approval failed", error);
-            alert("Lỗi khi duyệt giao dịch");
+            alert(t("approve_error"));
         }
     };
 
@@ -176,7 +178,7 @@ export default function ApprovalsPage() {
         if (!rejectingTx) return;
         if (!currentUser) return alert("Error: User not found");
         if (!rejectionReason.trim()) {
-            alert("Vui lòng nhập lý do từ chối");
+            alert(t("please_enter_reject_reason"));
             return;
         }
 
@@ -206,7 +208,7 @@ export default function ApprovalsPage() {
             fetchData();
         } catch (error) {
             console.error("Rejection failed", error);
-            alert("Lỗi khi từ chối giao dịch");
+            alert(t("reject_error"));
         }
     };
 
@@ -221,13 +223,13 @@ export default function ApprovalsPage() {
         return (
             <div className="flex flex-col items-center justify-center min-h-[50vh] text-center">
                 <ShieldX size={64} className="text-red-400 mb-4" />
-                <h1 className="text-2xl font-bold text-white mb-2">Không có quyền truy cập</h1>
-                <p className="text-[var(--muted)] mb-4">Bạn cần có quyền "Duyệt giao dịch" trong ít nhất 1 dự án.</p>
+                <h1 className="text-2xl font-bold text-white mb-2">{t("access_denied")}</h1>
+                <p className="text-[var(--muted)] mb-4">{t("approval_permission_required")}</p>
                 <button
                     onClick={() => router.push("/finance")}
                     className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm"
                 >
-                    Quay về Dashboard
+                    {t("back_to_dashboard")}
                 </button>
             </div>
         );
@@ -236,8 +238,8 @@ export default function ApprovalsPage() {
     return (
         <div className="space-y-8">
             <div>
-                <h1 className="text-3xl font-bold text-white">Phê duyệt</h1>
-                <p className="text-[var(--muted)]">Xét duyệt các giao dịch giá trị lớn hoặc đáng ngờ</p>
+                <h1 className="text-3xl font-bold text-white">{t("approval_title")}</h1>
+                <p className="text-[var(--muted)]">{t("approval_desc")}</p>
             </div>
 
             {/* Tabs */}
@@ -249,7 +251,7 @@ export default function ApprovalsPage() {
                         : "text-[var(--muted)] hover:text-white"
                         }`}
                 >
-                    Tất cả ({pendingTransactions.length})
+                    {t("all_transactions")} ({pendingTransactions.length})
                 </button>
                 <button
                     onClick={() => setActiveTab("high_value")}
@@ -258,16 +260,16 @@ export default function ApprovalsPage() {
                         : "text-[var(--muted)] hover:text-white"
                         }`}
                 >
-                    Khoản lớn (&gt;5tr / &gt;$100)
+                    {t("high_value_tx")} (&gt;5tr / &gt;$100)
                 </button>
             </div>
 
             {loading ? (
-                <div className="text-center py-12 text-[var(--muted)]">Đang tải...</div>
+                <div className="text-center py-12 text-[var(--muted)]">{t("loading")}</div>
             ) : filteredTxs.length === 0 ? (
                 <div className="glass-card p-12 text-center text-[var(--muted)] rounded-xl">
                     <div className="text-4xl mb-4">✓</div>
-                    <p>Không có giao dịch chờ duyệt. Bạn đã xử lý xong!</p>
+                    <p>{t("no_pending_tx")}</p>
                 </div>
             ) : (
                 <div className="grid gap-4">
@@ -285,15 +287,15 @@ export default function ApprovalsPage() {
                                     <div className="flex items-center gap-3 mb-2 flex-wrap">
                                         <span className={`px-2 py-1 rounded text-xs font-bold ${tx.type === "IN" ? "bg-green-500/20 text-green-400" : "bg-red-500/20 text-red-400"
                                             }`}>
-                                            {tx.type === "IN" ? "THU" : "CHI"}
+                                            {tx.type === "IN" ? t("income") : t("expense")}
                                         </span>
                                         {isHighValue && (
                                             <span className="bg-red-500/20 text-red-400 px-2 py-1 rounded text-xs font-bold">
-                                                ⚠️ Giá trị lớn
+                                                ⚠️ {t("high_value_warning")}
                                             </span>
                                         )}
                                         <span className="text-sm text-[var(--muted)]">{new Date(tx.date).toLocaleDateString()}</span>
-                                        <span className="text-sm text-[var(--muted)]">bởi {tx.createdBy}</span>
+                                        <span className="text-sm text-[var(--muted)]">{t("approved_by").replace("{name}", tx.createdBy)}</span>
                                     </div>
                                     <h3 className="text-xl font-bold text-white mb-1">
                                         {tx.amount.toLocaleString()} {tx.currency}
@@ -310,7 +312,7 @@ export default function ApprovalsPage() {
                                                     rel="noreferrer"
                                                     className="text-xs text-blue-400 underline hover:text-blue-300"
                                                 >
-                                                    Xem ảnh {i + 1}
+                                                    {t("view_image")} {i + 1}
                                                 </a>
                                             ))}
                                         </div>
@@ -322,13 +324,13 @@ export default function ApprovalsPage() {
                                         onClick={() => openRejectModal(tx)}
                                         className="px-4 py-2 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 font-medium transition-colors"
                                     >
-                                        Từ chối
+                                        {t("reject")}
                                     </button>
                                     <button
                                         onClick={() => handleApprove(tx)}
                                         className="px-6 py-2 rounded-lg bg-green-500 hover:bg-green-600 text-white font-bold transition-colors shadow-lg shadow-green-500/20"
                                     >
-                                        Duyệt
+                                        {t("approve")}
                                     </button>
                                 </div>
                             </div>
@@ -340,18 +342,18 @@ export default function ApprovalsPage() {
             {/* Approval History */}
             <div>
                 <div className="mb-4">
-                    <h3 className="text-lg font-bold text-white">Lịch sử phê duyệt gần đây</h3>
+                    <h3 className="text-lg font-bold text-white">{t("recent_approval_history")}</h3>
                 </div>
                 <DataTable
                     data={approvalLogs}
                     colorScheme="blue"
-                    emptyMessage="Chưa có lịch sử phê duyệt"
+                    emptyMessage={t("no_approval_history")}
                     showIndex={false}
                     itemsPerPage={10}
                     columns={[
                         {
                             key: "timestamp",
-                            header: "Thời gian",
+                            header: t("time"),
                             render: (log) => (
                                 <span className="text-white/70">
                                     {new Date(log.timestamp).toLocaleString("vi-VN")}
@@ -360,31 +362,30 @@ export default function ApprovalsPage() {
                         },
                         {
                             key: "userName",
-                            header: "Người duyệt",
+                            header: t("approver"),
                             render: (log) => <span className="text-white font-medium">{log.userName}</span>
                         },
                         {
                             key: "action",
-                            header: "Hành động",
+                            header: t("action"),
                             align: "center",
                             render: (log) => (
-                                <span className={`px-2 py-1 rounded text-xs font-bold ${
-                                    log.action === "APPROVE" 
-                                        ? "bg-green-500/20 text-green-400" 
-                                        : "bg-red-500/20 text-red-400"
-                                }`}>
-                                    {log.action === "APPROVE" ? "DUYỆT" : "TỪ CHỐI"}
+                                <span className={`px-2 py-1 rounded text-xs font-bold ${log.action === "APPROVE"
+                                    ? "bg-green-500/20 text-green-400"
+                                    : "bg-red-500/20 text-red-400"
+                                    }`}>
+                                    {log.action === "APPROVE" ? t("approved") : t("rejected_label")}
                                 </span>
                             )
                         },
                         {
                             key: "details",
-                            header: "Chi tiết",
+                            header: t("details"),
                             render: (log) => (
                                 <div className="max-w-[400px]">
                                     <div className="text-white/70 truncate">{log.details}</div>
                                     {log.reason && (
-                                        <div className="text-xs text-white/40 mt-1">Lý do: {log.reason}</div>
+                                        <div className="text-xs text-white/40 mt-1">{t("reason")}: {log.reason}</div>
                                     )}
                                 </div>
                             )
@@ -403,10 +404,10 @@ export default function ApprovalsPage() {
                         >
                             ✕
                         </button>
-                        <h2 className="text-xl font-bold mb-4 text-red-400">Từ chối giao dịch</h2>
+                        <h2 className="text-xl font-bold mb-4 text-red-400">{t("reject_tx")}</h2>
 
                         <div className="mb-4 p-4 bg-white/5 rounded-lg">
-                            <p className="text-sm text-[var(--muted)]">Giao dịch:</p>
+                            <p className="text-sm text-[var(--muted)]">{t("transaction")}:</p>
                             <p className="text-lg font-bold text-white">
                                 {rejectingTx.amount.toLocaleString()} {rejectingTx.currency}
                             </p>
@@ -415,12 +416,12 @@ export default function ApprovalsPage() {
 
                         <div className="mb-4">
                             <label className="block text-sm font-medium text-[var(--muted)] mb-2">
-                                Lý do từ chối *
+                                {t("reject_reason")} *
                             </label>
                             <textarea
                                 value={rejectionReason}
                                 onChange={e => setRejectionReason(e.target.value)}
-                                placeholder="Nhập lý do từ chối giao dịch này..."
+                                placeholder={t("enter_reject_reason")}
                                 className="glass-input w-full p-3 rounded-lg"
                                 rows={3}
                                 autoFocus
@@ -432,13 +433,13 @@ export default function ApprovalsPage() {
                                 onClick={() => setShowRejectModal(false)}
                                 className="flex-1 px-4 py-3 rounded-lg bg-white/5 text-[var(--muted)] hover:text-white transition-colors"
                             >
-                                Hủy
+                                {t("cancel")}
                             </button>
                             <button
                                 onClick={handleReject}
                                 className="flex-1 px-4 py-3 rounded-lg bg-red-500 hover:bg-red-600 text-white font-bold transition-colors"
                             >
-                                Xác nhận từ chối
+                                {t("confirm_reject")}
                             </button>
                         </div>
                     </div>

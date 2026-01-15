@@ -17,17 +17,20 @@ import TransactionDetailModal from "@/components/finance/TransactionDetailModal"
 import { WizardProgress, WizardStepPanel, WizardSummaryItem } from "@/components/finance/TransactionWizard";
 import DataTable, { AmountCell, DateCell, TextCell, ActionCell } from "@/components/finance/DataTable";
 import { Eye } from "lucide-react";
+import { useTranslation } from "@/lib/i18n";
 
 const INCOME_SOURCES = ["COD VET", "COD JNT", "Khách CK", "Khác"];
 const CURRENCY_FLAGS: Record<string, string> = { "VND": "🇻🇳", "USD": "🇺🇸", "KHR": "🇰🇭", "TRY": "🇹🇷" };
 
-const WIZARD_STEPS = [
-    { id: 1, label: "Dự án", icon: FolderOpen, description: "Chọn dự án" },
-    { id: 2, label: "Tài khoản", icon: CreditCard, description: "Chọn tài khoản" },
-    { id: 3, label: "Chi tiết", icon: Wallet, description: "Nhập thông tin" },
-];
-
 export default function IncomePage() {
+    const { t } = useTranslation();
+
+    const WIZARD_STEPS = useMemo(() => [
+        { id: 1, label: t("project"), icon: FolderOpen, description: t("select_project") },
+        { id: 2, label: t("account"), icon: CreditCard, description: t("select_account_income") },
+        { id: 3, label: t("detail"), icon: Wallet, description: t("enter_info") },
+    ], [t]);
+
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [accounts, setAccounts] = useState<Account[]>([]);
     const [projects, setProjects] = useState<Project[]>([]);
@@ -163,7 +166,7 @@ export default function IncomePage() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!canCreateIncome) { alert("Bạn không có quyền tạo khoản thu trong dự án này"); return; }
+        if (!canCreateIncome) { alert(t("no_create_income_permission")); return; }
         setSubmitting(true);
         try {
             const numAmount = parseFloat(amount);
@@ -183,8 +186,8 @@ export default function IncomePage() {
             await updateAccountBalance(accountId, selectedAccount!.balance + numAmount);
             await fetchData();
             resetForm();
-            alert("Tạo khoản thu thành công!");
-        } catch (e) { console.error(e); alert("Lỗi khi tạo khoản thu"); } finally { setSubmitting(false); }
+            alert(t("create_income_success"));
+        } catch (e) { console.error(e); alert(t("create_income_error")); } finally { setSubmitting(false); }
     };
 
     const handleAddNewCategory = async () => {
@@ -213,7 +216,7 @@ export default function IncomePage() {
     const getAccountName = (id: string) => accounts.find(a => a.id === id)?.name || "N/A";
     const getProjectName = (id: string) => projects.find(p => p.id === id)?.name || "N/A";
 
-    if (loading) return <div className="p-8 text-[var(--muted)]">Đang tải...</div>;
+    if (loading) return <div className="p-8 text-[var(--muted)]">{t("loading")}</div>;
 
     return (
         <div className="space-y-6">
@@ -222,12 +225,12 @@ export default function IncomePage() {
                 <div className="p-3 rounded-2xl bg-gradient-to-br from-green-500 to-emerald-600 shadow-lg shadow-green-500/25">
                     <Wallet className="w-6 h-6 text-white" />
                 </div>
-                <div><h1 className="text-2xl font-bold text-white">Thu tiền</h1><p className="text-sm text-white/50">Quản lý khoản thu</p></div>
+                <div><h1 className="text-2xl font-bold text-white">{t("income")}</h1><p className="text-sm text-white/50">{t("manage_income")}</p></div>
                 <button
                     onClick={() => { setShowForm(!showForm); if (!showForm) resetForm(); }}
                     className={`ml-auto px-4 py-2 rounded-xl font-bold transition-all flex items-center gap-2 ${showForm ? "bg-white/10 text-white hover:bg-white/20" : "bg-green-600 text-white hover:bg-green-500 shadow-lg shadow-green-500/25"}`}
                 >
-                    {showForm ? "Đóng" : "＋ Tạo khoản thu"}
+                    {showForm ? t("close") : "＋ " + t("create_income_transaction")}
                 </button>
             </div>
 
@@ -242,8 +245,8 @@ export default function IncomePage() {
                     <form onSubmit={handleSubmit} className="space-y-4">
                         {/* Step 1: Project */}
                         <WizardStepPanel
-                            title="Chọn dự án"
-                            description="Dự án sẽ ghi nhận khoản thu"
+                            title={t("select_project")}
+                            description={t("project_income_desc")}
                             icon={FolderOpen}
                             isActive={wizardStep === 1}
                             isCompleted={wizardStep > 1}
@@ -257,18 +260,18 @@ export default function IncomePage() {
                                 options={accessibleProjects.map(p => ({ id: p.id, label: p.name, subLabel: p.status === "ACTIVE" ? "" : p.status }))}
                                 value={projectId}
                                 onChange={val => { setProjectId(val); setAccountId(""); }}
-                                placeholder="Tìm và chọn dự án..."
+                                placeholder={t("search_projects")}
                                 required
                             />
                             {userRole !== "ADMIN" && accessibleProjects.length === 0 && (
-                                <p className="flex items-center gap-2 mt-3 text-xs text-yellow-400"><AlertCircle size={14} /> Bạn chưa được gán vào dự án nào</p>
+                                <p className="flex items-center gap-2 mt-3 text-xs text-yellow-400"><AlertCircle size={14} /> {t("no_assigned_project")}</p>
                             )}
                         </WizardStepPanel>
 
                         {/* Step 2: Account */}
                         <WizardStepPanel
-                            title="Chọn tài khoản nhận"
-                            description="Tài khoản sẽ cộng tiền"
+                            title={t("select_account_income")}
+                            description={t("account_income_desc")}
                             icon={CreditCard}
                             isActive={wizardStep === 2}
                             isCompleted={wizardStep > 2}
@@ -288,12 +291,12 @@ export default function IncomePage() {
                                 }))}
                                 value={accountId}
                                 onChange={setAccountId}
-                                placeholder="Tìm và chọn tài khoản..."
+                                placeholder={t("search_accounts")}
                                 required
                             />
                             {selectedAccount && (
                                 <div className="mt-3 p-3 bg-black/20 rounded-xl flex items-center justify-between">
-                                    <span className="text-sm text-white/60">Số dư hiện tại</span>
+                                    <span className="text-sm text-white/60">{t("current_balance")}</span>
                                     <span className="font-bold text-green-400">{selectedAccount.balance.toLocaleString()} {selectedAccount.currency}</span>
                                 </div>
                             )}
@@ -301,8 +304,8 @@ export default function IncomePage() {
 
                         {/* Step 3: Details */}
                         <WizardStepPanel
-                            title="Nhập chi tiết khoản thu"
-                            description="Thông tin số tiền và nguồn thu"
+                            title={t("enter_income_details")}
+                            description={t("income_details_desc")}
                             icon={Wallet}
                             isActive={wizardStep === 3}
                             colorScheme="green"
@@ -314,54 +317,54 @@ export default function IncomePage() {
                                 {/* Summary of previous steps */}
                                 <div className="p-3 bg-green-500/10 border border-green-500/20 rounded-xl">
                                     <div className="flex flex-wrap gap-4 text-sm">
-                                        <WizardSummaryItem label="Dự án" value={selectedProject?.name || ""} icon="📁" />
-                                        <WizardSummaryItem label="Tài khoản" value={selectedAccount?.name || ""} icon="💳" />
-                                        <WizardSummaryItem label="Số dư" value={`${selectedAccount?.balance.toLocaleString()} ${selectedAccount?.currency}`} icon="💰" />
+                                        <WizardSummaryItem label={t("project")} value={selectedProject?.name || ""} icon="📁" />
+                                        <WizardSummaryItem label={t("account")} value={selectedAccount?.name || ""} icon="💳" />
+                                        <WizardSummaryItem label={t("balance")} value={`${selectedAccount?.balance.toLocaleString()} ${selectedAccount?.currency}`} icon="💰" />
                                     </div>
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-xs text-white/50 mb-1.5">Số tiền <span className="text-red-400">*</span></label>
+                                        <label className="block text-xs text-white/50 mb-1.5">{t("amount")} <span className="text-red-400">*</span></label>
                                         <CurrencyInput value={amount} onChange={setAmount} currency={selectedAccount?.currency} required />
                                         {amount && parseFloat(amount) > 0 && selectedAccount && (
                                             <p className="mt-1.5 text-xs text-white/40">
-                                                Số dư sau thu: <span className="text-green-400 font-medium">{(selectedAccount.balance + parseFloat(amount)).toLocaleString()} {selectedAccount.currency}</span>
+                                                {t("balance_after_income")}: <span className="text-green-400 font-medium">{(selectedAccount.balance + parseFloat(amount)).toLocaleString()} {selectedAccount.currency}</span>
                                             </p>
                                         )}
                                     </div>
                                     <div>
-                                        <label className="block text-xs text-white/50 mb-1.5">Nguồn tiền <span className="text-red-400">*</span></label>
+                                        <label className="block text-xs text-white/50 mb-1.5">{t("source")} <span className="text-red-400">*</span></label>
                                         <SearchableSelectWithAdd
                                             options={incomeCategories.map(cat => ({ id: cat, label: cat }))}
                                             value={source}
                                             onChange={setSource}
                                             onAddNew={() => setIsAddCategoryModalOpen(true)}
-                                            placeholder="Chọn nguồn tiền..."
-                                            addNewLabel="➕ Thêm nguồn mới"
+                                            placeholder={t("select_source_placeholder")}
+                                            addNewLabel={"➕ " + t("add_new_source")}
                                         />
                                     </div>
                                 </div>
 
                                 <div>
-                                    <label className="block text-xs text-white/50 mb-1.5">Ảnh đính kèm</label>
+                                    <label className="block text-xs text-white/50 mb-1.5">{t("attached_images")}</label>
                                     <label className="flex items-center justify-center gap-2 p-4 border-2 border-dashed border-white/10 rounded-xl cursor-pointer hover:border-green-500/30 hover:bg-green-500/5 transition-colors">
                                         <Upload size={20} className="text-white/40" />
-                                        <span className="text-sm text-white/40">{files.length > 0 ? `${files.length} file đã chọn` : "Chọn ảnh (tối đa 2)"}</span>
+                                        <span className="text-sm text-white/40">{files.length > 0 ? t("files_selected").replace("{count}", files.length.toString()) : t("select_images_max").replace("{count}", "2")}</span>
                                         <input type="file" multiple accept="image/*" onChange={e => setFiles(Array.from(e.target.files || []).slice(0, 2))} className="hidden" />
                                     </label>
                                 </div>
 
                                 <div>
-                                    <label className="block text-xs text-white/50 mb-1.5">Ghi chú</label>
-                                    <input type="text" value={description} onChange={e => setDescription(e.target.value)} className="w-full p-3 bg-black/30 border border-white/10 rounded-xl text-white focus:border-green-500/50 focus:outline-none" placeholder="Mô tả khoản thu..." />
+                                    <label className="block text-xs text-white/50 mb-1.5">{t("description")}</label>
+                                    <input type="text" value={description} onChange={e => setDescription(e.target.value)} className="w-full p-3 bg-black/30 border border-white/10 rounded-xl text-white focus:border-green-500/50 focus:outline-none" placeholder={t("describe_income_placeholder")} />
                                 </div>
 
                                 <button type="submit" disabled={submitting || !amount || parseFloat(amount) <= 0} className="w-full p-4 rounded-xl font-bold text-white bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-green-500/25 flex items-center justify-center gap-2">
                                     {submitting ? (
-                                        <><div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Đang lưu...</>
+                                        <><div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> {t("saving")}</>
                                     ) : (
-                                        <>✓ Hoàn tất - Lưu khoản thu</>
+                                        <>✓ {t("save_income")}</>
                                     )}
                                 </button>
                             </div>
@@ -374,7 +377,7 @@ export default function IncomePage() {
             <div className="space-y-4">
                 <div className="rounded-2xl bg-white/5 border border-white/10 p-4">
                     <DataTableToolbar
-                        searchPlaceholder="Tìm kiếm nguồn, nội dung..."
+                        searchPlaceholder={t("search_transaction_placeholder")}
                         onSearch={setSearchTerm}
                         activeFilters={activeFilters}
                         onFilterChange={(id, val) => setActiveFilters(prev => ({ ...prev, [id]: val }))}
@@ -382,53 +385,53 @@ export default function IncomePage() {
                         onReset={() => { setActiveFilters({ startDate: "", endDate: "", date: "", projectId: "", accountId: "" }); setSearchTerm(""); }}
                         onExport={() => exportToCSV(transactions, "Thu_Tien", { date: "Ngày", amount: "Số tiền", currency: "Tiền tệ", source: "Nguồn", category: "Hạng mục", description: "Ghi chú" })}
                         filters={[
-                            { id: "projectId", label: "Dự án", options: projects.map(p => ({ value: p.id, label: p.name })) },
-                            { id: "accountId", label: "Tài khoản", options: accounts.map(a => ({ value: a.id, label: a.name })), advanced: true },
-                            { id: "date", label: "Ngày", options: Array.from(new Set(transactions.map(t => t.date.split("T")[0]))).sort().reverse().map(d => ({ value: d, label: d })), advanced: true }
+                            { id: "projectId", label: t("project"), options: projects.map(p => ({ value: p.id, label: p.name })) },
+                            { id: "accountId", label: t("account"), options: accounts.map(a => ({ value: a.id, label: a.name })), advanced: true },
+                            { id: "date", label: t("date"), options: Array.from(new Set(transactions.map(t => t.date.split("T")[0]))).sort().reverse().map(d => ({ value: d, label: d })), advanced: true }
                         ]}
                     />
                 </div>
-                
+
                 <DataTable
                     data={transactions}
                     colorScheme="green"
                     onRowClick={(tx) => { setSelectedTransaction(tx); setIsDetailModalOpen(true); }}
-                    emptyMessage="Chưa có khoản thu nào"
+                    emptyMessage={t("no_income_records")}
                     columns={[
                         {
                             key: "date",
-                            header: "Ngày",
+                            header: t("date"),
                             render: (tx) => <DateCell date={tx.date} />
                         },
                         {
                             key: "amount",
-                            header: "Số tiền",
+                            header: t("amount"),
                             align: "right",
                             render: (tx) => <AmountCell amount={tx.amount} type="IN" currency={tx.currency} />
                         },
                         {
                             key: "source",
-                            header: "Nguồn",
+                            header: t("source"),
                             render: (tx) => <TextCell primary={tx.source || tx.category || ""} secondary={tx.description} />
                         },
                         {
                             key: "account",
-                            header: "Tài khoản",
+                            header: t("account"),
                             render: (tx) => <span className="text-white/70">{getAccountName(tx.accountId)}</span>
                         },
                         {
                             key: "project",
-                            header: "Dự án",
+                            header: t("project"),
                             render: (tx) => <span className="text-white/70">{tx.projectId ? getProjectName(tx.projectId) : "-"}</span>
                         },
                         {
                             key: "actions",
-                            header: "Chi tiết",
+                            header: t("detail"),
                             align: "center",
                             render: (tx) => (
                                 <ActionCell>
-                                    <button 
-                                        onClick={() => { setSelectedTransaction(tx); setIsDetailModalOpen(true); }} 
+                                    <button
+                                        onClick={() => { setSelectedTransaction(tx); setIsDetailModalOpen(true); }}
                                         className="p-1.5 rounded hover:bg-white/10 text-white/40 hover:text-blue-400 transition-colors"
                                     >
                                         <Eye size={16} />
@@ -456,33 +459,34 @@ export default function IncomePage() {
                         <button onClick={() => { setIsAddCategoryModalOpen(false); setNewCategoryName(""); }} className="absolute top-4 right-4 text-[var(--muted)] hover:text-white text-xl">✕</button>
                         <div className="flex items-center gap-3 mb-6">
                             <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center"><Plus size={24} className="text-white" /></div>
-                            <div><h2 className="text-2xl font-bold text-white">Thêm nguồn thu mới</h2><p className="text-sm text-[var(--muted)]">Dự án: {selectedProject?.name}</p></div>
+                            <div><h2 className="text-2xl font-bold text-white">{t("add_new_source")}</h2><p className="text-sm text-[var(--muted)]">{t("project")}: {selectedProject?.name}</p></div>
                         </div>
                         <div className="space-y-4">
                             <div>
-                                <label className="block text-sm font-medium text-white mb-2">Danh mục cha <span className="text-red-400">*</span></label>
+                                <label className="block text-sm font-medium text-white mb-2">{t("parent_category")} <span className="text-red-400">*</span></label>
                                 <select value={selectedParentCategoryId} onChange={(e) => setSelectedParentCategoryId(e.target.value)} className="w-full px-4 py-3 bg-black/30 border border-white/10 rounded-lg text-white focus:border-green-500/50 focus:outline-none" required>
-                                    <option value="">Chọn danh mục cha...</option>
+                                    <option value="">{t("parent_category")}...</option>
                                     {masterCategories.filter(c => c.type === "INCOME").map(cat => (<option key={cat.id} value={cat.id}>{cat.name}</option>))}
                                 </select>
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-white mb-2">Tên nguồn thu <span className="text-red-400">*</span></label>
+                                <label className="block text-sm font-medium text-white mb-2">{t("source_name")} <span className="text-red-400">*</span></label>
                                 <input type="text" value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} className="glass-input w-full px-4 py-3 rounded-lg" placeholder="VD: COD Shopee, Chuyển khoản,..." autoFocus onKeyDown={(e) => { if (e.key === "Enter" && newCategoryName.trim()) handleAddNewCategory(); }} />
                             </div>
                             <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3">
-                                <p className="text-xs text-blue-400">💡 Danh mục này sẽ được thêm vào dự án <strong>{selectedProject?.name}</strong> và có thể sử dụng cho các khoản thu sau.</p>
+                                <p className="text-xs text-blue-400" dangerouslySetInnerHTML={{ __html: t("add_category_hint").replace("{project}", selectedProject?.name || "") }}></p>
                             </div>
                         </div>
                         <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-white/10">
-                            <button onClick={() => { setIsAddCategoryModalOpen(false); setNewCategoryName(""); }} className="px-4 py-2 rounded-lg text-sm font-medium hover:bg-white/10 transition-colors">Hủy</button>
+                            <button onClick={() => { setIsAddCategoryModalOpen(false); setNewCategoryName(""); }} className="px-4 py-2 rounded-lg text-sm font-medium hover:bg-white/10 transition-colors">{t("cancel")}</button>
                             <button onClick={handleAddNewCategory} disabled={savingCategory || !newCategoryName.trim()} className="glass-button px-6 py-2 rounded-lg text-sm font-bold bg-green-500/20 hover:bg-green-500/30 text-green-400 border-green-500/30 disabled:opacity-50 flex items-center gap-2">
-                                {savingCategory ? (<><div className="w-4 h-4 border-2 border-green-400 border-t-transparent rounded-full animate-spin" />Đang lưu...</>) : (<><Plus size={16} />Thêm mới</>)}
+                                {savingCategory ? (<><div className="w-4 h-4 border-2 border-green-400 border-t-transparent rounded-full animate-spin" />{t("saving")}</>) : (<><Plus size={16} />{t("add_new")}</>)}
                             </button>
                         </div>
                     </div>
                 </div>
-            )}
+            )
+            }
         </div>
     );
 }
