@@ -119,6 +119,20 @@ body::after {
   .scrollbar-thin::-webkit-scrollbar-thumb:hover {
     background: rgba(255, 255, 255, 0.2);
   }
+
+  .bg-grid-white {
+    background-image: radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.05) 1px, transparent 0);
+    background-size: 32px 32px;
+  }
+
+  .scanlines {
+    background: linear-gradient(to bottom,
+        transparent 50%,
+        rgba(0, 0, 0, 0.1) 50%);
+    background-size: 100% 4px;
+    z-index: 5;
+    pointer-events: none;
+  }
 }
 
 /* Global Scrollbar Styling - Premium Floating Style */

@@ -32,6 +32,7 @@ import {
     UserCircle
 } from "lucide-react";
 import LanguageToggle from "@/components/finance/LanguageToggle";
+import { motion } from "framer-motion";
 
 export default function FinanceLayout({
     children,
@@ -232,11 +233,39 @@ function FinanceLayoutContent({
     ];
 
     const SidebarContent = () => (
-        <div className="h-full flex flex-col bg-gradient-to-b from-[#0f0f1a] via-[#12121f] to-[#0a0a12] relative overflow-hidden">
-            {/* SidebarContent Background orbs */}
-            <div className="absolute top-[-10%] right-[-10%] w-40 h-40 bg-blue-500/15 rounded-full blur-3xl pointer-events-none animate-float" />
-            <div className="absolute bottom-10 left-[-10%] w-32 h-32 bg-purple-500/15 rounded-full blur-3xl pointer-events-none animate-pulse-soft" style={{ animationDelay: '-2s' }} />
-            <div className="absolute top-1/2 left-1/4 w-24 h-24 bg-pink-500/10 rounded-full blur-2xl pointer-events-none animate-morph" />
+        <div className="h-full flex flex-col bg-[#080810] relative overflow-hidden">
+            {/* Sci-fi Base Layer */}
+            <div className="absolute inset-0 bg-grid-white pointer-events-none opacity-40" />
+
+            {/* Drifting sci-fi orbs */}
+            <motion.div
+                animate={{
+                    x: [0, 40, 0],
+                    y: [0, -40, 0],
+                    opacity: [0.1, 0.2, 0.1]
+                }}
+                transition={{ duration: 12, repeat: Infinity, ease: "linear" }}
+                className="absolute top-[-10%] right-[-10%] w-64 h-64 bg-cyan-500/20 rounded-full blur-[80px] pointer-events-none"
+            />
+
+            {/* Data Particles */}
+            {[...Array(5)].map((_, i) => (
+                <motion.div
+                    key={i}
+                    animate={{
+                        y: [-20, 1000],
+                        opacity: [0, 0.5, 0]
+                    }}
+                    transition={{
+                        duration: Math.random() * 10 + 10,
+                        repeat: Infinity,
+                        ease: "linear",
+                        delay: Math.random() * i
+                    }}
+                    style={{ left: `${Math.random() * 100}%` }}
+                    className="absolute w-[1px] h-12 bg-gradient-to-b from-blue-400/50 to-transparent pointer-events-none"
+                />
+            ))}
 
             {/* Brand */}
             <div className="h-16 flex items-center justify-between px-4 border-b border-white/[0.06] relative z-10">
@@ -437,12 +466,64 @@ function FinanceLayoutContent({
             </aside>
 
             {/* Main Content Area */}
-            <div className="flex-1 flex flex-col min-w-0 relative bg-[#0a0a12] overflow-hidden">
-                {/* Decorative background effects for main content - Layered Animations */}
-                <div className="absolute top-[-20%] right-[-10%] w-[50%] h-[50%] bg-blue-600/10 rounded-full blur-[120px] pointer-events-none animate-float" />
-                <div className="absolute bottom-[10%] left-[-10%] w-[40%] h-[40%] bg-purple-600/10 rounded-full blur-[100px] pointer-events-none animate-morph" style={{ animationDuration: '20s' }} />
-                <div className="absolute top-[20%] left-[20%] w-[20%] h-[20%] bg-blue-400/5 rounded-full blur-[80px] pointer-events-none animate-pulse-soft" />
-                <div className="absolute bottom-[20%] right-[10%] w-[30%] h-[30%] bg-pink-500/5 rounded-full blur-[90px] pointer-events-none animate-float" style={{ animationDelay: '-5s', animationDuration: '15s' }} />
+            <div className="flex-1 flex flex-col min-w-0 relative bg-[#05050a] overflow-hidden">
+                {/* Sci-fi Base Layers */}
+                <div className="absolute inset-0 bg-grid-white pointer-events-none opacity-30" />
+                <div className="absolute inset-0 scanlines opacity-[0.4] pointer-events-none" />
+
+                {/* Plasma Glows */}
+                <motion.div
+                    animate={{
+                        scale: [1, 1.1, 1],
+                        opacity: [0.05, 0.15, 0.05],
+                        x: [0, 100, 0]
+                    }}
+                    transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
+                    className="absolute top-[-10%] right-[-10%] w-[700px] h-[700px] bg-blue-600/20 rounded-full blur-[160px] pointer-events-none"
+                />
+                <motion.div
+                    animate={{
+                        rotate: [0, 360],
+                    }}
+                    transition={{ duration: 40, repeat: Infinity, ease: "linear" }}
+                    className="absolute bottom-[-20%] left-[-10%] w-[600px] h-[600px] bg-purple-600/15 rounded-full blur-[140px] pointer-events-none"
+                />
+
+                {/* Cyber Particles (Floating Squares) */}
+                {[...Array(15)].map((_, i) => (
+                    <motion.div
+                        key={i}
+                        initial={{ opacity: 0, scale: 0 }}
+                        animate={{
+                            opacity: [0, 0.6, 0],
+                            scale: [0.5, 1, 0.5],
+                            y: [0, -200],
+                            x: [0, (i % 2 === 0 ? 30 : -30)]
+                        }}
+                        transition={{
+                            duration: 10 + Math.random() * 8,
+                            repeat: Infinity,
+                            delay: i * 0.5
+                        }}
+                        style={{
+                            top: `${10 + Math.random() * 80}%`,
+                            left: `${5 + Math.random() * 90}%`
+                        }}
+                        className="absolute w-1.5 h-1.5 border border-cyan-400/40 rounded-sm pointer-events-none shadow-[0_0_15px_rgba(34,211,238,0.5)]"
+                    />
+                ))}
+
+                {/* Floating Circuit Lines */}
+                <motion.div
+                    animate={{ opacity: [0.1, 0.4, 0.1], x: [-100, 100] }}
+                    transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
+                    className="absolute top-[25%] left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-cyan-500/30 to-transparent pointer-events-none"
+                />
+                <motion.div
+                    animate={{ opacity: [0.1, 0.4, 0.1], x: [100, -100] }}
+                    transition={{ duration: 12, repeat: Infinity, ease: "linear", delay: 3 }}
+                    className="absolute bottom-[25%] left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-purple-500/30 to-transparent pointer-events-none"
+                />
 
                 {/* Content */}
                 <main className="flex-1 overflow-y-auto p-4 pt-16 lg:pt-4 lg:p-6 relative z-10 scrollbar-thin">
