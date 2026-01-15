@@ -10,12 +10,19 @@ import { exportToCSV } from "@/lib/export";
 import DataTable, { AmountCell, DateCell, TextCell, StatusBadge, ImageCell } from "@/components/finance/DataTable";
 import { useTranslation } from "@/lib/i18n";
 
+import { Eye } from "lucide-react";
+import TransactionDetailModal from "@/components/finance/TransactionDetailModal";
+
 export default function TransactionsPage() {
     const { t } = useTranslation();
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [loading, setLoading] = useState(true);
     const [currentUser, setCurrentUser] = useState<any>(null);
     const [userRole, setUserRole] = useState<Role>("USER");
+
+    // Modal State
+    const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
+    const [isModalOpen, setIsModalOpen] = useState(false);
 
     const [activeFilters, setActiveFilters] = useState<Record<string, string>>({
         startDate: "",
@@ -260,6 +267,10 @@ export default function TransactionsPage() {
                 colorScheme="blue"
                 isLoading={loading}
                 emptyMessage={t("no_transactions_found")}
+                onRowClick={(tx) => {
+                    setSelectedTransaction(tx);
+                    setIsModalOpen(true);
+                }}
                 columns={[
                     {
                         key: "date",
@@ -303,8 +314,33 @@ export default function TransactionsPage() {
                         header: t("status"),
                         align: "center",
                         render: (tx) => <StatusBadge status={tx.status} />
+                    },
+                    {
+                        key: "actions",
+                        header: "",
+                        className: "w-10",
+                        render: (tx) => (
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedTransaction(tx);
+                                    setIsModalOpen(true);
+                                }}
+                                className="p-2 hover:bg-white/10 rounded-lg text-white/50 hover:text-white transition-colors"
+                            >
+                                <Eye size={16} />
+                            </button>
+                        )
                     }
                 ]}
+            />
+
+            <TransactionDetailModal
+                isOpen={isModalOpen}
+                onClose={() => setIsModalOpen(false)}
+                transaction={selectedTransaction}
+                accountName={selectedTransaction ? getAccountName(selectedTransaction.accountId) : undefined}
+                projectName={selectedTransaction?.projectId ? getProjectName(selectedTransaction.projectId) : undefined}
             />
         </div>
     );
