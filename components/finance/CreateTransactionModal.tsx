@@ -90,15 +90,15 @@ export default function CreateTransactionModal({ isOpen, onClose, onSuccess, cur
             return filtered;
         }
 
-        // For non-admin: filter by assignedUserIds if set
-        const userId = currentUser?.uid || currentUser?.id;
-        if (userId) {
-            filtered = filtered.filter(acc =>
-                !acc.assignedUserIds ||
-                acc.assignedUserIds.length === 0 ||
-                acc.assignedUserIds.includes(userId)
-            );
-        }
+        // REMOVED: Filter by assignedUserIds. Now all users can use all accounts in the project.
+        // const userId = currentUser?.uid || currentUser?.id;
+        // if (userId) {
+        //     filtered = filtered.filter(acc =>
+        //         !acc.assignedUserIds ||
+        //         acc.assignedUserIds.length === 0 ||
+        //         acc.assignedUserIds.includes(userId)
+        //     );
+        // }
 
         return filtered;
     }, [currentUser, accounts, accessibleProjectIds, projectId]);

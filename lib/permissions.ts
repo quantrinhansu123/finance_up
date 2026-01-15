@@ -89,7 +89,7 @@ export function getUserRole(user: any): Role {
     if (!user) return "USER";
 
     // Chỉ kiểm tra ADMIN - các trường hợp khác đều là USER (phân quyền theo dự án)
-    
+
     // 1. Hardcode ADMIN cho CEO email
     if (user.email && user.email.toLowerCase() === "ceo.fata@gmail.com") {
         return "ADMIN";
@@ -119,15 +119,15 @@ export function getUserRole(user: any): Role {
 // Kiểm tra user có quyền truy cập hệ thống tài chính không
 export function canAccessFinanceSystem(user: any): boolean {
     if (!user) return false;
-    
+
     // Admin luôn được truy cập
     if (getUserRole(user) === "ADMIN") return true;
-    
+
     // User được truy cập nếu có financeRole không phải NONE
     if (user.financeRole && user.financeRole !== "NONE") {
         return true;
     }
-    
+
     // Nếu chưa được phân quyền financeRole -> không cho truy cập
     return false;
 }
@@ -140,17 +140,17 @@ export function canTransferMoney(role: Role): boolean {
 // Lấy danh sách project mà user được phép truy cập
 export function getAccessibleProjects(user: any, allProjects: any[]): any[] {
     const role = getUserRole(user);
-    
+
     // Admin có thể xem tất cả
     if (role === "ADMIN") {
         return allProjects;
     }
-    
+
     // User chỉ xem project mình tham gia (trong members hoặc memberIds)
     const userId = user?.uid || user?.id;
-    return allProjects.filter(p => 
+    return allProjects.filter(p =>
         p.members?.some((m: any) => m.id === userId) ||
-        p.memberIds?.includes(userId) || 
+        p.memberIds?.includes(userId) ||
         p.createdBy === userId
     );
 }
@@ -158,14 +158,14 @@ export function getAccessibleProjects(user: any, allProjects: any[]): any[] {
 // Lấy danh sách account mà user được phép truy cập
 export function getAccessibleAccounts(user: any, allAccounts: any[], accessibleProjectIds: string[]): any[] {
     const role = getUserRole(user);
-    
+
     // Admin có thể xem tất cả
     if (role === "ADMIN") {
         return allAccounts;
     }
-    
+
     // User chỉ xem account của project mình tham gia
-    return allAccounts.filter(a => 
+    return allAccounts.filter(a =>
         a.projectId && accessibleProjectIds.includes(a.projectId)
     );
 }
@@ -182,35 +182,35 @@ export { PROJECT_ROLE_PERMISSIONS };
 // Lấy role của user trong một project cụ thể
 export function getProjectRole(userId: string, project: Project): ProjectRole | null {
     if (!project || !userId) return null;
-    
+
     // Kiểm tra trong members array mới
     if (project.members) {
         const member = project.members.find(m => m.id === userId);
         if (member) return member.role;
     }
-    
+
     // Fallback: nếu là creator thì là OWNER
     if (project.createdBy === userId) return "OWNER";
-    
+
     // Fallback: nếu có trong memberIds cũ thì là MEMBER
     if (project.memberIds?.includes(userId)) return "MEMBER";
-    
+
     return null;
 }
 
 // Kiểm tra user có permission cụ thể trong project không
 export function hasProjectPermission(
-    userId: string, 
-    project: Project, 
+    userId: string,
+    project: Project,
     permission: ProjectPermission,
     user?: any // Truyền user object để kiểm tra ADMIN chính xác
 ): boolean {
     // System Admin luôn có full quyền - cần truyền user object đầy đủ
     if (user && getUserRole(user) === "ADMIN") return true;
-    
+
     const projectRole = getProjectRole(userId, project);
     if (!projectRole) return false;
-    
+
     // Kiểm tra custom permissions nếu có (phải có ít nhất 1 permission)
     if (project.members) {
         const member = project.members.find(m => m.id === userId);
@@ -218,7 +218,7 @@ export function hasProjectPermission(
             return member.permissions.includes(permission);
         }
     }
-    
+
     // Fallback to default role permissions
     return PROJECT_ROLE_PERMISSIONS[projectRole].includes(permission);
 }
@@ -229,10 +229,10 @@ export function getProjectPermissions(userId: string, project: Project, user?: a
     if (user && getUserRole(user) === "ADMIN") {
         return PROJECT_ROLE_PERMISSIONS["OWNER"];
     }
-    
+
     const projectRole = getProjectRole(userId, project);
     if (!projectRole) return [];
-    
+
     // Kiểm tra custom permissions (phải có ít nhất 1 permission)
     if (project.members) {
         const member = project.members.find(m => m.id === userId);
@@ -240,7 +240,7 @@ export function getProjectPermissions(userId: string, project: Project, user?: a
             return member.permissions;
         }
     }
-    
+
     return PROJECT_ROLE_PERMISSIONS[projectRole];
 }
 
@@ -256,8 +256,8 @@ export function canApproveProjectTransactions(userId: string, project: Project):
 
 // Kiểm tra user có thể tạo thu/chi trong project không
 export function canCreateProjectTransaction(
-    userId: string, 
-    project: Project, 
+    userId: string,
+    project: Project,
     type: "IN" | "OUT"
 ): boolean {
     const permission = type === "IN" ? "create_income" : "create_expense";
@@ -276,8 +276,8 @@ export function canManageProjectAccounts(userId: string, project: Project): bool
 
 // Tạo ProjectMember mới với default permissions theo role
 export function createProjectMember(
-    userId: string, 
-    role: ProjectRole, 
+    userId: string,
+    role: ProjectRole,
     addedBy?: string
 ): ProjectMember {
     return {
@@ -300,7 +300,7 @@ export function updateMemberRole(member: ProjectMember, newRole: ProjectRole): P
 
 // Thêm/bỏ permission cho member
 export function toggleMemberPermission(
-    member: ProjectMember, 
+    member: ProjectMember,
     permission: ProjectPermission
 ): ProjectMember {
     const hasPermission = member.permissions.includes(permission);
@@ -320,11 +320,38 @@ export const PROJECT_ROLE_LABELS: Record<ProjectRole, string> = {
     VIEWER: "Người xem"
 };
 
+// Mô tả chi tiết cho từng Role
+export const PROJECT_ROLE_DESCRIPTIONS: Record<ProjectRole, string[]> = {
+    OWNER: [
+        "Toàn quyền quản lý dự án",
+        "Phân quyền cho thành viên khác",
+        "Phê duyệt mọi giao dịch",
+        "Quản lý tài khoản ngân hàng dự án"
+    ],
+    MANAGER: [
+        "Phê duyệt giao dịch của thành viên",
+        "Quản lý tài khoản ngân hàng dự án",
+        "Tạo phiếu thu/chi mới",
+        "Xem đầy đủ báo cáo tài chính"
+    ],
+    MEMBER: [
+        "Tạo phiếu thu tiền & chi tiền",
+        "Xem lịch sử giao dịch",
+        "Xem dashboard & báo cáo cơ bản",
+        "Không thể phê duyệt giao dịch"
+    ],
+    VIEWER: [
+        "Chỉ xem lịch sử giao dịch",
+        "Xem dashboard & báo cáo",
+        "Không thể tạo hay sửa đổi dữ liệu"
+    ]
+};
+
 // Label và mô tả chi tiết cho ProjectPermission
 export const PROJECT_PERMISSION_LABELS: Record<ProjectPermission, string> = {
     view_transactions: "Xem lịch sử giao dịch",
     create_income: "Tạo phiếu thu tiền",
-    create_expense: "Tạo phiếu chi tiền", 
+    create_expense: "Tạo phiếu chi tiền",
     approve_transactions: "Phê duyệt giao dịch",
     manage_accounts: "Quản lý tài khoản ngân hàng",
     manage_members: "Phân quyền thành viên",
