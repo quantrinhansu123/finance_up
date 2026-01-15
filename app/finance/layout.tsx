@@ -169,8 +169,20 @@ function FinanceLayoutContent({
         router.push("/login");
     };
 
-    const toggleGroup = (title: string) => {
-        setCollapsedGroups(prev => ({ ...prev, [title]: !prev[title] }));
+    const toggleGroup = (id: string) => {
+        setCollapsedGroups(prev => {
+            const isCurrentlyCollapsed = prev[id];
+            // If we're expanding this group, collapse all others
+            if (isCurrentlyCollapsed) {
+                const newState: Record<string, boolean> = {};
+                Object.keys(prev).forEach(key => {
+                    newState[key] = key !== id; // Collapse all except the one being expanded
+                });
+                return newState;
+            }
+            // If we're collapsing, just collapse this one
+            return { ...prev, [id]: true };
+        });
     };
 
     const navGroups = [
@@ -220,93 +232,114 @@ function FinanceLayoutContent({
     ];
 
     const SidebarContent = () => (
-        <>
+        <div className="h-full flex flex-col bg-gradient-to-b from-[#0f0f1a] via-[#12121f] to-[#0a0a12] relative overflow-hidden">
+            {/* SidebarContent Background orbs */}
+            <div className="absolute top-[-10%] right-[-10%] w-40 h-40 bg-blue-500/15 rounded-full blur-3xl pointer-events-none animate-float" />
+            <div className="absolute bottom-10 left-[-10%] w-32 h-32 bg-purple-500/15 rounded-full blur-3xl pointer-events-none animate-pulse-soft" style={{ animationDelay: '-2s' }} />
+            <div className="absolute top-1/2 left-1/4 w-24 h-24 bg-pink-500/10 rounded-full blur-2xl pointer-events-none animate-morph" />
+
             {/* Brand */}
-            <div className="h-14 flex items-center justify-between px-4 border-b border-white/5">
-                <h1 className="text-lg font-bold text-white tracking-widest uppercase">
-                    Dolab<span className="text-blue-500">.</span>
-                </h1>
+            <div className="h-16 flex items-center justify-between px-4 border-b border-white/[0.06] relative z-10">
                 <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-purple-500/20">
+                        <TrendingUp size={16} className="text-white" />
+                    </div>
+                    <h1 className="text-xl font-black tracking-tight">
+                        <span className="bg-gradient-to-r from-white via-blue-100 to-white bg-clip-text text-transparent">UPCARE</span>
+                    </h1>
+                </div>
+                <div className="flex items-center gap-1.5">
                     <LanguageToggle />
                     {/* Close button - mobile only */}
                     <button
                         onClick={() => setSidebarOpen(false)}
-                        className="lg:hidden p-1 rounded hover:bg-white/10 transition-colors"
+                        className="lg:hidden p-2 rounded-xl hover:bg-white/10 transition-all duration-200 hover:scale-105"
                     >
-                        <X size={20} />
+                        <X size={18} className="text-white/70" />
                     </button>
                 </div>
             </div>
 
-            {/* User Snippet */}
-            {user && (
-                <div className="p-3 border-b border-white/5">
-                    <div className="flex items-center gap-2">
-                        <div className="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center text-xs font-bold flex-shrink-0">
-                            {user.displayName?.charAt(0) || "U"}
-                        </div>
-                        <div className="overflow-hidden min-w-0">
-                            <h4 className="font-medium text-white text-xs truncate">{user.displayName}</h4>
-                            <p className="text-[10px] text-white/40 uppercase tracking-wider">
-                                {userRole === "ADMIN" ? t("approved") : t("members")}
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            )}
+
 
             {/* Nav Links */}
-            <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-2">
+            <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-2 relative z-10 scrollbar-thin">
                 {navGroups.map((group) => {
                     if (group.items.length === 0) return null;
-                    const isCollapsed = collapsedGroups[group.title];
+                    const isCollapsed = collapsedGroups[group.id];
                     const hasActiveItem = group.items.some(item => pathname === item.href);
 
-                    // Group icons mapping
-                    const groupIcons: Record<string, React.ReactNode> = {
-                        "overview": <LayoutDashboard size={16} />,
-                        "income_expense": <ArrowRightLeft size={16} />,
-                        "management": <FolderOpen size={16} />,
-                        "system": <Users size={16} />
+                    // Group icons mapping with gradient colors
+                    const groupStyles: Record<string, { icon: React.ReactNode; gradient: string; shadow: string }> = {
+                        "overview": {
+                            icon: <LayoutDashboard size={15} />,
+                            gradient: "from-blue-500 to-cyan-500",
+                            shadow: "shadow-blue-500/30"
+                        },
+                        "income_expense": {
+                            icon: <ArrowRightLeft size={15} />,
+                            gradient: "from-emerald-500 to-teal-500",
+                            shadow: "shadow-emerald-500/30"
+                        },
+                        "management": {
+                            icon: <FolderOpen size={15} />,
+                            gradient: "from-purple-500 to-pink-500",
+                            shadow: "shadow-purple-500/30"
+                        },
+                        "system": {
+                            icon: <Users size={15} />,
+                            gradient: "from-orange-500 to-amber-500",
+                            shadow: "shadow-orange-500/30"
+                        }
                     };
+
+                    const style = groupStyles[group.id] || groupStyles["overview"];
 
                     return (
                         <div key={group.id} className="mb-1">
                             <button
                                 onClick={() => toggleGroup(group.id)}
-                                className={`w-full flex items-center gap-2 px-3 py-2.5 text-xs font-bold uppercase tracking-wider rounded-xl transition-all duration-200 ${hasActiveItem
-                                    ? "bg-gradient-to-r from-blue-600/30 to-purple-600/20 text-white border border-blue-500/30 shadow-lg shadow-blue-500/10"
-                                    : "text-white/60 hover:text-white hover:bg-white/5"
+                                className={`w-full flex items-center gap-3 px-3 py-3 text-xs font-bold uppercase tracking-wider rounded-2xl transition-all duration-300 group ${hasActiveItem
+                                    ? `bg-gradient-to-r ${style.gradient}/10 text-white border border-white/10 shadow-lg ${style.shadow}`
+                                    : "text-white/50 hover:text-white hover:bg-white/[0.03]"
                                     }`}
                             >
-                                <span className={`p-1.5 rounded-lg transition-all ${hasActiveItem
-                                    ? "bg-blue-500 text-white shadow-md shadow-blue-500/50"
-                                    : "bg-white/10 text-white/60"
+                                <span className={`p-2 rounded-xl transition-all duration-300 ${hasActiveItem
+                                    ? `bg-gradient-to-br ${style.gradient} text-white shadow-lg ${style.shadow}`
+                                    : "bg-white/[0.06] text-white/50 group-hover:bg-white/10 group-hover:text-white/70"
                                     }`}>
-                                    {groupIcons[group.id]}
+                                    {style.icon}
                                 </span>
                                 <span className="flex-1 text-left">{group.title}</span>
-                                <span className={`transition-transform duration-200 ${isCollapsed ? "" : "rotate-90"}`}>
-                                    <ChevronRight size={14} />
+                                <span className={`transition-all duration-300 p-1 rounded-lg ${isCollapsed ? "" : "rotate-90 bg-white/5"}`}>
+                                    <ChevronRight size={12} />
                                 </span>
                             </button>
 
-                            <div className={`overflow-hidden transition-all duration-300 ease-out ${isCollapsed ? "max-h-0 opacity-0" : "max-h-[500px] opacity-100"
+                            <div className={`overflow-hidden transition-all duration-400 ease-out ${isCollapsed ? "max-h-0 opacity-0" : "max-h-[500px] opacity-100"
                                 }`}>
-                                <div className="mt-1.5 ml-4 space-y-0.5 border-l-2 border-white/10 pl-2">
+                                <div className="mt-2 ml-5 space-y-1 border-l border-white/[0.06] pl-3">
                                     {group.items.map((item) => {
                                         const isActive = pathname === item.href;
                                         return (
                                             <Link
                                                 key={item.href}
                                                 href={item.href}
-                                                className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all duration-200 ${isActive
-                                                    ? "bg-white/10 text-white font-medium border-l-2 border-blue-400 -ml-[2px] pl-[14px]"
-                                                    : "text-white/50 hover:bg-white/5 hover:text-white"
+                                                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all duration-200 group/item ${isActive
+                                                    ? "bg-gradient-to-r from-white/10 to-white/5 text-white font-medium shadow-lg shadow-white/5 border-l-2 border-blue-400 -ml-[1px] pl-[11px]"
+                                                    : "text-white/40 hover:bg-white/[0.04] hover:text-white/80 hover:pl-4"
                                                     }`}
                                             >
-                                                <span className={`flex-shrink-0 ${isActive ? "text-blue-400" : ""}`}>{item.icon}</span>
+                                                <span className={`flex-shrink-0 transition-all duration-200 ${isActive
+                                                    ? "text-blue-400 scale-110"
+                                                    : "group-hover/item:text-white/60 group-hover/item:scale-105"
+                                                    }`}>
+                                                    {item.icon}
+                                                </span>
                                                 <span className="truncate">{item.name}</span>
+                                                {isActive && (
+                                                    <span className="ml-auto w-1.5 h-1.5 rounded-full bg-blue-400 shadow-lg shadow-blue-400/50" />
+                                                )}
                                             </Link>
                                         );
                                     })}
@@ -317,31 +350,70 @@ function FinanceLayoutContent({
                 })}
             </nav>
 
-            {/* Logout */}
-            <div className="p-2 border-t border-white/5">
-                <button
-                    onClick={handleLogout}
-                    className="flex items-center gap-2 px-3 py-2 w-full rounded-lg text-[var(--muted)] hover:bg-red-500/10 hover:text-red-400 transition-all text-sm"
-                >
-                    <span>{t("logout")}</span>
-                </button>
+            {/* Footer with User & Logout */}
+            <div className="border-t border-white/[0.06] relative z-10">
+                {/* User Section */}
+                {user && (
+                    <div className="p-3 border-b border-white/[0.06]">
+                        <div className="flex items-center gap-3 p-2.5 rounded-2xl bg-gradient-to-r from-white/[0.04] to-white/[0.02] border border-white/[0.06] hover:border-white/10 transition-all duration-300 group">
+                            {/* Avatar with animated ring */}
+                            <div className="relative flex-shrink-0">
+                                <div className="absolute inset-0 rounded-full bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 animate-spin-slow opacity-75 blur-[2px]" style={{ animationDuration: '3s' }} />
+                                <div className="relative w-10 h-10 rounded-full bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center text-sm font-bold ring-2 ring-[#12121f] shadow-lg">
+                                    {user.displayName?.charAt(0) || "U"}
+                                </div>
+                                {/* Online indicator */}
+                                <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-500 ring-2 ring-[#12121f] shadow-lg shadow-emerald-500/50" />
+                            </div>
+                            <div className="overflow-hidden min-w-0 flex-1">
+                                <h4 className="font-semibold text-white text-sm truncate group-hover:text-blue-100 transition-colors">{user.displayName}</h4>
+                                <div className="flex items-center gap-1.5">
+                                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider ${userRole === "ADMIN"
+                                        ? "bg-gradient-to-r from-amber-500/20 to-orange-500/20 text-amber-300 border border-amber-500/20"
+                                        : "bg-blue-500/10 text-blue-300 border border-blue-500/20"
+                                        }`}>
+                                        {userRole === "ADMIN" ? t("approved") : t("members")}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Logout */}
+                <div className="p-3">
+                    <button
+                        onClick={handleLogout}
+                        className="flex items-center justify-center gap-2 px-4 py-3 w-full rounded-2xl text-white/50 bg-white/[0.02] border border-white/[0.04] hover:bg-red-500/10 hover:border-red-500/20 hover:text-red-400 transition-all duration-300 text-sm font-medium group"
+                    >
+                        <svg className="w-4 h-4 transition-transform duration-300 group-hover:-translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                        </svg>
+                        <span>{t("logout")}</span>
+                    </button>
+                </div>
             </div>
-        </>
+        </div>
     );
 
     return (
         <div className="flex h-screen w-full font-sans overflow-hidden text-white bg-[#121212]">
             {/* Mobile Header */}
-            <div className="lg:hidden fixed top-0 left-0 right-0 h-12 bg-[#121212] border-b border-white/5 flex items-center justify-between px-4 z-40">
+            <div className="lg:hidden fixed top-0 left-0 right-0 h-14 bg-gradient-to-r from-[#0f0f1a]/95 via-[#12121f]/95 to-[#0f0f1a]/95 backdrop-blur-xl border-b border-white/[0.06] flex items-center justify-between px-4 z-40 shadow-lg shadow-black/20">
                 <button
                     onClick={() => setSidebarOpen(true)}
-                    className="p-1.5 rounded-lg hover:bg-white/10 transition-colors"
+                    className="p-2 rounded-xl bg-white/[0.04] hover:bg-white/10 transition-all duration-200 border border-white/[0.06]"
                 >
-                    <Menu size={22} />
+                    <Menu size={20} className="text-white/80" />
                 </button>
-                <h1 className="text-base font-bold text-white tracking-widest uppercase">
-                    Dolab<span className="text-blue-500">.</span>
-                </h1>
+                <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-md shadow-purple-500/20">
+                        <TrendingUp size={12} className="text-white" />
+                    </div>
+                    <h1 className="text-lg font-black tracking-tight">
+                        <span className="bg-gradient-to-r from-white to-blue-100 bg-clip-text text-transparent">UPCARE</span>
+                    </h1>
+                </div>
                 <LanguageToggle />
             </div>
 
@@ -354,20 +426,26 @@ function FinanceLayoutContent({
             )}
 
             {/* Sidebar - Desktop */}
-            <aside className="hidden lg:flex w-56 bg-[#121212] flex-col border-r border-white/5 z-30">
+            <aside className="hidden lg:flex w-64 flex-col border-r border-white/[0.06] z-30 shadow-2xl shadow-black/50">
                 <SidebarContent />
             </aside>
 
             {/* Sidebar - Mobile (Slide-in) */}
-            <aside className={`lg:hidden fixed top-0 left-0 h-full w-64 bg-[#121212] flex flex-col border-r border-white/5 z-50 transform transition-transform duration-300 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"
+            <aside className={`lg:hidden fixed top-0 left-0 h-full w-80 flex flex-col border-r border-white/[0.06] z-50 transform transition-transform duration-300 ease-out shadow-2xl shadow-black/50 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"
                 }`}>
                 <SidebarContent />
             </aside>
 
             {/* Main Content Area */}
-            <div className="flex-1 flex flex-col min-w-0 relative">
+            <div className="flex-1 flex flex-col min-w-0 relative bg-[#0a0a12] overflow-hidden">
+                {/* Decorative background effects for main content - Layered Animations */}
+                <div className="absolute top-[-20%] right-[-10%] w-[50%] h-[50%] bg-blue-600/10 rounded-full blur-[120px] pointer-events-none animate-float" />
+                <div className="absolute bottom-[10%] left-[-10%] w-[40%] h-[40%] bg-purple-600/10 rounded-full blur-[100px] pointer-events-none animate-morph" style={{ animationDuration: '20s' }} />
+                <div className="absolute top-[20%] left-[20%] w-[20%] h-[20%] bg-blue-400/5 rounded-full blur-[80px] pointer-events-none animate-pulse-soft" />
+                <div className="absolute bottom-[20%] right-[10%] w-[30%] h-[30%] bg-pink-500/5 rounded-full blur-[90px] pointer-events-none animate-float" style={{ animationDelay: '-5s', animationDuration: '15s' }} />
+
                 {/* Content */}
-                <main className="flex-1 overflow-y-auto p-4 pt-16 lg:pt-4 lg:p-6 relative z-10">
+                <main className="flex-1 overflow-y-auto p-4 pt-16 lg:pt-4 lg:p-6 relative z-10 scrollbar-thin">
                     <div className="max-w-7xl mx-auto">
                         {children}
                     </div>
