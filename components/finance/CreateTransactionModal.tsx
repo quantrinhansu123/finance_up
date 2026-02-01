@@ -17,27 +17,58 @@ interface CreateTransactionModalProps {
 }
 
 const INCOME_CATEGORIES = ["COD VET", "COD JNT", "Khách CK", "Khác"];
-const EXPENSE_CATEGORIES = [
-    "Thuế",
-    "Long Heng",
-    "Cước vận chuyển",
-    "Cước vận chuyển HN-HCM",
-    "Cước vận chuyển HCM-HN",
-    "SIM",
-    "SIM Smart",
-    "SIM CellCard",
-    "SIM MetPhone",
-    "Văn phòng",
-    "Thuê văn phòng",
-    "Mua đồ dùng văn phòng",
-    "Ads",
-    "Marketing",
-    "Lương",
-    "Chi lương nhân viên",
-    "Vận hành",
-    "Chuyển nội bộ",
-    "Khác"
+const MASTER_CATEGORIES = [
+    {
+        name: "MARKETING",
+        items: [
+            "Nạp quỹ ADS ZENO AGENCY",
+            "Nạp quỹ ADS ECOME AGENCY",
+            "Media",
+            "Thưởng Marketing",
+            "Lương cơ bản marketing",
+            "Thưởng %KPI marketing"
+        ]
+    },
+    {
+        name: "VĂN PHÒNG",
+        items: [
+            "Tiền điện",
+            "Wifi",
+            "Phí vệ sinh",
+            "Văn phòng phẩm",
+            "Văn phòng Việt Nam",
+            "Văn phòng Campuchia"
+        ]
+    },
+    {
+        name: "CHI PHÍ VẬN CHUYỂN",
+        items: [
+            "Cước chuyển VET",
+            "Cước chuyển JNT",
+            "Ship nội thành",
+            "Cước chuyển SEA",
+            "Cước chuyển ROAD"
+        ]
+    },
+    {
+        name: "SALE",
+        items: [
+            "Lương cơ bản sale",
+            "Thưởng hotbonus",
+            "Thưởng %KPI sale"
+        ]
+    },
+    {
+        name: "THUẾ",
+        items: [
+            "Dịch vụ kế toán thuế",
+            "Tư vấn thuế (Long Heng)",
+            "Đóng thuế tháng, năm"
+        ]
+    }
 ];
+
+const EXPENSE_CATEGORIES = MASTER_CATEGORIES.flatMap(m => m.items);
 
 const CURRENCY_FLAGS: Record<string, string> = {
     "VND": "🇻🇳",
@@ -403,9 +434,20 @@ export default function CreateTransactionModal({ isOpen, onClose, onSuccess, cur
                                     className="glass-input w-full p-3 rounded-lg"
                                     required
                                 >
-                                    {allowedCategories.map(cat => (
-                                        <option key={cat} value={cat}>{cat}</option>
-                                    ))}
+                                    {type === "OUT" ? (
+                                        MASTER_CATEGORIES.map(group => (
+                                            <optgroup key={group.name} label={group.name}>
+                                                {group.items.map(cat => (
+                                                    <option key={cat} value={cat}>{cat}</option>
+                                                ))}
+                                            </optgroup>
+                                        ))
+                                    ) : (
+                                        INCOME_CATEGORIES.map(cat => (
+                                            <option key={cat} value={cat}>{cat}</option>
+                                        ))
+                                    )}
+                                    <option value="Khác">Khác</option>
                                 </select>
                                 {selectedAccount?.allowedCategories && selectedAccount.allowedCategories.length > 0 && (
                                     <p className="text-xs text-blue-400 mt-1">Tài khoản giới hạn {selectedAccount.allowedCategories.length} hạng mục</p>

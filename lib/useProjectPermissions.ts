@@ -2,9 +2,9 @@
 
 import { useMemo } from "react";
 import { Project, ProjectPermission, ProjectRole } from "@/types/finance";
-import { 
-    getProjectRole, 
-    getProjectPermissions, 
+import {
+    getProjectRole,
+    getProjectPermissions,
     hasProjectPermission,
     PROJECT_ROLE_LABELS,
     PROJECT_ROLE_COLORS,
@@ -17,7 +17,7 @@ export interface ProjectPermissionState {
     roleLabel: string;
     roleColor: string;
     permissions: ProjectPermission[];
-    
+
     // Permission checks
     canView: boolean;
     canCreateIncome: boolean;
@@ -26,13 +26,13 @@ export interface ProjectPermissionState {
     canManageAccounts: boolean;
     canManageMembers: boolean;
     canViewReports: boolean;
-    
+
     // Helper function
     hasPermission: (permission: ProjectPermission) => boolean;
 }
 
 export function useProjectPermissions(
-    userId: string | null, 
+    userId: string | null,
     project: Project | null,
     user?: any // Truyền user object để kiểm tra ADMIN chính xác
 ): ProjectPermissionState {
@@ -71,7 +71,7 @@ export function useProjectPermissions(
             canManageAccounts: hasProjectPermission(userId, project, "manage_accounts", user),
             canManageMembers: hasProjectPermission(userId, project, "manage_members", user),
             canViewReports: hasProjectPermission(userId, project, "view_reports", user),
-            hasPermission: (permission: ProjectPermission) => 
+            hasPermission: (permission: ProjectPermission) =>
                 hasProjectPermission(userId, project, permission, user)
         };
     }, [userId, project, user]);
@@ -87,7 +87,7 @@ export function checkProjectAccess(
     if (!userId) {
         return { allowed: false, message: "Bạn cần đăng nhập để thực hiện thao tác này" };
     }
-    
+
     if (!project) {
         return { allowed: false, message: "Không tìm thấy dự án" };
     }
@@ -111,11 +111,12 @@ export function checkProjectAccess(
             approve_transactions: "duyệt giao dịch",
             manage_accounts: "quản lý tài khoản",
             manage_members: "quản lý thành viên",
-            view_reports: "xem báo cáo"
+            view_reports: "xem báo cáo",
+            pay_transactions: ""
         };
-        return { 
-            allowed: false, 
-            message: `Bạn không có quyền ${permissionLabels[requiredPermission]} trong dự án này` 
+        return {
+            allowed: false,
+            message: `Bạn không có quyền ${permissionLabels[requiredPermission]} trong dự án này`
         };
     }
 

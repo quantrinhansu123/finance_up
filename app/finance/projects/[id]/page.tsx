@@ -974,7 +974,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                                                         approve_transactions: "✅",
                                                         manage_accounts: "🏦",
                                                         manage_members: "👥",
-                                                        view_reports: "📊"
+                                                        view_reports: "📊",
+                                                        pay_transactions: "💳"
                                                     };
                                                     return (
                                                         <div
@@ -1166,7 +1167,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                                                     approve_transactions: "✅",
                                                     manage_accounts: "🏦",
                                                     manage_members: "👥",
-                                                    view_reports: "📊"
+                                                    view_reports: "📊",
+                                                    pay_transactions: "💳"
                                                 }[p]}
                                             </div>
                                             <div>

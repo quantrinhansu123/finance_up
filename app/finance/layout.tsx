@@ -209,6 +209,7 @@ function FinanceLayoutContent({
             items: [
                 ...(userPermissions.canCreateIncome ? [{ name: t("income"), href: "/finance/income", icon: <ArrowDownToLine size={18} /> }] : []),
                 ...(userPermissions.canCreateExpense ? [{ name: t("expense"), href: "/finance/expense", icon: <ArrowUpFromLine size={18} /> }] : []),
+                { name: t("budget_requests"), href: "/finance/budget-requests", icon: <TrendingUp size={18} /> },
                 ...(userRole === "ADMIN" ? [{ name: t("transfer"), href: "/finance/transfer", icon: <ArrowRightLeft size={18} /> }] : []),
                 ...(userPermissions.canApprove ? [{ name: t("approvals"), href: "/finance/approvals", icon: <CheckSquare size={18} /> }] : []),
                 ...(userPermissions.canViewTransactions ? [{ name: t("transactions"), href: "/finance/transactions", icon: <ArrowRightLeft size={18} /> }] : []),

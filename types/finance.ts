@@ -2,7 +2,7 @@ export type Currency = "VND" | "USD" | "KHR" | "TRY"; // Added TRY (Lira)
 
 export type TransactionType = "IN" | "OUT";
 
-export type TransactionStatus = "PENDING" | "APPROVED" | "REJECTED";
+export type TransactionStatus = "PENDING" | "APPROVED" | "REJECTED" | "PAID" | "COMPLETED";
 
 // Expense categories for fixed costs and reporting
 export type ExpenseCategory =
@@ -39,6 +39,13 @@ export interface Account {
     createdAt: number;
 }
 
+export interface BankInfo {
+    bankName: string;
+    accountNumber: string;
+    accountName: string;
+    branch?: string;
+}
+
 export interface Transaction {
     id: string;
     amount: number;
@@ -60,11 +67,20 @@ export interface Transaction {
     source?: string; // Money In Source: "COD VET", "COD JNT", "Customer Transfer", "Other"
     images?: string[]; // Added: Array of image URLs/Base64
 
+    // Budget Request Specific Fields
+    beneficiary?: string; // "ZENO", "ECOME", etc.
+    bankInfo?: BankInfo; // Auto-filled bank details
+    transferContent?: string; // Nội dung chuyển khoản
+    proofOfPayment?: string[]; // Bill uploaded by Accountant (when status -> PAID)
+    proofOfReceipt?: string[]; // Proof uploaded by Requester (when status -> COMPLETED)
+
     // Approval
     warning?: boolean; // >5M or >100$
     rejectionReason?: string;
     approvedBy?: string;
     rejectedBy?: string;
+    paidBy?: string; // Accountant
+    confirmedBy?: string; // Requester (final confirmation)
     createdBy: string;
     userId: string; // Restored for RLS filtering
 
@@ -100,14 +116,16 @@ export type ProjectPermission =
     | "approve_transactions"   // Duyệt giao dịch
     | "manage_accounts"        // Quản lý tài khoản dự án
     | "manage_members"         // Quản lý thành viên
-    | "view_reports";          // Xem báo cáo
+
+    | "view_reports"           // Xem báo cáo
+    | "pay_transactions";      // NEW: Quyền thanh toán (Accountant)
 
 // Default permissions for each project role
 export const PROJECT_ROLE_PERMISSIONS: Record<ProjectRole, ProjectPermission[]> = {
     OWNER: [
         "view_transactions", "create_income", "create_expense",
         "approve_transactions", "manage_accounts", "manage_members",
-        "view_reports"
+        "view_reports", "pay_transactions"
     ],
     MANAGER: [
         "view_transactions", "create_income", "create_expense",
