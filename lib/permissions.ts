@@ -155,6 +155,15 @@ export function getAccessibleProjects(user: any, allProjects: any[]): any[] {
     );
 }
 
+// Lấy danh sách dự án mà user có permission cụ thể
+export function getProjectsWithPermission(user: any, allProjects: Project[], permission: ProjectPermission): Project[] {
+    const role = getUserRole(user);
+    if (role === "ADMIN") return allProjects;
+
+    const userId = user?.uid || user?.id;
+    return allProjects.filter(p => hasProjectPermission(userId, p, permission, user));
+}
+
 // Lấy danh sách account mà user được phép truy cập
 export function getAccessibleAccounts(user: any, allAccounts: any[], accessibleProjectIds: string[]): any[] {
     const role = getUserRole(user);
@@ -352,6 +361,7 @@ export const PROJECT_PERMISSION_LABELS: Record<ProjectPermission, string> = {
     view_transactions: "Xem lịch sử giao dịch",
     create_income: "Tạo phiếu thu tiền",
     create_expense: "Tạo phiếu chi tiền",
+    request_budget: "Xin ngân sách marketing",
     approve_transactions: "Phê duyệt giao dịch",
     manage_accounts: "Quản lý tài khoản ngân hàng",
     manage_members: "Phân quyền thành viên",
@@ -363,7 +373,8 @@ export const PROJECT_PERMISSION_LABELS: Record<ProjectPermission, string> = {
 export const PROJECT_PERMISSION_DESCRIPTIONS: Record<ProjectPermission, string> = {
     view_transactions: "Xem danh sách giao dịch thu/chi và truy cập trang chi tiết dự án",
     create_income: "Tạo phiếu thu tiền mới cho dự án (COD, chuyển khoản, tiền mặt...)",
-    create_expense: "Tạo phiếu chi tiền cho các khoản chi phí của dự án (lương, quảng cáo, vận hành...)",
+    create_expense: "Tạo phiếu chi tiền cho các khoản chi phí của dự án (lương, quản hành...)",
+    request_budget: "Tạo yêu cầu xin ngân sách Marketing (TikTok Ads, Google Ads...)",
     approve_transactions: "Phê duyệt hoặc từ chối các giao dịch đang chờ duyệt trong dự án",
     manage_accounts: "Quản lý tài khoản ngân hàng được gán cho dự án (thêm/xóa/chỉnh sửa)",
     manage_members: "Thêm/xóa thành viên và phân quyền cho các thành viên khác trong dự án",

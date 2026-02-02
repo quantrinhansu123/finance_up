@@ -962,15 +962,16 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                                             </div>
                                         </div>
 
-                                        {/* Permissions Matrix - Clickable Icons */}
-                                        <div className="flex-1 overflow-x-auto pb-2 xl:pb-0">
-                                            <div className="flex items-center gap-1 min-w-max">
+                                        {/* Permissions Matrix - Grid with labels */}
+                                        <div className="flex-1">
+                                            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2">
                                                 {(Object.keys(PROJECT_PERMISSION_LABELS) as ProjectPermission[]).map(permission => {
                                                     const hasPermission = permissions.includes(permission);
                                                     const icons: Record<ProjectPermission, string> = {
                                                         view_transactions: "👁️",
                                                         create_income: "💰",
                                                         create_expense: "💸",
+                                                        request_budget: "📣",
                                                         approve_transactions: "✅",
                                                         manage_accounts: "🏦",
                                                         manage_members: "👥",
@@ -978,32 +979,35 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                                                         pay_transactions: "💳"
                                                     };
                                                     return (
-                                                        <div
+                                                        <button
                                                             key={permission}
                                                             onClick={() => userRole === "ADMIN" && handleTogglePermission(user!.uid, permission)}
                                                             className={`
-                                                                relative group/icon flex items-center justify-center w-10 h-10 rounded-xl border transition-all cursor-pointer
+                                                                flex items-center gap-2 p-2 rounded-xl border transition-all text-left group/btn
                                                                 ${hasPermission
-                                                                    ? "bg-blue-500/10 border-blue-500/30 text-white shadow-[0_0_10px_rgba(59,130,246,0.1)]"
+                                                                    ? "bg-blue-500/10 border-blue-500/40 text-blue-100 shadow-[0_0_15px_rgba(59,130,246,0.05)]"
                                                                     : "bg-white/5 border-white/5 text-[var(--muted)] hover:bg-white/10 hover:border-white/10"
                                                                 }
-                                                                ${userRole !== "ADMIN" ? "pointer-events-none opacity-80" : ""}
+                                                                ${userRole !== "ADMIN" ? "cursor-default opacity-80" : "hover:scale-[1.02] active:scale-[0.98] cursor-pointer"}
                                                             `}
-                                                            title={PROJECT_PERMISSION_LABELS[permission]}
                                                         >
-                                                            <span className="text-lg">{icons[permission]}</span>
-
-                                                            {/* Tooltip */}
-                                                            <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 px-2 py-1 bg-gray-900 border border-white/10 text-xs text-white rounded-lg opacity-0 group-hover/icon:opacity-100 pointer-events-none whitespace-nowrap z-10">
-                                                                {PROJECT_PERMISSION_LABELS[permission]}
+                                                            <span className={`text-base shrink-0 ${hasPermission ? "opacity-100" : "opacity-40"}`}>{icons[permission]}</span>
+                                                            <div className="flex flex-col min-w-0">
+                                                                <span className="text-[9px] font-black uppercase tracking-tighter truncate leading-tight">
+                                                                    {PROJECT_PERMISSION_LABELS[permission]}
+                                                                </span>
+                                                                {permission === "request_budget" && (
+                                                                    <span className="text-[7px] text-blue-400 font-bold opacity-0 group-hover/btn:opacity-100 transition-opacity whitespace-nowrap">
+                                                                        (TikTok/Google Ads...)
+                                                                    </span>
+                                                                )}
                                                             </div>
-                                                        </div>
+                                                            {hasPermission && userRole === "ADMIN" && (
+                                                                <div className="ml-auto w-1 h-1 rounded-full bg-blue-400 shadow-[0_0_5px_rgba(96,165,250,0.8)]" />
+                                                            )}
+                                                        </button>
                                                     );
                                                 })}
-                                            </div>
-                                            <div className="text-[10px] text-[var(--muted)] mt-1.5 flex gap-4 px-1">
-                                                <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span> Đã cấp quyền</span>
-                                                <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-gray-600"></span> Chưa cấp</span>
                                             </div>
                                         </div>
 
@@ -1164,6 +1168,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                                                     view_transactions: "👁️",
                                                     create_income: "💰",
                                                     create_expense: "💸",
+                                                    request_budget: "📣",
                                                     approve_transactions: "✅",
                                                     manage_accounts: "🏦",
                                                     manage_members: "👥",

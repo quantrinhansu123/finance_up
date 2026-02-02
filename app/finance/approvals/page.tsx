@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { getTransactions, updateTransactionStatus, updateAccountBalance, getAccounts, getProjects } from "@/lib/finance";
-import { Transaction, Account } from "@/types/finance";
+import { Transaction, Account, Project } from "@/types/finance";
 import { logActivity } from "@/lib/logger";
 import { doc, updateDoc, collection, query, orderBy, limit, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -35,6 +35,7 @@ export default function ApprovalsPage() {
     const [approvalLogs, setApprovalLogs] = useState<ApprovalLog[]>([]);
     const [canApprove, setCanApprove] = useState(false);
     const [approvalProjectIds, setApprovalProjectIds] = useState<string[]>([]);
+    const [allProjects, setAllProjects] = useState<Project[]>([]);
 
     // Rejection Modal
     const [showRejectModal, setShowRejectModal] = useState(false);
@@ -68,6 +69,7 @@ export default function ApprovalsPage() {
             ]);
 
             setAccounts(accs);
+            setAllProjects(allProjects);
 
             // ADMIN có full quyền
             if (role === "ADMIN") {
@@ -143,12 +145,15 @@ export default function ApprovalsPage() {
             });
 
             // 3. Log Activity
+            const proj = allProjects.find(p => p.id === tx.projectId);
+            const logMsg = `Đã duyệt: ${tx.category} - ${tx.amount.toLocaleString()} ${tx.currency} | Dự án: ${proj?.name || "N/A"}`;
+
             await logActivity(
                 { uid: currentUser.id || currentUser.uid || "admin", displayName: currentUser.name || currentUser.displayName || "Admin" },
                 "APPROVE",
                 "TRANSACTION",
                 tx.id,
-                `Đã duyệt giao dịch ${tx.id}: ${tx.amount} ${tx.currency}`
+                logMsg
             );
 
             // 4. Update Account Balance
@@ -195,12 +200,15 @@ export default function ApprovalsPage() {
             });
 
             // 3. Log Activity
+            const proj = allProjects.find(p => p.id === rejectingTx.projectId);
+            const logMsg = `Từ chối: ${rejectingTx.category} - ${rejectingTx.amount.toLocaleString()} ${rejectingTx.currency} | Dự án: ${proj?.name || "N/A"} | Lý do: ${rejectionReason.trim()}`;
+
             await logActivity(
                 { uid: currentUser.id || currentUser.uid || "admin", displayName: currentUser.name || currentUser.displayName || "Admin" },
                 "REJECT",
                 "TRANSACTION",
                 rejectingTx.id,
-                `Từ chối giao dịch ${rejectingTx.id}. Lý do: ${rejectionReason.trim()}`
+                logMsg
             );
 
             setShowRejectModal(false);
@@ -300,7 +308,16 @@ export default function ApprovalsPage() {
                                     <h3 className="text-xl font-bold text-white mb-1">
                                         {tx.amount.toLocaleString()} {tx.currency}
                                     </h3>
-                                    <p className="text-[var(--muted)]">{tx.description || tx.category}</p>
+                                    <div className="space-y-1">
+                                        <p className="text-white font-medium">{tx.category}</p>
+                                        <p className="text-[var(--muted)] text-sm">{tx.description}</p>
+                                        {tx.beneficiary && (
+                                            <p className="text-blue-400 text-xs font-bold uppercase">Thụ hưởng: {tx.beneficiary}</p>
+                                        )}
+                                        {tx.projectId && (
+                                            <p className="text-[var(--muted)] text-[10px]">Dự án: {allProjects.find(p => p.id === tx.projectId)?.name || "N/A"}</p>
+                                        )}
+                                    </div>
 
                                     {tx.images && tx.images.length > 0 && (
                                         <div className="mt-2 flex gap-2">
@@ -381,14 +398,26 @@ export default function ApprovalsPage() {
                         {
                             key: "details",
                             header: t("details"),
-                            render: (log) => (
-                                <div className="max-w-[400px]">
-                                    <div className="text-white/70 truncate">{log.details}</div>
-                                    {log.reason && (
-                                        <div className="text-xs text-white/40 mt-1">{t("reason")}: {log.reason}</div>
-                                    )}
-                                </div>
-                            )
+                            render: (log) => {
+                                let displayDetails = log.details || "";
+                                // Khử JSON nếu log.details là chuỗi JSON (do API lưu JSON.stringify)
+                                if (displayDetails.startsWith('{')) {
+                                    try {
+                                        const parsed = JSON.parse(displayDetails);
+                                        displayDetails = parsed.details || displayDetails;
+                                    } catch (e) {
+                                        console.error("Failed to parse log details", e);
+                                    }
+                                }
+                                return (
+                                    <div className="max-w-[400px]">
+                                        <div className="text-white/70 whitespace-normal break-words">{displayDetails}</div>
+                                        {log.reason && (
+                                            <div className="text-xs text-white/40 mt-1">{t("reason")}: {log.reason}</div>
+                                        )}
+                                    </div>
+                                );
+                            }
                         }
                     ]}
                 />

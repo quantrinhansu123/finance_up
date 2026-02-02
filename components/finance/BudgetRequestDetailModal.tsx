@@ -1,7 +1,7 @@
 "use client";
 
-import { Transaction, TransactionStatus, Project } from "@/types/finance";
-import { X, CheckCircle, Clock, Upload, ArrowRightCircle, ShieldCheck, Download, ExternalLink, XCircle } from "lucide-react";
+import { Transaction, TransactionStatus, Project, Account } from "@/types/finance";
+import { X, CheckCircle, Clock, Upload, ArrowRightCircle, ShieldCheck, Download, ExternalLink, XCircle, Wallet } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "@/lib/i18n";
 import { updateTransactionStatus } from "@/lib/finance";
@@ -17,9 +17,10 @@ interface Props {
     onUpdate: () => void;
     currentUser: any;
     allProjects?: Project[]; // NEW: For permission checking
+    allAccounts?: Account[]; // NEW: For showing source account info
 }
 
-export default function BudgetRequestDetailModal({ transaction, onClose, onUpdate, currentUser, allProjects = [] }: Props) {
+export default function BudgetRequestDetailModal({ transaction, onClose, onUpdate, currentUser, allProjects = [], allAccounts = [] }: Props) {
     const { t } = useTranslation();
     const [loading, setLoading] = useState(false);
     const [uploadUrl, setUploadUrl] = useState("");
@@ -249,6 +250,16 @@ export default function BudgetRequestDetailModal({ transaction, onClose, onUpdat
                                     </div>
                                 )}
                                 <div className="text-sm text-white mt-1">{transaction.category}</div>
+                            </div>
+
+                            <div className="p-4 bg-white/5 rounded-xl border border-white/10">
+                                <span className="text-xs text-[var(--muted)] uppercase font-bold block mb-1">Nguồn tiền</span>
+                                <div className="flex items-center gap-2 text-white">
+                                    <Wallet size={16} className="text-yellow-400" />
+                                    <span className="font-medium">
+                                        {allAccounts.find(a => a.id === transaction.accountId)?.name || "Nguồn quỹ ADS"}
+                                    </span>
+                                </div>
                             </div>
 
                             <div>

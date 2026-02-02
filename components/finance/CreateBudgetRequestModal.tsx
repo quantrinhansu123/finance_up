@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Save, AlertCircle, Upload, ImageIcon, Trash2 } from "lucide-react";
+import { X, Save, AlertCircle, Upload, ImageIcon, Trash2, ChevronDown } from "lucide-react";
 import { getAccounts, getProjects, createTransaction } from "@/lib/finance";
 import { Account, Project, Currency, TransactionType, BankInfo, TransactionStatus } from "@/types/finance";
-import { getAccessibleProjects } from "@/lib/permissions";
+import { getAccessibleProjects, getProjectsWithPermission } from "@/lib/permissions";
 import { uploadImage } from "../../lib/upload";
 
 
@@ -18,23 +18,63 @@ interface Props {
 
 const BENEFICIARIES = [
     {
-        id: "zeno",
-        name: "ZENO AGENCY (Tiktok Ads)",
+        id: "agency1_tiktok",
+        name: "Tiktok Ads",
         bankInfo: {
             bankName: "Techcombank",
-            accountNumber: "19036578901234", // Placeholder
-            accountName: "CONG TY TNHH ZENO MEDIA", // Placeholder
+            accountNumber: "19036578901111",
+            accountName: "CONG TY TNHH AGENCY ONE",
             branch: "Hanoi"
         }
     },
     {
-        id: "ecome",
-        name: "ECOME AGENCY (Google Ads)",
+        id: "agency1_google",
+        name: "Google Ads",
+        bankInfo: {
+            bankName: "Techcombank",
+            accountNumber: "19036578901111",
+            accountName: "CONG TY TNHH AGENCY ONE",
+            branch: "Hanoi"
+        }
+    },
+    {
+        id: "agency2_tiktok",
+        name: "Tiktok Ads",
         bankInfo: {
             bankName: "Vietcombank",
-            accountNumber: "0011004567890", // Placeholder
-            accountName: "CONG TY CP ECOME", // Placeholder
+            accountNumber: "0011004567222",
+            accountName: "CONG TY CP AGENCY TWO",
             branch: "HCM"
+        }
+    },
+    {
+        id: "agency2_google",
+        name: "Google Ads",
+        bankInfo: {
+            bankName: "Vietcombank",
+            accountNumber: "0011004567222",
+            accountName: "CONG TY CP AGENCY TWO",
+            branch: "HCM"
+        }
+    },
+    {
+        id: "agency3_tiktok",
+        name: "Tiktok Ads",
+        bankInfo: {
+            bankName: "MB Bank",
+            accountNumber: "999933336666",
+            accountName: "CONG TY TNHH AGENCY THREE",
+            branch: "Da Nang"
+        }
+    },
+    {
+        id: "agency3_google",
+        name: "Google Ads",
+        bankInfo: {
+            bankName: "MB Bank",
+            accountNumber: "999933336666",
+            accountName: "CONG TY TNHH AGENCY THREE",
+            branch: "Da Nang"
         }
     },
     {
@@ -45,16 +85,6 @@ const BENEFICIARIES = [
             accountNumber: "**** **** **** 1234",
             accountName: "FACEBOOK IRELAND LTD",
             branch: "International"
-        }
-    },
-    {
-        id: "other",
-        name: "Khác / Other",
-        bankInfo: {
-            bankName: "",
-            accountNumber: "",
-            accountName: "",
-            branch: ""
         }
     }
 ];
@@ -118,6 +148,8 @@ export default function CreateBudgetRequestModal({ onClose, onSuccess, username,
     const [loading, setLoading] = useState(false);
     const [accounts, setAccounts] = useState<Account[]>([]);
     const [projects, setProjects] = useState<Project[]>([]);
+    const [recentBeneficiaries, setRecentBeneficiaries] = useState<string[]>([]);
+    const [showSuggestions, setShowSuggestions] = useState(false);
 
     // Form State
     const [projectId, setProjectId] = useState("");
@@ -141,11 +173,15 @@ export default function CreateBudgetRequestModal({ onClose, onSuccess, username,
 
     useEffect(() => {
         const loadData = async () => {
-            const [accs, projs] = await Promise.all([getAccounts(), getProjects()]);
+            const [accs, projs, txs] = await Promise.all([getAccounts(), getProjects(), import("@/lib/finance").then(m => m.getTransactions())]);
             setAccounts(accs);
-            // Filter projects based on permissions
-            const accessibleProjects = getAccessibleProjects(currentUser, projs);
+            // Filter projects based on specific request_budget permission
+            const accessibleProjects = getProjectsWithPermission(currentUser, projs, "request_budget");
             setProjects(accessibleProjects);
+
+            // Fetch recent beneficiaries from last transactions
+            const uniqueBeneficiaries = Array.from(new Set(txs.filter(t => t.beneficiary).map(t => t.beneficiary!))).slice(0, 10);
+            setRecentBeneficiaries(uniqueBeneficiaries);
 
             // Default selection logic if needed
             if (accessibleProjects.length > 0) setProjectId(accessibleProjects[0].id);
@@ -153,29 +189,38 @@ export default function CreateBudgetRequestModal({ onClose, onSuccess, username,
         loadData();
     }, [currentUser]);
 
-    // Handle Beneficiary Change
+    // Handle Beneficiary Change (Auto-fill bank info if matches predefined)
     useEffect(() => {
         const selected = BENEFICIARIES.find(b => b.name === beneficiary);
-        if (selected && selected.id !== 'other') {
+        if (selected) {
             setBankInfo(selected.bankInfo);
             // Auto-update category if matches
-            if (selected.id === "zeno") setCategory("Nạp quỹ ADS ZENO AGENCY");
-            if (selected.id === "ecome") setCategory("Nạp quỹ ADS ECOME AGENCY");
-        } else if (beneficiary === "") {
-            setBankInfo({ bankName: "", accountNumber: "", accountName: "", branch: "" });
+            if (selected.id.includes("tiktok")) setCategory("Nạp quỹ ADS ZENO AGENCY");
+            if (selected.id.includes("google")) setCategory("Nạp quỹ ADS ECOME AGENCY");
         }
     }, [beneficiary]);
 
     // Derived State
-    const filteredAccounts = accounts.filter(a => a.projectId === projectId);
+    const projectAccounts = accounts.filter(a => a.projectId === projectId);
+    const availableCurrencies = Array.from(new Set(projectAccounts.map(a => a.currency)));
+    const filteredAccounts = projectAccounts.filter(a => a.currency === currency);
     const selectedAccount = accounts.find(a => a.id === accountId);
 
-    // Auto-set currency when account changes
+    // Auto-set initial currency when project changes
     useEffect(() => {
-        if (selectedAccount) {
-            setCurrency(selectedAccount.currency);
+        if (availableCurrencies.length > 0 && !availableCurrencies.includes(currency)) {
+            setCurrency(availableCurrencies[0]);
         }
-    }, [selectedAccount]);
+    }, [projectId, availableCurrencies]);
+
+    // Auto-select account if only one matches currency
+    useEffect(() => {
+        if (filteredAccounts.length === 1) {
+            setAccountId(filteredAccounts[0].id);
+        } else if (filteredAccounts.length > 0 && !filteredAccounts.find(a => a.id === accountId)) {
+            setAccountId(""); // Reset if current selection is invalid for new currency
+        }
+    }, [currency, filteredAccounts]);
 
     // Filter categories based on account restrictions
     const getFilteredCategories = () => {
@@ -272,51 +317,116 @@ export default function CreateBudgetRequestModal({ onClose, onSuccess, username,
                 </div>
 
                 <div className="p-6 overflow-y-auto space-y-4">
-                    {/* Project & Account */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-sm text-[var(--muted)] mb-1">Dự án</label>
-                            <select
-                                value={projectId}
-                                onChange={(e) => {
-                                    setProjectId(e.target.value);
-                                    setAccountId(""); // Reset account when project changes
-                                }}
-                                className="glass-input w-full p-2 rounded-lg"
-                            >
-                                <option value="">-- Chọn Dự Án --</option>
-                                {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                            </select>
+                    {/* Project & Currency & Account */}
+                    <div className="space-y-4 bg-white/5 p-4 rounded-xl border border-white/5">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm text-[var(--muted)] mb-1">Dự án *</label>
+                                <select
+                                    value={projectId}
+                                    onChange={(e) => {
+                                        setProjectId(e.target.value);
+                                        setAccountId("");
+                                    }}
+                                    className="glass-input w-full p-2.5 rounded-lg font-bold"
+                                >
+                                    {projects.length === 0 && <option value="">-- Chọn Dự Án --</option>}
+                                    {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm text-[var(--muted)] mb-1">Loại tiền thanh toán *</label>
+                                <div className="flex gap-2">
+                                    {["VND", "USD", "KHR", "TRY"].map(cur => {
+                                        const isAvailable = availableCurrencies.includes(cur as Currency);
+                                        return (
+                                            <button
+                                                key={cur}
+                                                type="button"
+                                                disabled={!isAvailable}
+                                                onClick={() => setCurrency(cur as Currency)}
+                                                className={`flex-1 py-2 rounded-lg font-bold text-xs border transition-all ${currency === cur
+                                                        ? "bg-blue-600 border-blue-400 text-white shadow-lg shadow-blue-500/20"
+                                                        : isAvailable
+                                                            ? "bg-white/5 border-white/10 text-[var(--muted)] hover:bg-white/10"
+                                                            : "bg-transparent border-white/5 text-white/10 cursor-not-allowed"
+                                                    }`}
+                                            >
+                                                {cur}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
                         </div>
+
                         <div>
-                            <label className="block text-sm text-[var(--muted)] mb-1">Nguồn tiền (Tài khoản)</label>
+                            <label className="block text-sm text-[var(--muted)] mb-1">Tài khoản nguồn ({currency}) *</label>
                             <select
                                 value={accountId}
                                 onChange={(e) => setAccountId(e.target.value)}
-                                className="glass-input w-full p-2 rounded-lg"
-                                disabled={!projectId}
+                                className="glass-input w-full p-2.5 rounded-lg text-sm"
+                                disabled={!projectId || filteredAccounts.length === 0}
                             >
-                                <option value="">-- Chọn Tài Khoản --</option>
+                                <option value="">-- {filteredAccounts.length === 0 ? "Không có tài khoản phù hợp" : "Chọn tài khoản nguồn"} --</option>
                                 {filteredAccounts.map(a => (
-                                    <option key={a.id} value={a.id}>{a.name} ({a.currency})</option>
+                                    <option key={a.id} value={a.id}>{a.name} - SD: {a.balance.toLocaleString()} {a.currency}</option>
                                 ))}
                             </select>
                         </div>
                     </div>
 
-                    {/* Beneficiary */}
-                    <div>
-                        <label className="block text-sm text-[var(--muted)] mb-1">Đơn vị thụ hưởng (Agency) *</label>
-                        <select
+                    {/* Beneficiary with Suggestions */}
+                    <div className="relative">
+                        <label className="block text-sm text-[var(--muted)] mb-1">Đơn vị thụ hưởng *</label>
+                        <input
+                            type="text"
                             value={beneficiary}
                             onChange={(e) => setBeneficiary(e.target.value)}
-                            className="glass-input w-full p-2 rounded-lg font-bold text-blue-300"
-                        >
-                            <option value="">-- Chọn Đơn Vị --</option>
-                            {BENEFICIARIES.map(b => (
-                                <option key={b.id} value={b.name}>{b.name}</option>
-                            ))}
-                        </select>
+                            onFocus={() => setShowSuggestions(true)}
+                            onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                            placeholder="Nhập tên đơn vị hoặc chọn từ đề xuất..."
+                            className="glass-input w-full p-2 rounded-lg font-bold text-blue-300 placeholder:text-blue-300/30"
+                        />
+
+                        {showSuggestions && (
+                            <div className="absolute z-10 w-full mt-1 bg-[#1a1a1a] border border-white/10 rounded-xl shadow-2xl overflow-hidden max-h-60 overflow-y-auto">
+                                <div className="p-2 text-[10px] uppercase font-bold text-[var(--muted)] bg-white/5">Gợi ý mặc định</div>
+                                {BENEFICIARIES.map(b => (
+                                    <button
+                                        key={b.id}
+                                        type="button"
+                                        onClick={() => {
+                                            setBeneficiary(b.name);
+                                            setShowSuggestions(false);
+                                        }}
+                                        className="w-full text-left p-2 hover:bg-blue-500/10 text-sm border-b border-white/5 transition-colors"
+                                    >
+                                        <span className="text-white font-medium">{b.name}</span>
+                                        <span className="text-[10px] text-[var(--muted)] block">{b.bankInfo.bankName} - {b.bankInfo.accountNumber}</span>
+                                    </button>
+                                ))}
+
+                                {recentBeneficiaries.length > 0 && (
+                                    <>
+                                        <div className="p-2 text-[10px] uppercase font-bold text-[var(--muted)] bg-white/5">Đã dùng gần đây</div>
+                                        {recentBeneficiaries.filter(name => !BENEFICIARIES.some(b => b.name === name)).map((name, idx) => (
+                                            <button
+                                                key={`recent-${idx}`}
+                                                type="button"
+                                                onClick={() => {
+                                                    setBeneficiary(name);
+                                                    setShowSuggestions(false);
+                                                }}
+                                                className="w-full text-left p-2 hover:bg-blue-500/10 text-sm border-b border-white/5 transition-colors"
+                                            >
+                                                <span className="text-white font-medium">{name}</span>
+                                            </button>
+                                        ))}
+                                    </>
+                                )}
+                            </div>
+                        )}
                     </div>
 
                     {/* Bank Info (Auto-filled) */}
@@ -330,7 +440,7 @@ export default function CreateBudgetRequestModal({ onClose, onSuccess, username,
                                     onChange={(e) => setBankInfo({ ...bankInfo, bankName: e.target.value })}
                                     placeholder="Tên ngân hàng"
                                     className="glass-input w-full p-2 rounded text-sm"
-                                    readOnly={beneficiary !== "Khác / Other" && beneficiary !== ""}
+                                    readOnly={BENEFICIARIES.some(b => b.name === beneficiary)}
                                 />
                             </div>
                             <div>
@@ -340,7 +450,7 @@ export default function CreateBudgetRequestModal({ onClose, onSuccess, username,
                                     onChange={(e) => setBankInfo({ ...bankInfo, accountNumber: e.target.value })}
                                     placeholder="STK"
                                     className="glass-input w-full p-2 rounded text-sm font-mono"
-                                    readOnly={beneficiary !== "Khác / Other" && beneficiary !== ""}
+                                    readOnly={BENEFICIARIES.some(b => b.name === beneficiary)}
                                 />
                             </div>
                             <div className="col-span-2">
@@ -350,48 +460,56 @@ export default function CreateBudgetRequestModal({ onClose, onSuccess, username,
                                     onChange={(e) => setBankInfo({ ...bankInfo, accountName: e.target.value })}
                                     placeholder="Tên chủ tài khoản"
                                     className="glass-input w-full p-2 rounded text-sm uppercase"
-                                    readOnly={beneficiary !== "Khác / Other" && beneficiary !== ""}
+                                    readOnly={BENEFICIARIES.some(b => b.name === beneficiary)}
                                 />
                             </div>
                         </div>
                     </div>
 
                     {/* Amount & Category */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-sm text-[var(--muted)] mb-1">Số tiền đề xuất *</label>
-                            <div className="flex gap-2">
-                                <input
-                                    type="number"
-                                    value={amount}
-                                    onChange={(e) => setAmount(Number(e.target.value))}
-                                    className="glass-input flex-1 p-2 rounded-lg text-lg font-bold"
-                                    placeholder="0"
-                                />
-                                <div className="glass-input min-w-[80px] p-2 rounded-lg flex items-center justify-center bg-white/5 text-[var(--muted)]">
-                                    {currency}
+                    <div className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm text-[var(--muted)] mb-1">Số tiền đề xuất *</label>
+                                <div className="relative group">
+                                    <input
+                                        type="number"
+                                        value={amount}
+                                        onChange={(e) => setAmount(Number(e.target.value))}
+                                        className="glass-input w-full p-3 pr-20 rounded-xl text-xl font-bold focus:ring-2 focus:ring-blue-500/50 transition-all"
+                                        placeholder="0"
+                                    />
+                                    <div className="absolute right-3 top-1/2 -translate-y-1/2 px-3 py-1 bg-white/10 rounded-lg text-sm font-bold text-blue-400 border border-white/10">
+                                        {currency}
+                                    </div>
+                                </div>
+                                <div className="text-[10px] text-[var(--muted)] mt-1.5 flex items-center gap-1">
+                                    <AlertCircle size={10} className="text-blue-400" />
+                                    <span>Loại tiền tự động khớp với tài khoản nguồn đã chọn</span>
                                 </div>
                             </div>
-                            <div className="text-xs text-[var(--muted)] mt-1 italic">
-                                * Loại tiền theo tài khoản nguồn
-                            </div>
-                        </div>
-                        <div>
-                            <label className="block text-sm text-[var(--muted)] mb-1">Hạng mục *</label>
-                            <select
-                                value={category}
-                                onChange={(e) => setCategory(e.target.value)}
-                                className="glass-input w-full p-2 rounded-lg"
-                            >
-                                {displayCategories.map(group => (
-                                    <optgroup key={group.group} label={group.group}>
-                                        {group.items.map(c => (
-                                            <option key={c} value={c}>{c}</option>
+                            <div>
+                                <label className="block text-sm text-[var(--muted)] mb-1">Hạng mục chi phí *</label>
+                                <div className="relative">
+                                    <select
+                                        value={category}
+                                        onChange={(e) => setCategory(e.target.value)}
+                                        className="glass-input w-full p-3 rounded-xl font-medium appearance-none"
+                                    >
+                                        {displayCategories.map(group => (
+                                            <optgroup key={group.group} label={group.group} className="bg-[#1a1a1a]">
+                                                {group.items.map(c => (
+                                                    <option key={c} value={c}>{c}</option>
+                                                ))}
+                                            </optgroup>
                                         ))}
-                                    </optgroup>
-                                ))}
-                                <option value="Khác">Khác</option>
-                            </select>
+                                        <option value="Khác">Khác</option>
+                                    </select>
+                                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--muted)]">
+                                        <ChevronDown size={18} />
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 

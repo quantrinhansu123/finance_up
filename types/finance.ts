@@ -113,26 +113,26 @@ export type ProjectPermission =
     | "view_transactions"      // Xem giao dịch
     | "create_income"          // Tạo khoản thu
     | "create_expense"         // Tạo khoản chi
+    | "request_budget"         // NEW: Xin ngân sách marketing
     | "approve_transactions"   // Duyệt giao dịch
     | "manage_accounts"        // Quản lý tài khoản dự án
     | "manage_members"         // Quản lý thành viên
-
     | "view_reports"           // Xem báo cáo
-    | "pay_transactions";      // NEW: Quyền thanh toán (Accountant)
+    | "pay_transactions";      // Quyền thanh toán (Accountant)
 
 // Default permissions for each project role
 export const PROJECT_ROLE_PERMISSIONS: Record<ProjectRole, ProjectPermission[]> = {
     OWNER: [
-        "view_transactions", "create_income", "create_expense",
+        "view_transactions", "create_income", "create_expense", "request_budget",
         "approve_transactions", "manage_accounts", "manage_members",
         "view_reports", "pay_transactions"
     ],
     MANAGER: [
-        "view_transactions", "create_income", "create_expense",
+        "view_transactions", "create_income", "create_expense", "request_budget",
         "approve_transactions", "manage_accounts", "view_reports"
     ],
     MEMBER: [
-        "view_transactions", "create_income", "create_expense"
+        "view_transactions", "create_income", "create_expense", "request_budget"
     ],
     VIEWER: [
         "view_transactions", "view_reports"

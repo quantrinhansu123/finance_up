@@ -33,7 +33,7 @@ export default function LogsPage() {
         return new Date().toISOString().split('T')[0];
     });
     const [filterEntity, setFilterEntity] = useState("");
-    
+
     // Pagination (client-side for filtered results)
     const [currentPage, setCurrentPage] = useState(1);
 
@@ -54,13 +54,13 @@ export default function LogsPage() {
         try {
             // Build query with date range filter (server-side)
             let constraints: any[] = [orderBy("timestamp", "desc")];
-            
+
             if (filterDateFrom) {
                 const fromDate = new Date(filterDateFrom);
                 fromDate.setHours(0, 0, 0, 0);
                 constraints.push(where("timestamp", ">=", fromDate.getTime()));
             }
-            
+
             if (filterDateTo) {
                 const toDate = new Date(filterDateTo);
                 toDate.setHours(23, 59, 59, 999);
@@ -75,9 +75,9 @@ export default function LogsPage() {
 
             const q = query(collection(db, "finance_logs"), ...constraints);
             const snapshot = await getDocs(q);
-            
+
             const newLogs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ActivityLog));
-            
+
             if (isInitial) {
                 setLogs(newLogs);
                 // Update cached options
@@ -95,7 +95,7 @@ export default function LogsPage() {
 
             setLastDoc(snapshot.docs[snapshot.docs.length - 1] || null);
             setHasMore(snapshot.docs.length === (isInitial ? INITIAL_LOAD : LOAD_MORE_COUNT));
-            
+
             // Estimate total (rough)
             if (isInitial && snapshot.docs.length > 0) {
                 setTotalEstimate(snapshot.docs.length);
@@ -165,11 +165,11 @@ export default function LogsPage() {
             const dataToExport = await getAllLogsForExport();
             const formatted = dataToExport.map(formatLogForExport);
             const headers = Object.keys(formatted[0] || {});
-            
+
             const csvContent = [
                 '\ufeff',
                 headers.join(','),
-                ...formatted.map(row => 
+                ...formatted.map(row =>
                     headers.map(header => {
                         const value = String(row[header as keyof typeof row] || '');
                         if (value.includes(',') || value.includes('\n') || value.includes('"')) {
@@ -210,7 +210,7 @@ export default function LogsPage() {
             const dataToExport = await getAllLogsForExport();
             const formatted = dataToExport.map(formatLogForExport);
             const headers = Object.keys(formatted[0] || {});
-            
+
             let xml = `<?xml version="1.0" encoding="UTF-8"?>
 <?mso-application progid="Excel.Sheet"?>
 <Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
@@ -321,17 +321,17 @@ export default function LogsPage() {
                     <p className="text-[10px] text-[var(--muted)]">Theo dõi lịch sử truy cập và thay đổi</p>
                 </div>
                 <div className="flex items-center gap-2">
-                    <button 
-                        onClick={() => fetchLogs(true)} 
+                    <button
+                        onClick={() => fetchLogs(true)}
                         disabled={loading}
                         className="text-xs text-blue-400 hover:text-blue-300 px-2 py-1 rounded hover:bg-white/5 disabled:opacity-50"
                     >
                         {loading ? <Loader2 size={14} className="animate-spin" /> : "🔄"} Làm mới
                     </button>
-                    
+
                     {/* Export Dropdown */}
                     <div className="relative">
-                        <button 
+                        <button
                             onClick={() => setShowExportMenu(!showExportMenu)}
                             disabled={filteredLogs.length === 0 || exporting}
                             className="flex items-center gap-1.5 px-2.5 py-1.5 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed rounded-lg text-xs font-medium transition-colors"
@@ -339,7 +339,7 @@ export default function LogsPage() {
                             {exporting ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
                             Xuất
                         </button>
-                        
+
                         {showExportMenu && (
                             <>
                                 <div className="fixed inset-0 z-40" onClick={() => setShowExportMenu(false)} />
@@ -462,16 +462,24 @@ export default function LogsPage() {
                                         </td>
                                         <td className="p-2 font-medium text-white">{log.userName}</td>
                                         <td className="p-2">
-                                            <span className={`text-[10px] px-1 py-0.5 rounded font-bold ${
-                                                log.action === "APPROVE" ? "bg-green-500/20 text-green-400" :
-                                                log.action === "REJECT" || log.action === "DELETE" ? "bg-red-500/20 text-red-400" :
-                                                log.action === "CREATE" ? "bg-blue-500/20 text-blue-400" :
-                                                log.action === "UPDATE" ? "bg-yellow-500/20 text-yellow-400" :
-                                                "bg-white/10 text-white/70"
-                                            }`}>{log.action}</span>
+                                            <span className={`text-[10px] px-1 py-0.5 rounded font-bold ${log.action === "APPROVE" ? "bg-green-500/20 text-green-400" :
+                                                    log.action === "REJECT" || log.action === "DELETE" ? "bg-red-500/20 text-red-400" :
+                                                        log.action === "CREATE" ? "bg-blue-500/20 text-blue-400" :
+                                                            log.action === "UPDATE" ? "bg-yellow-500/20 text-yellow-400" :
+                                                                "bg-white/10 text-white/70"
+                                                }`}>{log.action}</span>
                                         </td>
                                         <td className="p-2 text-[var(--muted)]">{log.entityType}</td>
-                                        <td className="p-2 text-[var(--muted)] max-w-[200px] truncate" title={log.details}>{log.details}</td>
+                                        <td className="p-2 text-[var(--muted)] max-w-[250px] truncate" title={
+                                            log.details?.startsWith('{') ?
+                                                (() => { try { return JSON.parse(log.details).details; } catch (e) { return log.details; } })() :
+                                                log.details
+                                        }>
+                                            {log.details?.startsWith('{') ?
+                                                (() => { try { return JSON.parse(log.details).details; } catch (e) { return log.details; } })() :
+                                                log.details
+                                            }
+                                        </td>
                                         <td className="p-2 text-[10px] text-[var(--muted)] font-mono">{log.ip || "-"}</td>
                                     </tr>
                                 ))
@@ -479,7 +487,7 @@ export default function LogsPage() {
                         </tbody>
                     </table>
                 </div>
-                
+
                 {/* Pagination + Load More */}
                 <div className="flex items-center justify-between p-2 border-t border-white/10">
                     <div className="flex items-center gap-2">
@@ -497,7 +505,7 @@ export default function LogsPage() {
                             Trang {currentPage}/{totalPages || 1}
                         </span>
                     </div>
-                    
+
                     {totalPages > 1 && (
                         <div className="flex items-center gap-1">
                             <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}

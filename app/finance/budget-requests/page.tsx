@@ -20,6 +20,7 @@ export default function BudgetRequestsPage() {
     const router = useRouter();
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [allProjects, setAllProjects] = useState<Project[]>([]);
+    const [allAccounts, setAllAccounts] = useState<Account[]>([]);
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<TabType>("all");
     const [showCreateModal, setShowCreateModal] = useState(false);
@@ -42,6 +43,7 @@ export default function BudgetRequestsPage() {
             ]);
 
             setAllProjects(projects);
+            setAllAccounts(accounts);
 
             // Get user from storage for filtering
             const userStr = localStorage.getItem("user") || sessionStorage.getItem("user");
@@ -90,10 +92,10 @@ export default function BudgetRequestsPage() {
         // Users with specific finance roles can create
         if (financeRole === "MANAGER" || financeRole === "ADMIN" || financeRole === "STAFF") return true;
 
-        // Check if user has create_expense permission in any accessible project
+        // Check if user has request_budget permission in any accessible project
         const accessibleProjects = getAccessibleProjects(currentUser, allProjects);
         return accessibleProjects.some(project =>
-            hasProjectPermission(currentUser?.uid || currentUser?.id, project, "create_expense", currentUser)
+            hasProjectPermission(currentUser?.uid || currentUser?.id, project, "request_budget", currentUser)
         );
     };
 
@@ -348,6 +350,7 @@ export default function BudgetRequestsPage() {
                     transaction={selectedTx}
                     currentUser={currentUser}
                     allProjects={allProjects}
+                    allAccounts={allAccounts}
                     onClose={() => setSelectedTx(null)}
                     onUpdate={() => {
                         setSelectedTx(null);

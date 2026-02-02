@@ -15,7 +15,8 @@ export const logAction = async (
                 action,
                 details,
                 targetId,
-                userId
+                userId,
+                userName: typeof details === 'object' ? details.userName : undefined
             }),
         });
     } catch (error) {
