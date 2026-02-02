@@ -201,26 +201,22 @@ export default function CreateBudgetRequestModal({ onClose, onSuccess, username,
     }, [beneficiary]);
 
     // Derived State
-    const projectAccounts = accounts.filter(a => a.projectId === projectId);
-    const availableCurrencies = Array.from(new Set(projectAccounts.map(a => a.currency)));
-    const filteredAccounts = projectAccounts.filter(a => a.currency === currency);
+    const filteredAccounts = accounts.filter(a => a.projectId === projectId);
     const selectedAccount = accounts.find(a => a.id === accountId);
 
-    // Auto-set initial currency when project changes
+    // Auto-set currency when account changes
     useEffect(() => {
-        if (availableCurrencies.length > 0 && !availableCurrencies.includes(currency)) {
-            setCurrency(availableCurrencies[0]);
+        if (selectedAccount) {
+            setCurrency(selectedAccount.currency);
         }
-    }, [projectId, availableCurrencies]);
+    }, [accountId, selectedAccount]);
 
-    // Auto-select account if only one matches currency
+    // Auto-select account if only one exists in project
     useEffect(() => {
-        if (filteredAccounts.length === 1) {
+        if (filteredAccounts.length === 1 && !accountId) {
             setAccountId(filteredAccounts[0].id);
-        } else if (filteredAccounts.length > 0 && !filteredAccounts.find(a => a.id === accountId)) {
-            setAccountId(""); // Reset if current selection is invalid for new currency
         }
-    }, [currency, filteredAccounts]);
+    }, [projectId, filteredAccounts]);
 
     // Filter categories based on account restrictions
     const getFilteredCategories = () => {
@@ -317,60 +313,35 @@ export default function CreateBudgetRequestModal({ onClose, onSuccess, username,
                 </div>
 
                 <div className="p-6 overflow-y-auto space-y-4">
-                    {/* Project & Currency & Account */}
-                    <div className="space-y-4 bg-white/5 p-4 rounded-xl border border-white/5">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-sm text-[var(--muted)] mb-1">Dự án *</label>
-                                <select
-                                    value={projectId}
-                                    onChange={(e) => {
-                                        setProjectId(e.target.value);
-                                        setAccountId("");
-                                    }}
-                                    className="glass-input w-full p-2.5 rounded-lg font-bold"
-                                >
-                                    {projects.length === 0 && <option value="">-- Chọn Dự Án --</option>}
-                                    {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-sm text-[var(--muted)] mb-1">Loại tiền thanh toán *</label>
-                                <div className="flex gap-2">
-                                    {["VND", "USD", "KHR", "TRY"].map(cur => {
-                                        const isAvailable = availableCurrencies.includes(cur as Currency);
-                                        return (
-                                            <button
-                                                key={cur}
-                                                type="button"
-                                                disabled={!isAvailable}
-                                                onClick={() => setCurrency(cur as Currency)}
-                                                className={`flex-1 py-2 rounded-lg font-bold text-xs border transition-all ${currency === cur
-                                                        ? "bg-blue-600 border-blue-400 text-white shadow-lg shadow-blue-500/20"
-                                                        : isAvailable
-                                                            ? "bg-white/5 border-white/10 text-[var(--muted)] hover:bg-white/10"
-                                                            : "bg-transparent border-white/5 text-white/10 cursor-not-allowed"
-                                                    }`}
-                                            >
-                                                {cur}
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        </div>
-
+                    {/* Project & Account Selection */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-sm text-[var(--muted)] mb-1">Tài khoản nguồn ({currency}) *</label>
+                            <label className="block text-sm text-[var(--muted)] mb-1">Dự án áp dụng *</label>
+                            <select
+                                value={projectId}
+                                onChange={(e) => {
+                                    setProjectId(e.target.value);
+                                    setAccountId("");
+                                }}
+                                className="glass-input w-full p-3 rounded-xl font-bold text-white focus:ring-2 focus:ring-blue-500/30 transition-all"
+                            >
+                                {projects.length === 0 && <option value="">-- Chọn Dự Án --</option>}
+                                {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-sm text-[var(--muted)] mb-1">Tài khoản nguồn (Ví ADS) *</label>
                             <select
                                 value={accountId}
                                 onChange={(e) => setAccountId(e.target.value)}
-                                className="glass-input w-full p-2.5 rounded-lg text-sm"
-                                disabled={!projectId || filteredAccounts.length === 0}
+                                className="glass-input w-full p-3 rounded-xl text-sm font-medium text-blue-100"
+                                disabled={!projectId}
                             >
-                                <option value="">-- {filteredAccounts.length === 0 ? "Không có tài khoản phù hợp" : "Chọn tài khoản nguồn"} --</option>
+                                <option value="">-- Chọn tài khoản ngân hàng --</option>
                                 {filteredAccounts.map(a => (
-                                    <option key={a.id} value={a.id}>{a.name} - SD: {a.balance.toLocaleString()} {a.currency}</option>
+                                    <option key={a.id} value={a.id}>
+                                        {a.name} ({a.balance.toLocaleString()} {a.currency})
+                                    </option>
                                 ))}
                             </select>
                         </div>
