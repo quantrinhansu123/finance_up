@@ -17,7 +17,7 @@ import {
     Users, Plus, Landmark, Shield, ChevronDown, Check, X, LayoutGrid, Tag,
     ArrowLeft, Receipt, BarChart3, Settings, PieChart as PieChartIcon,
     Calendar, TrendingUp, DollarSign, ListFilter,
-    Info
+    Info, Rocket
 } from "lucide-react";
 import {
     PROJECT_ROLE_LABELS,
@@ -34,6 +34,8 @@ import {
 } from "@/lib/permissions";
 import ProjectSubCategoriesTab from "@/components/finance/ProjectSubCategoriesTab";
 import DataTable from "@/components/finance/DataTable";
+import CreateTransactionModal from "@/components/finance/CreateTransactionModal";
+import CreateBudgetRequestModal from "@/components/finance/CreateBudgetRequestModal";
 
 const COLORS = ["#4ade80", "#f87171", "#60a5fa", "#fbbf24", "#a78bfa"];
 
@@ -63,9 +65,10 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     const [userProjectRole, setUserProjectRole] = useState<ProjectRole | null>(null);
     const [canEdit, setCanEdit] = useState(false);
     const [canView, setCanView] = useState(false);
-
-    // Account Modal
+    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
+    const [isCreateTxModalOpen, setIsCreateTxModalOpen] = useState(false);
+    const [isCreateRequestModalOpen, setIsCreateRequestModalOpen] = useState(false);
     const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>([]);
 
     const [isAddMemberExpanded, setIsAddMemberExpanded] = useState(false);
@@ -118,129 +121,129 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
         }
     }, [currentUser, project, userRole, router]);
 
-    useEffect(() => {
-        const loadData = async () => {
-            setLoading(true);
-            try {
-                const [projectDoc, txs, accs, exchangeRates, usersList] = await Promise.all([
-                    getDoc(doc(db, "finance_projects", projectId)),
-                    getTransactions(),
-                    getAccounts(),
-                    getExchangeRates(),
-                    getUsers()
-                ]);
+    const loadData = async () => {
+        setLoading(true);
+        try {
+            const [projectDoc, txs, accs, exchangeRates, usersList] = await Promise.all([
+                getDoc(doc(db, "finance_projects", projectId)),
+                getTransactions(),
+                getAccounts(),
+                getExchangeRates(),
+                getUsers()
+            ]);
 
-                if (projectDoc.exists()) {
-                    const progData = { id: projectDoc.id, ...projectDoc.data() } as Project;
-                    setProject(progData);
-                    setSelectedMemberIds(progData.memberIds || []);
-                    setProjectMembers(progData.members || []);
-                }
-                setAllUsers(usersList);
-
-                // Filter transactions for this project
-                const projectTxs = txs.filter(t => t.projectId === projectId && t.status === "APPROVED");
-                setTransactions(projectTxs);
-
-                // Filter accounts assigned to this project
-                const projectAccs = accs.filter(a => a.projectId === projectId);
-                setAccounts(projectAccs);
-                setSelectedAccountIds(projectAccs.map(a => a.id));
-
-                setRates(exchangeRates);
-
-                // Determine target currency
-                const progData = projectDoc.exists() ? { id: projectDoc.id, ...projectDoc.data() } as Project : null;
-                const targetCurrency = progData?.defaultCurrency || progData?.currency || "VND";
-
-                // Calculate stats
-                let inTotal = 0;
-                let outTotal = 0;
-                const monthly: Record<string, { in: number, out: number }> = {};
-                const expenseCategories: Record<string, number> = {}; // Chi theo danh mục cha
-                const incomeCategories: Record<string, number> = {}; // Thu theo danh mục cha
-                const memberTxStats: Record<string, { in: number, out: number, count: number }> = {};
-
-                projectTxs.forEach(tx => {
-                    // Convert to target currency
-                    const amountConverted = convertCurrency(tx.amount, tx.currency, targetCurrency, exchangeRates);
-                    const d = new Date(tx.date);
-                    const monthKey = `${d.getMonth() + 1}/${d.getFullYear()}`;
-
-                    // Member stats
-                    const creator = tx.createdBy || "Unknown";
-                    if (!memberTxStats[creator]) memberTxStats[creator] = { in: 0, out: 0, count: 0 };
-                    memberTxStats[creator].count++;
-
-                    // Sử dụng parentCategory để nhóm thống kê, fallback về category
-                    const cat = tx.parentCategory || tx.category || tx.source || "Khác";
-
-                    if (tx.type === "IN") {
-                        inTotal += amountConverted;
-                        if (!monthly[monthKey]) monthly[monthKey] = { in: 0, out: 0 };
-                        monthly[monthKey].in += amountConverted;
-                        memberTxStats[creator].in += amountConverted;
-                        // Thu theo danh mục cha
-                        incomeCategories[cat] = (incomeCategories[cat] || 0) + amountConverted;
-                    } else {
-                        outTotal += amountConverted;
-                        if (!monthly[monthKey]) monthly[monthKey] = { in: 0, out: 0 };
-                        monthly[monthKey].out += amountConverted;
-                        memberTxStats[creator].out += amountConverted;
-                        // Chi theo danh mục cha
-                        expenseCategories[cat] = (expenseCategories[cat] || 0) + amountConverted;
-                    }
-                });
-
-                setTotalIn(inTotal);
-                setTotalOut(outTotal);
-
-                // Format monthly data
-                const mData = Object.entries(monthly)
-                    .map(([name, val]) => ({ name, income: val.in, expense: val.out }))
-                    .sort((a, b) => {
-                        const [m1, y1] = a.name.split('/').map(Number);
-                        const [m2, y2] = b.name.split('/').map(Number);
-                        return new Date(y1, m1).getTime() - new Date(y2, m2).getTime();
-                    })
-                    .slice(-6);
-                setMonthlyData(mData);
-
-                // Format income data (Thu theo danh mục cha)
-                const iData = Object.entries(incomeCategories)
-                    .map(([name, value]) => ({ name, value }))
-                    .sort((a, b) => b.value - a.value)
-                    .slice(0, 5);
-                setIncomeData(iData);
-
-                // Format expense data (Chi theo danh mục cha)
-                const cData = Object.entries(expenseCategories)
-                    .map(([name, value]) => ({ name, value }))
-                    .sort((a, b) => b.value - a.value)
-                    .slice(0, 5);
-                setCategoryData(cData);
-
-                // Format member stats
-                const mStats = Object.entries(memberTxStats)
-                    .map(([name, stats]) => ({
-                        name: name.split('@')[0], // Shorten email
-                        fullName: name,
-                        ...stats,
-                        total: stats.in + stats.out
-                    }))
-                    .sort((a, b) => b.total - a.total)
-                    .slice(0, 8);
-                setMemberStats(mStats);
-
-            } catch (e) {
-                console.error(e);
-            } finally {
-                setLoading(false);
+            if (projectDoc.exists()) {
+                const progData = { id: projectDoc.id, ...projectDoc.data() } as Project;
+                setProject(progData);
+                setSelectedMemberIds(progData.memberIds || []);
+                setProjectMembers(progData.members || []);
             }
-        };
+            setAllUsers(usersList);
 
+            // Filter transactions for this project
+            const projectTxs = txs.filter(t => t.projectId === projectId && t.status === "APPROVED");
+            setTransactions(projectTxs);
+
+            // Filter accounts assigned to this project
+            const projectAccs = accs.filter(a => a.projectId === projectId);
+            setAccounts(projectAccs);
+            setSelectedAccountIds(projectAccs.map(a => a.id));
+
+            setRates(exchangeRates);
+
+            // Determine target currency
+            const progData = projectDoc.exists() ? { id: projectDoc.id, ...projectDoc.data() } as Project : null;
+            const targetCurrency = progData?.defaultCurrency || progData?.currency || "VND";
+
+            // Calculate stats
+            let inTotal = 0;
+            let outTotal = 0;
+            const monthly: Record<string, { in: number, out: number }> = {};
+            const expenseCategories: Record<string, number> = {}; // Chi theo danh mục cha
+            const incomeCategories: Record<string, number> = {}; // Thu theo danh mục cha
+            const memberTxStats: Record<string, { in: number, out: number, count: number }> = {};
+
+            projectTxs.forEach(tx => {
+                // Convert to target currency
+                const amountConverted = convertCurrency(tx.amount, tx.currency, targetCurrency, exchangeRates);
+                const d = new Date(tx.date);
+                const monthKey = `${d.getMonth() + 1}/${d.getFullYear()}`;
+
+                // Member stats
+                const creator = tx.createdBy || "Unknown";
+                if (!memberTxStats[creator]) memberTxStats[creator] = { in: 0, out: 0, count: 0 };
+                memberTxStats[creator].count++;
+
+                // Sử dụng parentCategory để nhóm thống kê, fallback về category
+                const cat = tx.parentCategory || tx.category || tx.source || "Khác";
+
+                if (tx.type === "IN") {
+                    inTotal += amountConverted;
+                    if (!monthly[monthKey]) monthly[monthKey] = { in: 0, out: 0 };
+                    monthly[monthKey].in += amountConverted;
+                    memberTxStats[creator].in += amountConverted;
+                    // Thu theo danh mục cha
+                    incomeCategories[cat] = (incomeCategories[cat] || 0) + amountConverted;
+                } else {
+                    outTotal += amountConverted;
+                    if (!monthly[monthKey]) monthly[monthKey] = { in: 0, out: 0 };
+                    monthly[monthKey].out += amountConverted;
+                    memberTxStats[creator].out += amountConverted;
+                    // Chi theo danh mục cha
+                    expenseCategories[cat] = (expenseCategories[cat] || 0) + amountConverted;
+                }
+            });
+
+            setTotalIn(inTotal);
+            setTotalOut(outTotal);
+
+            // Format monthly data
+            const mData = Object.entries(monthly)
+                .map(([name, val]) => ({ name, income: val.in, expense: val.out }))
+                .sort((a, b) => {
+                    const [m1, y1] = a.name.split('/').map(Number);
+                    const [m2, y2] = b.name.split('/').map(Number);
+                    return new Date(y1, m1).getTime() - new Date(y2, m2).getTime();
+                })
+                .slice(-6);
+            setMonthlyData(mData);
+
+            // Format income data (Thu theo danh mục cha)
+            const iData = Object.entries(incomeCategories)
+                .map(([name, value]) => ({ name, value }))
+                .sort((a, b) => b.value - a.value)
+                .slice(0, 5);
+            setIncomeData(iData);
+
+            // Format expense data (Chi theo danh mục cha)
+            const cData = Object.entries(expenseCategories)
+                .map(([name, value]) => ({ name, value }))
+                .sort((a, b) => b.value - a.value)
+                .slice(0, 5);
+            setCategoryData(cData);
+
+            // Format member stats
+            const mStats = Object.entries(memberTxStats)
+                .map(([name, stats]) => ({
+                    name: name.split('@')[0], // Shorten email
+                    fullName: name,
+                    ...stats,
+                    total: stats.in + stats.out
+                }))
+                .sort((a, b) => b.total - a.total)
+                .slice(0, 8);
+            setMemberStats(mStats);
+
+        } catch (e) {
+            console.error("Failed to load project data:", e);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
         loadData();
-    }, [projectId]);
+    }, [projectId, project?.currency]);
 
     const formatCurrency = (val: number) => {
         const currency = project?.defaultCurrency || project?.currency || "VND";
@@ -458,13 +461,29 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                                 </button>
                             </>
                         )}
-                        <button
-                            onClick={() => router.push(`/finance/transactions/create?project=${projectId}`)}
-                            className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-all shadow-lg shadow-blue-500/20"
-                            title="Thêm giao dịch"
-                        >
-                            <Plus size={16} />
-                        </button>
+                        {/* Action Group */}
+                        <div className="flex items-center gap-1.5 ml-2">
+                            {(userRole === "ADMIN" || hasProjectPermission(currentUser?.uid || currentUser?.id, project, "request_budget", currentUser)) && (
+                                <button
+                                    onClick={() => setIsCreateRequestModalOpen(true)}
+                                    className="p-2 bg-purple-600 text-white rounded-xl hover:bg-purple-500 transition-all shadow-lg shadow-purple-500/20"
+                                    title="Xin ngân sách (TikTok/Google Ads...)"
+                                >
+                                    <Rocket size={16} />
+                                </button>
+                            )}
+                            {(userRole === "ADMIN" ||
+                                hasProjectPermission(currentUser?.uid || currentUser?.id, project, "create_income", currentUser) ||
+                                hasProjectPermission(currentUser?.uid || currentUser?.id, project, "create_expense", currentUser)) && (
+                                    <button
+                                        onClick={() => setIsCreateTxModalOpen(true)}
+                                        className="p-2 bg-blue-600 text-white rounded-xl hover:bg-blue-500 transition-all shadow-lg shadow-blue-500/20"
+                                        title="Thêm giao dịch thu/chi"
+                                    >
+                                        <Plus size={16} />
+                                    </button>
+                                )}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1231,6 +1250,37 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* Create Transaction Modal */}
+            <CreateTransactionModal
+                isOpen={isCreateTxModalOpen}
+                onClose={() => setIsCreateTxModalOpen(false)}
+                onSuccess={() => {
+                    setIsCreateTxModalOpen(false);
+                    // Refresh data
+                    loadData();
+                }}
+                currentUser={{
+                    id: currentUser?.uid || currentUser?.id || "",
+                    name: currentUser?.displayName || currentUser?.email || "User",
+                    role: userRole,
+                    uid: currentUser?.uid || currentUser?.id || ""
+                }}
+            />
+
+            {/* Create Budget Request Modal */}
+            {isCreateRequestModalOpen && (
+                <CreateBudgetRequestModal
+                    onClose={() => setIsCreateRequestModalOpen(false)}
+                    onSuccess={() => {
+                        setIsCreateRequestModalOpen(false);
+                        loadData();
+                    }}
+                    username={currentUser?.displayName || currentUser?.email || "User"}
+                    userId={currentUser?.uid || currentUser?.id || ""}
+                    currentUser={currentUser}
+                />
             )}
         </div>
     );
