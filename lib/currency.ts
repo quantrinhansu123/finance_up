@@ -40,9 +40,38 @@ export async function getExchangeRates(): Promise<ExchangeRates> {
             USD: 1,
             VND: 25400,
             KHR: 4100,
-            TRY: 35 // Turkish Lira fallback rate
+            TRY: 35,
+            MMK: 2100,
+            THB: 35,
+            LAK: 21000,
+            MYR: 4.7,
+            IDR: 15700,
+            PHP: 56,
+            SGD: 1.35
         };
     }
+}
+
+export const CURRENCY_METADATA: Record<string, { flag: string, name: string }> = {
+    VND: { flag: "🇻🇳", name: "Việt Nam Đồng" },
+    USD: { flag: "🇺🇸", name: "US Dollar" },
+    KHR: { flag: "🇰🇭", name: "Cambodian Riel" },
+    TRY: { flag: "🇹🇷", name: "Turkish Lira" },
+    MMK: { flag: "🇲🇲", name: "Myanmar Kyat" },
+    THB: { flag: "🇹🇭", name: "Thai Baht" },
+    LAK: { flag: "🇱🇦", name: "Lao Kip" },
+    MYR: { flag: "🇲🇾", name: "Malaysian Ringgit" },
+    IDR: { flag: "🇮🇩", name: "Indonesian Rupiah" },
+    PHP: { flag: "🇵🇭", name: "Philippine Peso" },
+    SGD: { flag: "🇸🇬", name: "Singapore Dollar" },
+};
+
+export function getCurrencyFlag(currency: string): string {
+    return CURRENCY_METADATA[currency]?.flag || "💰";
+}
+
+export function getCurrencyName(currency: string): string {
+    return CURRENCY_METADATA[currency]?.name || currency;
 }
 
 export function convertCurrency(amount: number, from: string, to: string, rates: ExchangeRates): number {

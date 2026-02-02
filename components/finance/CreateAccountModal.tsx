@@ -5,6 +5,7 @@ import { createAccount, getProjects } from "@/lib/finance";
 import { Currency, Project } from "@/types/finance";
 import { X } from "lucide-react";
 import { useTranslation } from "@/lib/i18n";
+import { CURRENCY_METADATA } from "@/lib/currency";
 
 interface CreateAccountModalProps {
     isOpen: boolean;
@@ -176,10 +177,11 @@ export default function CreateAccountModal({ isOpen, onClose, onSuccess }: Creat
                                 onChange={(e) => setCurrency(e.target.value as Currency)}
                                 className="glass-input w-full p-2 rounded-lg text-sm"
                             >
-                                <option value="VND">🇻🇳 VND</option>
-                                <option value="USD">🇺🇸 USD</option>
-                                <option value="KHR">🇰🇭 KHR</option>
-                                <option value="TRY">🇹🇷 TRY (Lira)</option>
+                                {Object.entries(CURRENCY_METADATA).map(([code, meta]) => (
+                                    <option key={code} value={code}>
+                                        {meta.flag} {code} - {meta.name}
+                                    </option>
+                                ))}
                             </select>
                         </div>
                         <div>

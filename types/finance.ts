@@ -1,4 +1,4 @@
-export type Currency = "VND" | "USD" | "KHR" | "TRY"; // Added TRY (Lira)
+export type Currency = "VND" | "USD" | "KHR" | "TRY" | "MMK" | "THB" | "LAK" | "MYR" | "IDR" | "PHP" | "SGD"; // Added SEA currencies
 
 export type TransactionType = "IN" | "OUT";
 

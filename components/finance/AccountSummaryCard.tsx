@@ -11,11 +11,11 @@ interface AccountSummaryCardProps {
     maxBalance?: number; // For progress bar comparison
 }
 
-export default function AccountSummaryCard({ 
-    account, 
-    transactions, 
+export default function AccountSummaryCard({
+    account,
+    transactions,
     rates,
-    maxBalance = 0 
+    maxBalance = 0
 }: AccountSummaryCardProps) {
     // Calculate period changes (this month)
     const { periodIn, periodOut, changePercent, trend } = useMemo(() => {
@@ -47,8 +47,8 @@ export default function AccountSummaryCard({
         });
 
         const netChange = pIn - pOut;
-        const changePercent = lastMonthBalance > 0 
-            ? ((account.balance - lastMonthBalance) / lastMonthBalance * 100) 
+        const changePercent = lastMonthBalance > 0
+            ? ((account.balance - lastMonthBalance) / lastMonthBalance * 100)
             : 0;
 
         return {
@@ -60,8 +60,8 @@ export default function AccountSummaryCard({
     }, [account, transactions]);
 
     // Progress bar percentage
-    const progressPercent = maxBalance > 0 
-        ? Math.min((account.balance / maxBalance) * 100, 100) 
+    const progressPercent = maxBalance > 0
+        ? Math.min((account.balance / maxBalance) * 100, 100)
         : 0;
 
     // Gradient based on currency
@@ -70,7 +70,10 @@ export default function AccountSummaryCard({
             case "USD": return "from-blue-500 to-blue-600";
             case "VND": return "from-rose-500 to-pink-600";
             case "KHR": return "from-emerald-500 to-green-600";
-            default: return "from-gray-500 to-gray-600";
+            case "TRY": return "from-orange-500 to-amber-600";
+            case "MMK": return "from-yellow-400 to-yellow-600";
+            case "THB": return "from-indigo-500 to-indigo-600";
+            default: return "from-violet-500 to-purple-600";
         }
     };
 
@@ -79,7 +82,10 @@ export default function AccountSummaryCard({
             case "USD": return "bg-blue-500";
             case "VND": return "bg-rose-500";
             case "KHR": return "bg-emerald-500";
-            default: return "bg-gray-500";
+            case "TRY": return "bg-orange-500";
+            case "MMK": return "bg-yellow-500";
+            case "THB": return "bg-indigo-500";
+            default: return "bg-violet-500";
         }
     };
 
@@ -114,7 +120,7 @@ export default function AccountSummaryCard({
             {/* Progress Bar */}
             <div className="mb-3">
                 <div className="h-2 bg-white/10 rounded-full overflow-hidden">
-                    <div 
+                    <div
                         className={`h-full ${getProgressColor(account.currency)} transition-all duration-500`}
                         style={{ width: `${progressPercent}%` }}
                     />

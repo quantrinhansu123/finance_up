@@ -68,8 +68,12 @@ export default function CurrencyInput({
                 disabled={disabled}
                 inputMode="numeric"
             />
-            <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-sm font-bold ${currency === 'VND' ? 'text-red-400' :
-                    currency === 'USD' ? 'text-blue-400' : 'text-green-400'
+            <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-sm font-bold ${currency === 'VND' ? 'text-rose-400' :
+                    currency === 'USD' ? 'text-blue-400' :
+                        currency === 'KHR' ? 'text-emerald-400' :
+                            currency === 'TRY' ? 'text-orange-400' :
+                                currency === 'MMK' ? 'text-yellow-400' : // Myanmar colors
+                                    'text-green-400'
                 }`}>
                 {currency}
             </span>

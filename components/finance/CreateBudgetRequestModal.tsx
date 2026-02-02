@@ -6,6 +6,7 @@ import { getAccounts, getProjects, createTransaction } from "@/lib/finance";
 import { Account, Project, Currency, TransactionType, BankInfo, TransactionStatus } from "@/types/finance";
 import { getAccessibleProjects, getProjectsWithPermission } from "@/lib/permissions";
 import { uploadImage } from "../../lib/upload";
+import { getCurrencyFlag } from "@/lib/currency";
 
 
 interface Props {
@@ -450,8 +451,9 @@ export default function CreateBudgetRequestModal({ onClose, onSuccess, username,
                                         className="glass-input w-full p-3 pr-20 rounded-xl text-xl font-bold focus:ring-2 focus:ring-blue-500/50 transition-all"
                                         placeholder="0"
                                     />
-                                    <div className="absolute right-3 top-1/2 -translate-y-1/2 px-3 py-1 bg-white/10 rounded-lg text-sm font-bold text-blue-400 border border-white/10">
-                                        {currency}
+                                    <div className="absolute right-3 top-1/2 -translate-y-1/2 px-3 py-1 bg-white/10 rounded-lg text-sm font-bold text-blue-400 border border-white/10 flex items-center gap-1">
+                                        <span>{getCurrencyFlag(currency)}</span>
+                                        <span>{currency}</span>
                                     </div>
                                 </div>
                                 <div className="text-[10px] text-[var(--muted)] mt-1.5 flex items-center gap-1">

@@ -28,7 +28,12 @@ const CURRENCY_COLORS: Record<string, string> = {
     "VND": "#ef4444",
     "USD": "#3b82f6",
     "KHR": "#22c55e",
-    "TRY": "#f59e0b"
+    "TRY": "#f59e0b",
+    "MMK": "#eab308",
+    "THB": "#6366f1",
+    "LAK": "#a855f7",
+    "IDR": "#ec4899",
+    "MYR": "#06b6d4"
 };
 
 type ViewPeriod = "day" | "month" | "quarter" | "year";
@@ -100,9 +105,9 @@ export default function DashboardPage() {
     const [pendingCount, setPendingCount] = useState(0);
 
     // NEW: Balance by currency (không quy đổi)
-    const [balanceByCurrency, setBalanceByCurrency] = useState<Record<Currency, number>>({} as any);
-    const [periodInByCurrency, setPeriodInByCurrency] = useState<Record<string, number>>({ VND: 0, USD: 0, KHR: 0, TRY: 0 });
-    const [periodOutByCurrency, setPeriodOutByCurrency] = useState<Record<string, number>>({ VND: 0, USD: 0, KHR: 0, TRY: 0 });
+    const [balanceByCurrency, setBalanceByCurrency] = useState<Record<Currency, number>>({ VND: 0, USD: 0, KHR: 0, TRY: 0, MMK: 0, THB: 0, LAK: 0, MYR: 0, IDR: 0, PHP: 0, SGD: 0 });
+    const [periodInByCurrency, setPeriodInByCurrency] = useState<Record<string, number>>({ VND: 0, USD: 0, KHR: 0, TRY: 0, MMK: 0, THB: 0, LAK: 0, MYR: 0, IDR: 0, PHP: 0, SGD: 0 });
+    const [periodOutByCurrency, setPeriodOutByCurrency] = useState<Record<string, number>>({ VND: 0, USD: 0, KHR: 0, TRY: 0, MMK: 0, THB: 0, LAK: 0, MYR: 0, IDR: 0, PHP: 0, SGD: 0 });
 
     // Fund Expenses
     const [fundExpenses, setFundExpenses] = useState<Record<string, number>>({});
@@ -281,7 +286,7 @@ export default function DashboardPage() {
                 setAccounts(filteredAccs);
 
                 // Calculate balance by currency (không quy đổi)
-                const byCurrency: Record<Currency, number> = { VND: 0, USD: 0, KHR: 0, TRY: 0 };
+                const byCurrency: Record<Currency, number> = { VND: 0, USD: 0, KHR: 0, TRY: 0, MMK: 0, THB: 0, LAK: 0, MYR: 0, IDR: 0, PHP: 0, SGD: 0 };
                 let totalUSD = 0;
                 filteredAccs.forEach(acc => {
                     byCurrency[acc.currency] = (byCurrency[acc.currency] || 0) + acc.balance;
@@ -349,8 +354,8 @@ export default function DashboardPage() {
         const projStats: Record<string, { in: number, out: number, budget: number }> = {};
 
         // Currency breakdown
-        const currencyIn: Record<string, number> = { VND: 0, USD: 0, KHR: 0, TRY: 0 };
-        const currencyOut: Record<string, number> = { VND: 0, USD: 0, KHR: 0, TRY: 0 };
+        const currencyIn: Record<string, number> = { VND: 0, USD: 0, KHR: 0, TRY: 0, MMK: 0, THB: 0, LAK: 0, MYR: 0, IDR: 0, PHP: 0, SGD: 0 };
+        const currencyOut: Record<string, number> = { VND: 0, USD: 0, KHR: 0, TRY: 0, MMK: 0, THB: 0, LAK: 0, MYR: 0, IDR: 0, PHP: 0, SGD: 0 };
 
         // Salary report data
         const salaryData: any[] = [];
@@ -502,7 +507,7 @@ export default function DashboardPage() {
         setSalaryReport(salaryData.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
 
         // Currency breakdown for chart
-        const currencies: Currency[] = ["VND", "USD", "KHR", "TRY"];
+        const currencies: Currency[] = ["VND", "USD", "KHR", "TRY", "MMK", "THB", "LAK", "MYR", "IDR", "PHP", "SGD"];
         const targetCurrency = currencyFilter === "ALL" ? "USD" : currencyFilter;
         const currencyData = currencies
             .filter(c => currencyIn[c] > 0 || currencyOut[c] > 0)

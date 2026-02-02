@@ -6,6 +6,7 @@ import { Account, Currency, Project } from "@/types/finance";
 import { doc, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useTranslation } from "@/lib/i18n";
+import { CURRENCY_METADATA } from "@/lib/currency";
 
 interface EditAccountModalProps {
     isOpen: boolean;
@@ -133,10 +134,11 @@ export default function EditAccountModal({ isOpen, onClose, onSuccess, account }
                                 onChange={(e) => setCurrency(e.target.value as Currency)}
                                 className="glass-input w-full p-2 rounded-lg"
                             >
-                                <option value="VND">🇻🇳 VND</option>
-                                <option value="USD">🇺🇸 USD</option>
-                                <option value="KHR">🇰🇭 KHR</option>
-                                <option value="TRY">🇹🇷 TRY (Lira)</option>
+                                {Object.entries(CURRENCY_METADATA).map(([code, meta]) => (
+                                    <option key={code} value={code}>
+                                        {meta.flag} {code} - {meta.name}
+                                    </option>
+                                ))}
                             </select>
                         </div>
                         <div>

@@ -8,6 +8,7 @@ import { uploadImage } from "@/lib/upload";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import CurrencyInput from "./CurrencyInput";
+import { getCurrencyFlag } from "@/lib/currency";
 
 interface CreateTransactionModalProps {
     isOpen: boolean;
@@ -69,13 +70,6 @@ const MASTER_CATEGORIES = [
 ];
 
 const EXPENSE_CATEGORIES = MASTER_CATEGORIES.flatMap(m => m.items);
-
-const CURRENCY_FLAGS: Record<string, string> = {
-    "VND": "🇻🇳",
-    "USD": "🇺🇸",
-    "KHR": "🇰🇭",
-    "TRY": "🇹🇷"
-};
 
 export default function CreateTransactionModal({ isOpen, onClose, onSuccess, currentUser }: CreateTransactionModalProps) {
     const [type, setType] = useState<TransactionType>("OUT");
@@ -224,7 +218,7 @@ export default function CreateTransactionModal({ isOpen, onClose, onSuccess, cur
             // Approval Logic
             if (type === "OUT") {
                 if (currency === "VND" && numAmount > 5000000) status = "PENDING";
-                if ((currency === "USD" || currency === "KHR" || currency === "TRY") && numAmount > 100) status = "PENDING";
+                if (currency !== "VND" && numAmount > 100) status = "PENDING";
             }
 
             // Upload Images
@@ -367,7 +361,7 @@ export default function CreateTransactionModal({ isOpen, onClose, onSuccess, cur
                                 <option value="">-- Chọn tài khoản --</option>
                                 {accessibleAccounts.map(acc => (
                                     <option key={acc.id} value={acc.id}>
-                                        {CURRENCY_FLAGS[acc.currency]} {acc.name} • {acc.balance.toLocaleString()} {acc.currency}
+                                        {getCurrencyFlag(acc.currency)} {acc.name} • {acc.balance.toLocaleString()} {acc.currency}
                                         {acc.projectId ? " [Riêng]" : " [Chung]"}
                                     </option>
                                 ))}
@@ -387,8 +381,8 @@ export default function CreateTransactionModal({ isOpen, onClose, onSuccess, cur
                                         </span>
                                     </div>
                                     <div className="flex flex-wrap gap-2 text-xs">
-                                        <span className="px-2 py-1 rounded" style={{ backgroundColor: CURRENCY_FLAGS[selectedAccount.currency] ? '#3b82f620' : '#52525220', color: '#60a5fa' }}>
-                                            {CURRENCY_FLAGS[selectedAccount.currency]} Tiền tệ: {selectedAccount.currency}
+                                        <span className="px-2 py-1 rounded" style={{ backgroundColor: getCurrencyFlag(selectedAccount.currency) ? '#3b82f620' : '#52525220', color: '#60a5fa' }}>
+                                            {getCurrencyFlag(selectedAccount.currency)} Tiền tệ: {selectedAccount.currency}
                                         </span>
                                         {selectedAccount.allowedCategories && selectedAccount.allowedCategories.length > 0 && (
                                             <span className="px-2 py-1 bg-yellow-500/20 text-yellow-400 rounded">
@@ -419,7 +413,7 @@ export default function CreateTransactionModal({ isOpen, onClose, onSuccess, cur
                                 />
                                 {amount && parseFloat(amount) > 0 && (
                                     (currency === "VND" && parseFloat(amount) > 5000000) ||
-                                    ((currency === "USD" || currency === "KHR" || currency === "TRY") && parseFloat(amount) > 100)
+                                    ((currency !== "VND") && parseFloat(amount) > 100)
                                 ) && (
                                         <p className="text-xs text-yellow-400 mt-1">⚠️ Số tiền lớn - Cần Admin duyệt</p>
                                     )}
@@ -545,7 +539,7 @@ export default function CreateTransactionModal({ isOpen, onClose, onSuccess, cur
                                 <div className="flex justify-between pt-2 border-t border-white/10">
                                     <span className="text-[var(--muted)]">Trạng thái:</span>
                                     {(currency === "VND" && parseFloat(amount) > 5000000) ||
-                                        ((currency === "USD" || currency === "KHR" || currency === "TRY") && parseFloat(amount) > 100) ? (
+                                        (currency !== "VND" && parseFloat(amount) > 100) ? (
                                         <span className="text-yellow-400 font-medium">⏳ Chờ duyệt</span>
                                     ) : (
                                         <span className="text-green-400 font-medium">✓ Tự động duyệt</span>
