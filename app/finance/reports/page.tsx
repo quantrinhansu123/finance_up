@@ -13,7 +13,14 @@ const CURRENCY_COLORS: Record<string, string> = {
     "VND": "#ef4444",
     "USD": "#3b82f6",
     "KHR": "#22c55e",
-    "TRY": "#f59e0b"
+    "TRY": "#f59e0b",
+    "MMK": "#eab308",
+    "THB": "#6366f1",
+    "LAK": "#a855f7",
+    "MYR": "#06b6d4",
+    "IDR": "#ec4899",
+    "PHP": "#f97316",
+    "SGD": "#10b981"
 };
 
 type ReportType = "overview" | "currency" | "salary" | "fixed-costs" | "project";
@@ -54,11 +61,11 @@ export default function ReportsPage() {
     const accessibleProjects = useMemo(() => {
         if (!currentUser) return [];
         if (userRole === "ADMIN") return projects;
-        
+
         const userId = currentUser?.uid || currentUser?.id;
         if (!userId) return [];
-        
-        return getAccessibleProjects(currentUser, projects).filter(p => 
+
+        return getAccessibleProjects(currentUser, projects).filter(p =>
             hasProjectPermission(userId, p, "view_reports", currentUser)
         );
     }, [currentUser, userRole, projects]);
@@ -91,7 +98,7 @@ export default function ReportsPage() {
         // Filter theo dự án user có quyền view_reports
         if (userRole !== "ADMIN") {
             const userId = currentUser?.uid || currentUser?.id;
-            txs = txs.filter(tx => 
+            txs = txs.filter(tx =>
                 (tx.projectId && accessibleProjectIds.includes(tx.projectId)) ||
                 tx.userId === userId
             );
@@ -128,12 +135,11 @@ export default function ReportsPage() {
 
     // Calculate currency breakdown
     const currencyBreakdown = useMemo(() => {
-        const breakdown: Record<Currency, { in: number, out: number, count: number }> = {
-            VND: { in: 0, out: 0, count: 0 },
-            USD: { in: 0, out: 0, count: 0 },
-            KHR: { in: 0, out: 0, count: 0 },
-            TRY: { in: 0, out: 0, count: 0 }
-        };
+        const breakdown = {} as Record<Currency, { in: number, out: number, count: number }>;
+        // Initialize all currencies
+        (["VND", "USD", "KHR", "TRY", "MMK", "THB", "LAK", "MYR", "IDR", "PHP", "SGD"] as Currency[]).forEach(c => {
+            breakdown[c] = { in: 0, out: 0, count: 0 };
+        });
 
         transactions.forEach(tx => {
             if (tx.status === "APPROVED") {
@@ -152,8 +158,8 @@ export default function ReportsPage() {
     // Calculate salary report
     const salaryReport = useMemo(() => {
         return transactions
-            .filter(tx => 
-                tx.status === "APPROVED" && 
+            .filter(tx =>
+                tx.status === "APPROVED" &&
                 tx.type === "OUT" &&
                 (tx.category?.toLowerCase().includes("lương") || tx.category?.toLowerCase().includes("salary"))
             )
@@ -239,6 +245,13 @@ export default function ReportsPage() {
                         .currency-USD { background: #dbeafe; color: #2563eb; }
                         .currency-KHR { background: #dcfce7; color: #16a34a; }
                         .currency-TRY { background: #fef3c7; color: #d97706; }
+                        .currency-MMK { background: #fef9c3; color: #854d0e; }
+                        .currency-THB { background: #e0e7ff; color: #3730a3; }
+                        .currency-LAK { background: #f3e8ff; color: #6b21a8; }
+                        .currency-MYR { background: #cffafe; color: #155e75; }
+                        .currency-IDR { background: #fce7f3; color: #9d174d; }
+                        .currency-PHP { background: #ffedd5; color: #9a3412; }
+                        .currency-SGD { background: #d1fae5; color: #065f46; }
                         ${includeImages ? '.img-cell img { max-width: 100px; max-height: 60px; }' : ''}
                     </style>
                 </head>
@@ -323,18 +336,18 @@ export default function ReportsPage() {
     useEffect(() => {
         const loadTxs = async () => {
             if (!currentUser) return;
-            
+
             let txs = await getTransactions();
-            
+
             // Filter theo dự án user có quyền view_reports
             if (userRole !== "ADMIN") {
                 const userId = currentUser?.uid || currentUser?.id;
-                txs = txs.filter(tx => 
+                txs = txs.filter(tx =>
                     (tx.projectId && accessibleProjectIds.includes(tx.projectId)) ||
                     tx.userId === userId
                 );
             }
-            
+
             setTransactions(txs);
         };
         if (currentUser && projects.length > 0) {
@@ -361,11 +374,10 @@ export default function ReportsPage() {
                     <button
                         key={tab.key}
                         onClick={() => setReportType(tab.key as ReportType)}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                            reportType === tab.key
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${reportType === tab.key
                                 ? "bg-gradient-to-r from-[#FF5E62] to-[#FF9966] text-white shadow-lg"
                                 : "bg-white/5 text-[var(--muted)] hover:text-white hover:bg-white/10"
-                        }`}
+                            }`}
                     >
                         {tab.icon} {tab.label}
                     </button>
@@ -378,21 +390,20 @@ export default function ReportsPage() {
                     <div className="glass-card p-6 rounded-xl border border-white/5">
                         <h3 className="text-lg font-bold mb-6">📊 Báo cáo theo Loại tiền (Không quy đổi)</h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                            {(["VND", "USD", "KHR", "TRY"] as Currency[]).map(currency => {
+                            {(["VND", "USD", "KHR", "TRY", "MMK", "THB", "LAK", "MYR", "IDR", "PHP", "SGD"] as Currency[]).map(currency => {
                                 const data = currencyBreakdown[currency];
                                 const net = data.in - data.out;
                                 return (
-                                    <div 
-                                        key={currency} 
-                                        className={`p-6 rounded-xl border-2 cursor-pointer transition-all ${
-                                            filterCurrency === currency 
-                                                ? 'border-white/40 bg-white/10' 
+                                    <div
+                                        key={currency}
+                                        className={`p-6 rounded-xl border-2 cursor-pointer transition-all ${filterCurrency === currency
+                                                ? 'border-white/40 bg-white/10'
                                                 : 'border-white/10 bg-white/5 hover:bg-white/10'
-                                        }`}
+                                            }`}
                                         onClick={() => setFilterCurrency(filterCurrency === currency ? "ALL" : currency)}
                                     >
                                         <div className="flex items-center gap-3 mb-4">
-                                            <div 
+                                            <div
                                                 className="w-4 h-4 rounded-full"
                                                 style={{ backgroundColor: CURRENCY_COLORS[currency] }}
                                             />
@@ -486,11 +497,11 @@ export default function ReportsPage() {
                                             {tx.amount.toLocaleString()}
                                         </td>
                                         <td className="p-4">
-                                            <span 
+                                            <span
                                                 className="px-2 py-1 rounded text-xs font-medium"
-                                                style={{ 
-                                                    backgroundColor: CURRENCY_COLORS[tx.currency] + '30', 
-                                                    color: CURRENCY_COLORS[tx.currency] 
+                                                style={{
+                                                    backgroundColor: CURRENCY_COLORS[tx.currency] + '30',
+                                                    color: CURRENCY_COLORS[tx.currency]
                                                 }}
                                             >
                                                 {tx.currency}
@@ -501,11 +512,10 @@ export default function ReportsPage() {
                                         </td>
                                         <td className="p-4 text-[var(--muted)]">{tx.createdBy}</td>
                                         <td className="p-4">
-                                            <span className={`px-2 py-1 rounded text-xs ${
-                                                tx.status === "APPROVED" ? "bg-green-500/20 text-green-400" :
-                                                tx.status === "PENDING" ? "bg-yellow-500/20 text-yellow-400" :
-                                                "bg-red-500/20 text-red-400"
-                                            }`}>
+                                            <span className={`px-2 py-1 rounded text-xs ${tx.status === "APPROVED" ? "bg-green-500/20 text-green-400" :
+                                                    tx.status === "PENDING" ? "bg-yellow-500/20 text-yellow-400" :
+                                                        "bg-red-500/20 text-red-400"
+                                                }`}>
                                                 {tx.status === "APPROVED" ? "Đã duyệt" : tx.status === "PENDING" ? "Chờ duyệt" : "Từ chối"}
                                             </span>
                                         </td>
@@ -521,11 +531,11 @@ export default function ReportsPage() {
                             </tbody>
                         </table>
                     </div>
-                    
+
                     {/* Salary Summary by Currency */}
                     {salaryReport.length > 0 && (
                         <div className="mt-6 grid grid-cols-1 md:grid-cols-4 gap-4">
-                            {(["VND", "USD", "KHR", "TRY"] as Currency[]).map(currency => {
+                            {(["VND", "USD", "KHR", "TRY", "MMK", "THB", "LAK", "MYR", "IDR", "PHP", "SGD"] as Currency[]).map(currency => {
                                 const total = salaryReport
                                     .filter(tx => tx.currency === currency)
                                     .reduce((sum, tx) => sum + tx.amount, 0);
@@ -572,11 +582,11 @@ export default function ReportsPage() {
                                             {fc.amount.toLocaleString()}
                                         </td>
                                         <td className="p-4">
-                                            <span 
+                                            <span
                                                 className="px-2 py-1 rounded text-xs font-medium"
-                                                style={{ 
-                                                    backgroundColor: CURRENCY_COLORS[fc.currency] + '30', 
-                                                    color: CURRENCY_COLORS[fc.currency] 
+                                                style={{
+                                                    backgroundColor: CURRENCY_COLORS[fc.currency] + '30',
+                                                    color: CURRENCY_COLORS[fc.currency]
                                                 }}
                                             >
                                                 {fc.currency}
@@ -586,9 +596,8 @@ export default function ReportsPage() {
                                             {fc.cycle === "MONTHLY" ? "Hàng tháng" : fc.cycle === "QUARTERLY" ? "Hàng quý" : "Hàng năm"}
                                         </td>
                                         <td className="p-4">
-                                            <span className={`px-2 py-1 rounded text-xs ${
-                                                fc.status === "ON" ? "bg-green-500/20 text-green-400" : "bg-red-500/20 text-red-400"
-                                            }`}>
+                                            <span className={`px-2 py-1 rounded text-xs ${fc.status === "ON" ? "bg-green-500/20 text-green-400" : "bg-red-500/20 text-red-400"
+                                                }`}>
                                                 {fc.status === "ON" ? "Hoạt động" : "Tạm dừng"}
                                             </span>
                                         </td>
@@ -618,7 +627,12 @@ export default function ReportsPage() {
                                         .filter(fc => fc.status === "ON")
                                         .reduce((acc, fc) => {
                                             const cat = fc.category || "Khác";
-                                            if (!acc[cat]) acc[cat] = { VND: 0, USD: 0, KHR: 0, TRY: 0 };
+                                            if (!acc[cat]) {
+                                                acc[cat] = {} as Record<Currency, number>;
+                                                (["VND", "USD", "KHR", "TRY", "MMK", "THB", "LAK", "MYR", "IDR", "PHP", "SGD"] as Currency[]).forEach(c => {
+                                                    acc[cat][c] = 0;
+                                                });
+                                            }
                                             acc[cat][fc.currency] += fc.amount;
                                             return acc;
                                         }, {} as Record<string, Record<Currency, number>>)
@@ -670,7 +684,14 @@ export default function ReportsPage() {
                                     <option value="VND">🇻🇳 VND</option>
                                     <option value="USD">🇺🇸 USD</option>
                                     <option value="KHR">🇰🇭 KHR</option>
-                                    <option value="TRY">🇹🇷 TRY (Lira)</option>
+                                    <option value="TRY">🇹🇷 TRY</option>
+                                    <option value="MMK">🇲🇲 MMK</option>
+                                    <option value="THB">🇹🇭 THB</option>
+                                    <option value="LAK">🇱🇦 LAK</option>
+                                    <option value="MYR">🇲🇾 MYR</option>
+                                    <option value="IDR">🇮🇩 IDR</option>
+                                    <option value="PHP">🇵🇭 PHP</option>
+                                    <option value="SGD">🇸🇬 SGD</option>
                                 </select>
                             </div>
                             <div>
