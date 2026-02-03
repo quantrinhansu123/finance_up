@@ -150,18 +150,22 @@ export interface MasterCategory {
     createdBy: string;
 }
 
-// Danh mục CON (Sub-category) - Tạo trong từng dự án, thuộc danh mục lớn
-export interface ProjectSubCategory {
+// Danh mục CON (Sub-category) - Có thể tạo cho toàn hệ thống hoặc theo từng dự án
+export interface MasterSubCategory {
     id: string;
     name: string;
     parentCategoryId: string; // ID của MasterCategory
     parentCategoryName?: string; // Tên danh mục cha (để hiển thị)
     type: "INCOME" | "EXPENSE";
-    projectId: string;
     description?: string;
     isActive: boolean;
     createdAt: number;
     createdBy: string;
+}
+
+// Danh mục CON riêng của Dự án
+export interface ProjectSubCategory extends MasterSubCategory {
+    projectId: string;
 }
 
 export interface Project {
