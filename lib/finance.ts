@@ -28,7 +28,7 @@ export async function getAccounts(): Promise<Account[]> {
     const querySnapshot = await getDocs(collection(db, ACCOUNTS_COL));
     const accounts: Account[] = [];
     querySnapshot.forEach((doc) => {
-        accounts.push({ id: doc.id, ...doc.data() } as Account);
+        accounts.push({ ...doc.data(), id: doc.id } as Account);
     });
     return accounts;
 }
@@ -57,7 +57,7 @@ export async function getProjects(): Promise<Project[]> {
     const querySnapshot = await getDocs(collection(db, PROJECTS_COL));
     const projects: Project[] = [];
     querySnapshot.forEach((doc) => {
-        projects.push({ id: doc.id, ...doc.data() } as Project);
+        projects.push({ ...doc.data(), id: doc.id } as Project);
     });
     return projects;
 }
@@ -98,7 +98,7 @@ export async function getTransactions(): Promise<Transaction[]> {
     const querySnapshot = await getDocs(q);
     const transactions: Transaction[] = [];
     querySnapshot.forEach((doc) => {
-        transactions.push({ id: doc.id, ...doc.data() } as Transaction);
+        transactions.push({ ...doc.data(), id: doc.id } as Transaction);
     });
     // Manual sort to avoid index block during dev
     return transactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -124,7 +124,7 @@ export async function getFixedCosts(): Promise<FixedCost[]> {
     const querySnapshot = await getDocs(collection(db, FIXED_COSTS_COL));
     const costs: FixedCost[] = [];
     querySnapshot.forEach((doc) => {
-        costs.push({ id: doc.id, ...doc.data() } as FixedCost);
+        costs.push({ ...doc.data(), id: doc.id } as FixedCost);
     });
     return costs;
 }
@@ -154,7 +154,7 @@ export async function getRevenues(): Promise<MonthlyRevenue[]> {
     const querySnapshot = await getDocs(collection(db, REVENUES_COL));
     const list: MonthlyRevenue[] = [];
     querySnapshot.forEach((doc) => {
-        list.push({ id: doc.id, ...doc.data() } as MonthlyRevenue);
+        list.push({ ...doc.data(), id: doc.id } as MonthlyRevenue);
     });
     // Sort by Date Desc (Year then Month)
     return list.sort((a, b) => (Number(b.year) * 12 + Number(b.month)) - (Number(a.year) * 12 + Number(a.month)));
@@ -174,7 +174,7 @@ export async function getFunds(): Promise<Fund[]> {
     const querySnapshot = await getDocs(query(collection(db, FUNDS_COL), orderBy("createdAt", "desc")));
     const funds: Fund[] = [];
     querySnapshot.forEach((doc) => {
-        funds.push({ id: doc.id, ...doc.data() } as Fund);
+        funds.push({ ...doc.data(), id: doc.id } as Fund);
     });
     return funds;
 }

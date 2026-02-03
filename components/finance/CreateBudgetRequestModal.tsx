@@ -272,7 +272,6 @@ export default function CreateBudgetRequestModal({ onClose, onSuccess, username,
             const uploadedDocs = await uploadSupportingDocs();
 
             const newTx = {
-                id: Date.now().toString(),
                 date: new Date().toISOString(),
                 amount: Number(amount),
                 currency,
