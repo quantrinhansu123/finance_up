@@ -25,7 +25,19 @@ const EXPENSE_CATEGORIES = [
     "Mua đồ dùng văn phòng", "Ads", "Marketing", "Lương", "Chi lương nhân viên",
     "Vận hành", "Chuyển nội bộ", "Khác"
 ];
-const CURRENCY_FLAGS: Record<string, string> = { "VND": "🇻🇳", "USD": "🇺🇸", "KHR": "🇰🇭", "TRY": "🇹🇷" };
+const CURRENCY_FLAGS: Record<string, string> = {
+    "VND": "🇻🇳",
+    "USD": "🇺🇸",
+    "KHR": "🇰🇭",
+    "TRY": "🇹🇷",
+    "MMK": "🇲🇲",
+    "THB": "🇹🇭",
+    "LAK": "🇱🇦",
+    "MYR": "🇲🇾",
+    "IDR": "🇮🇩",
+    "PHP": "🇵🇭",
+    "SGD": "🇸🇬"
+};
 
 export default function ExpensePage() {
     const { t } = useTranslation();

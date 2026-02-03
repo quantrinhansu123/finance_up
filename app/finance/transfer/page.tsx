@@ -12,7 +12,19 @@ import { getExchangeRates, convertCurrency } from "@/lib/currency";
 import SearchableSelect from "@/components/finance/SearchableSelect";
 import { useTranslation } from "@/lib/i18n";
 
-const CURRENCY_FLAGS: Record<string, string> = { "VND": "🇻🇳", "USD": "🇺🇸", "KHR": "🇰🇭", "TRY": "🇹🇷" };
+const CURRENCY_FLAGS: Record<string, string> = {
+    "VND": "🇻🇳",
+    "USD": "🇺🇸",
+    "KHR": "🇰🇭",
+    "TRY": "🇹🇷",
+    "MMK": "🇲🇲",
+    "THB": "🇹🇭",
+    "LAK": "🇱🇦",
+    "MYR": "🇲🇾",
+    "IDR": "🇮🇩",
+    "PHP": "🇵🇭",
+    "SGD": "🇸🇬"
+};
 
 export default function TransferPage() {
     const { t } = useTranslation();

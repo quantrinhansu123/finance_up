@@ -122,8 +122,8 @@ export default function ApprovalsPage() {
         if (activeTab === "high_value") {
             return pendingTransactions.filter(tx => {
                 const isHighVND = tx.currency === "VND" && tx.amount > 5000000;
-                const isHighUSD = (tx.currency === "USD" || tx.currency === "KHR") && tx.amount > 100;
-                return isHighVND || isHighUSD;
+                const isHighOther = tx.currency !== "VND" && tx.amount > 100;
+                return isHighVND || isHighOther;
             });
         }
         return pendingTransactions;
@@ -283,7 +283,7 @@ export default function ApprovalsPage() {
                 <div className="grid gap-4">
                     {filteredTxs.map(tx => {
                         const isHighValue = (tx.currency === "VND" && tx.amount > 5000000) ||
-                            ((tx.currency === "USD" || tx.currency === "KHR") && tx.amount > 100);
+                            (tx.currency !== "VND" && tx.amount > 100);
 
                         return (
                             <div

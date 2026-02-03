@@ -26,6 +26,8 @@ export interface ProjectPermissionState {
     canManageAccounts: boolean;
     canManageMembers: boolean;
     canViewReports: boolean;
+    canRequestBudget: boolean;
+    canPayTransactions: boolean;
 
     // Helper function
     hasPermission: (permission: ProjectPermission) => boolean;
@@ -51,6 +53,8 @@ export function useProjectPermissions(
                 canManageAccounts: false,
                 canManageMembers: false,
                 canViewReports: false,
+                canRequestBudget: false,
+                canPayTransactions: false,
                 hasPermission: () => false
             };
         }
@@ -71,6 +75,8 @@ export function useProjectPermissions(
             canManageAccounts: hasProjectPermission(userId, project, "manage_accounts", user),
             canManageMembers: hasProjectPermission(userId, project, "manage_members", user),
             canViewReports: hasProjectPermission(userId, project, "view_reports", user),
+            canRequestBudget: hasProjectPermission(userId, project, "request_budget", user),
+            canPayTransactions: hasProjectPermission(userId, project, "pay_transactions", user),
             hasPermission: (permission: ProjectPermission) =>
                 hasProjectPermission(userId, project, permission, user)
         };
@@ -112,7 +118,8 @@ export function checkProjectAccess(
             manage_accounts: "quản lý tài khoản",
             manage_members: "quản lý thành viên",
             view_reports: "xem báo cáo",
-            pay_transactions: ""
+            request_budget: "xin ngân sách",
+            pay_transactions: "thanh toán giao dịch"
         };
         return {
             allowed: false,

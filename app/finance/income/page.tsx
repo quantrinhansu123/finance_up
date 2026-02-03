@@ -20,7 +20,19 @@ import { Eye } from "lucide-react";
 import { useTranslation } from "@/lib/i18n";
 
 const INCOME_SOURCES = ["COD VET", "COD JNT", "Khách CK", "Khác"];
-const CURRENCY_FLAGS: Record<string, string> = { "VND": "🇻🇳", "USD": "🇺🇸", "KHR": "🇰🇭", "TRY": "🇹🇷" };
+const CURRENCY_FLAGS: Record<string, string> = {
+    "VND": "🇻🇳",
+    "USD": "🇺🇸",
+    "KHR": "🇰🇭",
+    "TRY": "🇹🇷",
+    "MMK": "🇲🇲",
+    "THB": "🇹🇭",
+    "LAK": "🇱🇦",
+    "MYR": "🇲🇾",
+    "IDR": "🇮🇩",
+    "PHP": "🇵🇭",
+    "SGD": "🇸🇬"
+};
 
 export default function IncomePage() {
     const { t } = useTranslation();

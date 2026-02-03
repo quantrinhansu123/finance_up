@@ -32,8 +32,10 @@ const CURRENCY_COLORS: Record<string, string> = {
     "MMK": "#eab308",
     "THB": "#6366f1",
     "LAK": "#a855f7",
+    "MYR": "#06b6d4",
     "IDR": "#ec4899",
-    "MYR": "#06b6d4"
+    "PHP": "#f97316",
+    "SGD": "#10b981"
 };
 
 type ViewPeriod = "day" | "month" | "quarter" | "year";
@@ -815,6 +817,13 @@ export default function DashboardPage() {
                         <option value="USD">USD</option>
                         <option value="KHR">KHR</option>
                         <option value="TRY">TRY</option>
+                        <option value="MMK">MMK</option>
+                        <option value="THB">THB</option>
+                        <option value="LAK">LAK</option>
+                        <option value="MYR">MYR</option>
+                        <option value="IDR">IDR</option>
+                        <option value="PHP">PHP</option>
+                        <option value="SGD">SGD</option>
                     </select>
 
                     <Link href="/finance/transactions" className="glass-button px-3 py-1.5 rounded-lg text-xs">

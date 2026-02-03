@@ -150,9 +150,17 @@ export default function RevenuePage() {
                             <div>
                                 <label className="block text-sm font-medium text-[var(--muted)] mb-1">Currency</label>
                                 <select value={currency} onChange={e => setCurrency(e.target.value as Currency)} className="glass-input w-full p-2 rounded-lg">
-                                    <option value="USD">USD</option>
-                                    <option value="VND">VND</option>
-                                    <option value="KHR">KHR</option>
+                                    <option value="VND">🇻🇳 VND</option>
+                                    <option value="USD">🇺🇸 USD</option>
+                                    <option value="KHR">🇰🇭 KHR</option>
+                                    <option value="TRY">🇹🇷 TRY</option>
+                                    <option value="MMK">🇲🇲 MMK</option>
+                                    <option value="THB">🇹🇭 THB</option>
+                                    <option value="LAK">🇱🇦 LAK</option>
+                                    <option value="MYR">🇲🇾 MYR</option>
+                                    <option value="IDR">🇮🇩 IDR</option>
+                                    <option value="PHP">🇵🇭 PHP</option>
+                                    <option value="SGD">🇸🇬 SGD</option>
                                 </select>
                             </div>
                             <div>

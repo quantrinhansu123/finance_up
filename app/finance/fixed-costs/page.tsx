@@ -16,7 +16,14 @@ const CURRENCY_COLORS: Record<string, string> = {
     "VND": "#ef4444",
     "USD": "#3b82f6",
     "KHR": "#22c55e",
-    "TRY": "#f59e0b"
+    "TRY": "#f59e0b",
+    "MMK": "#eab308",
+    "THB": "#6366f1",
+    "LAK": "#a855f7",
+    "MYR": "#06b6d4",
+    "IDR": "#ec4899",
+    "PHP": "#f97316",
+    "SGD": "#10b981"
 };
 
 export default function FixedCostsPage() {
@@ -425,6 +432,13 @@ export default function FixedCostsPage() {
                                             <option value="USD" className="bg-[#1a1a1a] text-white">🇺🇸 USD</option>
                                             <option value="KHR" className="bg-[#1a1a1a] text-white">🇰🇭 KHR</option>
                                             <option value="TRY" className="bg-[#1a1a1a] text-white">🇹🇷 TRY</option>
+                                            <option value="MMK" className="bg-[#1a1a1a] text-white">🇲🇲 MMK</option>
+                                            <option value="THB" className="bg-[#1a1a1a] text-white">🇹🇭 THB</option>
+                                            <option value="LAK" className="bg-[#1a1a1a] text-white">🇱🇦 LAK</option>
+                                            <option value="MYR" className="bg-[#1a1a1a] text-white">🇲🇾 MYR</option>
+                                            <option value="IDR" className="bg-[#1a1a1a] text-white">🇮🇩 IDR</option>
+                                            <option value="PHP" className="bg-[#1a1a1a] text-white">🇵🇭 PHP</option>
+                                            <option value="SGD" className="bg-[#1a1a1a] text-white">🇸🇬 SGD</option>
                                         </select>
                                     </div>
                                 </div>
