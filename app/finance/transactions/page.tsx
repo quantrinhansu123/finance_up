@@ -291,7 +291,7 @@ export default function TransactionsPage() {
                     {
                         key: "account",
                         header: t("account"),
-                        render: (tx) => <span className="text-white font-medium">{getAccountName(tx.accountId)}</span>
+                        render: (tx) => <span className="text-white font-medium">{getAccountName(tx.accountId || "")}</span>
                     },
                     {
                         key: "project",
@@ -339,7 +339,7 @@ export default function TransactionsPage() {
                 isOpen={isModalOpen}
                 onClose={() => setIsModalOpen(false)}
                 transaction={selectedTransaction}
-                accountName={selectedTransaction ? getAccountName(selectedTransaction.accountId) : undefined}
+                accountName={selectedTransaction ? getAccountName(selectedTransaction.accountId || "") : undefined}
                 projectName={selectedTransaction?.projectId ? getProjectName(selectedTransaction.projectId) : undefined}
             />
         </div>

@@ -488,7 +488,7 @@ export default function ExpensePage() {
                             render: (tx: Transaction) => (
                                 <div className="flex items-center gap-2">
                                     <span className="text-base">{CURRENCY_FLAGS[tx.currency] || "💰"}</span>
-                                    <TextCell primary={getAccountName(tx.accountId)} />
+                                    <TextCell primary={getAccountName(tx.accountId || "")} />
                                 </div>
                             )
                         },
@@ -530,7 +530,7 @@ export default function ExpensePage() {
                     onClose={() => setIsDetailModalOpen(false)}
                     transaction={selectedTransaction}
                     projectName={getProjectName(selectedTransaction.projectId || "")}
-                    accountName={getAccountName(selectedTransaction.accountId)}
+                    accountName={getAccountName(selectedTransaction.accountId || "")}
                 />
             )}
         </div>
