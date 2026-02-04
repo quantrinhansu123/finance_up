@@ -37,7 +37,8 @@ export default function TransactionList({ transactions, accounts, projects }: Tr
         }).format(amount);
     };
 
-    const getAccountName = (id: string) => {
+    const getAccountName = (id?: string) => {
+        if (!id) return "Chưa xác định";
         const acc = accounts.find(a => a.id === id);
         return acc ? acc.name : id.slice(0, 8) + "...";
     };
@@ -152,8 +153,8 @@ export default function TransactionList({ transactions, accounts, projects }: Tr
                                     key={pageNum}
                                     onClick={() => setCurrentPage(pageNum)}
                                     className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${currentPage === pageNum
-                                            ? "bg-blue-500 text-white"
-                                            : "hover:bg-white/5 text-[var(--muted)]"
+                                        ? "bg-blue-500 text-white"
+                                        : "hover:bg-white/5 text-[var(--muted)]"
                                         }`}
                                 >
                                     {pageNum}

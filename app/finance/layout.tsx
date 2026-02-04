@@ -222,6 +222,7 @@ function FinanceLayoutContent({
                 ...(userRole === "ADMIN" || userPermissions.hasAccessibleProjects ? [{ name: t("projects"), href: "/finance/projects", icon: <FolderOpen size={18} /> }] : []),
                 ...(userRole === "ADMIN" ? [
                     { name: t("accounts"), href: "/finance/accounts", icon: <CreditCard size={18} /> },
+                    { name: t("beneficiaries") || "Đơn vị thụ hưởng", href: "/finance/beneficiaries", icon: <ScrollText size={18} /> },
                     { name: t("funds"), href: "/finance/funds", icon: <PiggyBank size={18} /> },
                     { name: t("categories"), href: "/finance/categories", icon: <ScrollText size={18} /> },
                     { name: t("fixed_costs"), href: "/finance/fixed-costs", icon: <Pin size={18} /> },

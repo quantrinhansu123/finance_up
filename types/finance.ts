@@ -46,6 +46,17 @@ export interface BankInfo {
     branch?: string;
 }
 
+export interface Beneficiary {
+    id: string;
+    name: string; // Company Name, e.g., "Agency One"
+    platforms: string[]; // e.g., ["TikTok Ads", "Google Ads", "Facebook Ads"]
+    bankAccounts: BankInfo[];
+    description?: string;
+    isActive: boolean;
+    createdAt: number;
+    updatedAt: number;
+}
+
 export interface Transaction {
     id: string;
     amount: number;
@@ -59,7 +70,7 @@ export interface Transaction {
     status: TransactionStatus;
 
     // Links
-    accountId: string;
+    accountId?: string;
     projectId?: string; // Added
     fundId?: string;    // Added: Linked to Fund/Cost Group
 
@@ -69,6 +80,7 @@ export interface Transaction {
 
     // Budget Request Specific Fields
     beneficiary?: string; // "ZENO", "ECOME", etc.
+    platform?: string; // "TikTok Ads", "Facebook Ads", etc.
     bankInfo?: BankInfo; // Auto-filled bank details
     transferContent?: string; // Nội dung chuyển khoản
     proofOfPayment?: string[]; // Bill uploaded by Accountant (when status -> PAID)
@@ -118,18 +130,19 @@ export type ProjectPermission =
     | "manage_accounts"        // Quản lý tài khoản dự án
     | "manage_members"         // Quản lý thành viên
     | "view_reports"           // Xem báo cáo
+    | "confirm_budget_request" // NEW: Xác nhận xin ngân sách
     | "pay_transactions";      // Quyền thanh toán (Accountant)
 
 // Default permissions for each project role
 export const PROJECT_ROLE_PERMISSIONS: Record<ProjectRole, ProjectPermission[]> = {
     OWNER: [
         "view_transactions", "create_income", "create_expense", "request_budget",
-        "approve_transactions", "manage_accounts", "manage_members",
+        "confirm_budget_request", "approve_transactions", "manage_accounts", "manage_members",
         "view_reports", "pay_transactions"
     ],
     MANAGER: [
         "view_transactions", "create_income", "create_expense", "request_budget",
-        "approve_transactions", "manage_accounts", "view_reports"
+        "confirm_budget_request", "approve_transactions", "manage_accounts", "view_reports"
     ],
     MEMBER: [
         "view_transactions", "create_income", "create_expense", "request_budget"

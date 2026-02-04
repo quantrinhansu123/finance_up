@@ -40,6 +40,10 @@ export default function BudgetRequestDetailModal({ transaction, onClose, onUpdat
     const isAccountant = role === "ADMIN" || financeRole === "ACCOUNTANT" ||
         (project && hasProjectPermission(userId, project, "pay_transactions", currentUser));
 
+    // Confirming Request: System Admin OR has confirm_budget_request permission
+    const isConfirmingPerson = role === "ADMIN" || financeRole === "MANAGER" || financeRole === "ADMIN" ||
+        (project && hasProjectPermission(userId, project, "confirm_budget_request", currentUser));
+
     // Director/Approver: System Admin OR has approve_transactions permission in project
     const isDirector = role === "ADMIN" || financeRole === "MANAGER" || financeRole === "ADMIN" ||
         (project && hasProjectPermission(userId, project, "approve_transactions", currentUser));
@@ -92,6 +96,7 @@ export default function BudgetRequestDetailModal({ transaction, onClose, onUpdat
     const [pendingAction, setPendingAction] = useState<"PAY" | "CONFIRM" | null>(null);
     const [uploadFiles, setUploadFiles] = useState<File[]>([]);
     const [uploading, setUploading] = useState(false);
+    const [selectedAccountId, setSelectedAccountId] = useState(transaction.accountId || "");
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files) {
@@ -112,9 +117,15 @@ export default function BudgetRequestDetailModal({ transaction, onClose, onUpdat
             const urls = await Promise.all(uploadFiles.map(file => uploadImage(file)));
 
             if (pendingAction === "PAY") {
+                if (!selectedAccountId) {
+                    alert("Vui lòng chọn tài khoản thanh toán.");
+                    setUploading(false);
+                    return;
+                }
+
                 // Update Balance when marked as PAID
                 try {
-                    const accRef = doc(db, "finance_accounts", transaction.accountId);
+                    const accRef = doc(db, "finance_accounts", selectedAccountId);
                     const accSnap = await getDoc(accRef);
                     if (accSnap.exists()) {
                         const accData = accSnap.data();
@@ -130,6 +141,7 @@ export default function BudgetRequestDetailModal({ transaction, onClose, onUpdat
                 await updateTransactionStatus(transaction.id, "PAID");
                 await updateDoc(doc(db, "finance_transactions", transaction.id), {
                     paidBy: currentUser.displayName || currentUser.email,
+                    accountId: selectedAccountId,
                     proofOfPayment: urls,
                     updatedAt: Date.now()
                 });
@@ -223,7 +235,7 @@ export default function BudgetRequestDetailModal({ transaction, onClose, onUpdat
                         <div className="space-y-4">
                             <div className="p-4 bg-white/5 rounded-xl border border-white/10 relative group">
                                 <span className="text-sm text-[var(--muted)]">Số tiền yêu cầu</span>
-                                {isEditing && transaction.status === "PENDING" && isDirector ? (
+                                {isEditing && transaction.status === "PENDING" && isConfirmingPerson ? (
                                     <div className="flex items-center gap-2 mt-1">
                                         <input
                                             type="number"
@@ -239,7 +251,7 @@ export default function BudgetRequestDetailModal({ transaction, onClose, onUpdat
                                         <div className="text-3xl font-bold text-blue-400">
                                             {editedAmount.toLocaleString()} {transaction.currency}
                                         </div>
-                                        {transaction.status === "PENDING" && isDirector && (
+                                        {transaction.status === "PENDING" && isConfirmingPerson && (
                                             <button
                                                 onClick={() => setIsEditing(true)}
                                                 className="text-xs bg-white/10 hover:bg-white/20 px-2 py-1 rounded transition-colors"
@@ -256,8 +268,8 @@ export default function BudgetRequestDetailModal({ transaction, onClose, onUpdat
                                 <span className="text-xs text-[var(--muted)] uppercase font-bold block mb-1">Nguồn tiền</span>
                                 <div className="flex items-center gap-2 text-white">
                                     <Wallet size={16} className="text-yellow-400" />
-                                    <span className="font-medium">
-                                        {allAccounts.find(a => a.id === transaction.accountId)?.name || "Nguồn quỹ ADS"}
+                                    <span className="font-medium text-blue-300">
+                                        {transaction.accountId ? (allAccounts.find(a => a.id === transaction.accountId)?.name || "Nguồn quỹ ADS") : "Chưa chỉ định (Kế toán chọn khi TT)"}
                                     </span>
                                 </div>
                             </div>
@@ -269,6 +281,12 @@ export default function BudgetRequestDetailModal({ transaction, onClose, onUpdat
                                         <span className="text-[var(--muted)]">Đơn vị:</span>
                                         <span className="font-bold text-white">{transaction.beneficiary || "N/A"}</span>
                                     </div>
+                                    {transaction.platform && (
+                                        <div className="flex justify-between">
+                                            <span className="text-[var(--muted)]">Nền tảng:</span>
+                                            <span className="font-bold text-green-400">{transaction.platform}</span>
+                                        </div>
+                                    )}
                                     {transaction.bankInfo && (
                                         <>
                                             <div className="flex justify-between">
@@ -381,7 +399,7 @@ export default function BudgetRequestDetailModal({ transaction, onClose, onUpdat
                 </div>
 
                 <div className="p-6 border-t border-white/10 flex justify-end gap-3 bg-[#1e1e2e]">
-                    {transaction.status === "PENDING" && isDirector && !pendingAction && (
+                    {transaction.status === "PENDING" && isConfirmingPerson && !pendingAction && (
                         <div className="flex gap-2">
                             <button
                                 onClick={() => setIsRejecting(true)}
@@ -395,7 +413,7 @@ export default function BudgetRequestDetailModal({ transaction, onClose, onUpdat
                                 disabled={loading}
                                 className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-bold flex items-center gap-2"
                             >
-                                <ShieldCheck size={18} /> Duyệt Yêu Cầu
+                                < ShieldCheck size={18} /> Xác nhận yêu cầu
                             </button>
                         </div>
                     )}
@@ -471,9 +489,29 @@ export default function BudgetRequestDetailModal({ transaction, onClose, onUpdat
                             </h3>
                             <p className="text-sm text-[var(--muted)] mb-4">
                                 {pendingAction === "PAY"
-                                    ? "Vui lòng chụp ảnh màn hình giao dịch chuyển khoản thành công."
+                                    ? "Vui lòng chọn tài khoản nguồn và chụp ảnh màn hình giao dịch chuyển khoản thành công."
                                     : "Vui lòng tải lên 2 ảnh chứng minh (Ví dụ: Số dư tài khoản Ads)."}
                             </p>
+
+                            {pendingAction === "PAY" && (
+                                <div className="mb-4">
+                                    <label className="block text-xs text-[var(--muted)] uppercase font-bold mb-1">Chọn tài khoản nguồn *</label>
+                                    <select
+                                        value={selectedAccountId}
+                                        onChange={(e) => setSelectedAccountId(e.target.value)}
+                                        className="glass-input w-full p-2 rounded-lg text-sm text-white"
+                                    >
+                                        <option value="">-- Chọn tài khoản --</option>
+                                        {allAccounts
+                                            .filter(a => !transaction.projectId || a.projectId === transaction.projectId || !a.projectId)
+                                            .map(a => (
+                                                <option key={a.id} value={a.id}>
+                                                    {a.name} ({a.balance.toLocaleString()} {a.currency})
+                                                </option>
+                                            ))}
+                                    </select>
+                                </div>
+                            )}
 
                             <div className="border-2 border-dashed border-white/20 rounded-xl p-8 text-center mb-4">
                                 <input

@@ -366,7 +366,8 @@ export const PROJECT_PERMISSION_LABELS: Record<ProjectPermission, string> = {
     manage_accounts: "Quản lý tài khoản ngân hàng",
     manage_members: "Phân quyền thành viên",
     view_reports: "Xem dashboard & báo cáo",
-    pay_transactions: "Thanh toán giao dịch"
+    pay_transactions: "Thanh toán giao dịch",
+    confirm_budget_request: "Xác nhận xin ngân sách"
 };
 
 // Mô tả chi tiết cho từng quyền
@@ -379,7 +380,8 @@ export const PROJECT_PERMISSION_DESCRIPTIONS: Record<ProjectPermission, string> 
     manage_accounts: "Quản lý tài khoản ngân hàng được gán cho dự án (thêm/xóa/chỉnh sửa)",
     manage_members: "Thêm/xóa thành viên và phân quyền cho các thành viên khác trong dự án",
     view_reports: "Xem dashboard tổng quan, báo cáo tài chính và thống kê của dự án",
-    pay_transactions: "Quyền thực hiện thanh toán cho các giao dịch đã được duyệt (dành cho Kế toán)"
+    pay_transactions: "Quyền thực hiện thanh toán cho các giao dịch đã được duyệt (dành cho Kế toán)",
+    confirm_budget_request: "Xác nhận yêu cầu xin ngân sách marketing trước khi Kế toán thanh toán"
 };
 
 // Màu sắc cho từng role

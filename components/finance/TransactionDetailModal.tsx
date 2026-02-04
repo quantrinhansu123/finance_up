@@ -155,7 +155,7 @@ export default function TransactionDetailModal({
                                 {t("account")}
                             </div>
                             <div className="text-white font-medium">
-                                {accountName || transaction.accountId}
+                                {accountName || (transaction.accountId ? transaction.accountId : "Chưa chỉ định")}
                             </div>
                         </div>
 

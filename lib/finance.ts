@@ -11,7 +11,7 @@ import {
     getDoc,
     deleteDoc
 } from "firebase/firestore";
-import { Account, Project, Transaction, FixedCost, MonthlyRevenue, Fund } from "@/types/finance";
+import { Account, Project, Transaction, FixedCost, MonthlyRevenue, Fund, Beneficiary } from "@/types/finance";
 
 import { logAction } from "./logger";
 
@@ -22,6 +22,7 @@ const FIXED_COSTS_COL = "finance_fixed_costs";
 const PROJECTS_COL = "finance_projects";
 const REVENUES_COL = "finance_revenues";
 const FUNDS_COL = "finance_funds";
+const BENEFICIARIES_COL = "finance_beneficiaries";
 
 // --- Accounts ---
 export async function getAccounts(): Promise<Account[]> {
@@ -198,4 +199,35 @@ export async function deleteFund(id: string): Promise<void> {
     const docRef = doc(db, FUNDS_COL, id);
     await deleteDoc(docRef);
     await logAction("DELETE_FUND", {}, id);
+}
+
+// --- Beneficiaries ---
+export async function getBeneficiaries(): Promise<Beneficiary[]> {
+    const querySnapshot = await getDocs(collection(db, BENEFICIARIES_COL));
+    const beneficiaries: Beneficiary[] = [];
+    querySnapshot.forEach((doc) => {
+        beneficiaries.push({ ...doc.data(), id: doc.id } as Beneficiary);
+    });
+    return beneficiaries;
+}
+
+export async function createBeneficiary(beneficiary: Omit<Beneficiary, "id">): Promise<string> {
+    const data = Object.fromEntries(
+        Object.entries(beneficiary).filter(([_, v]) => v !== undefined)
+    );
+    const docRef = await addDoc(collection(db, BENEFICIARIES_COL), data);
+    await logAction("CREATE_BENEFICIARY", { name: beneficiary.name }, docRef.id);
+    return docRef.id;
+}
+
+export async function updateBeneficiary(id: string, data: Partial<Beneficiary>): Promise<void> {
+    const docRef = doc(db, BENEFICIARIES_COL, id);
+    await updateDoc(docRef, data);
+    await logAction("UPDATE_BENEFICIARY", data, id);
+}
+
+export async function deleteBeneficiary(id: string): Promise<void> {
+    const docRef = doc(db, BENEFICIARIES_COL, id);
+    await deleteDoc(docRef);
+    await logAction("DELETE_BENEFICIARY", {}, id);
 }
