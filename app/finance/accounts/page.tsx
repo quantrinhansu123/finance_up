@@ -109,10 +109,11 @@ export default function AccountsPage() {
             metrics[acc.id] = { moneyIn: 0, moneyOut: 0, txCount: 0 };
         });
         transactions.forEach(tx => {
-            if (tx.status === "APPROVED" && metrics[tx.accountId]) {
-                metrics[tx.accountId].txCount++;
-                if (tx.type === "IN") metrics[tx.accountId].moneyIn += tx.amount;
-                else metrics[tx.accountId].moneyOut += tx.amount;
+            if (tx.status === "APPROVED" && tx.accountId && metrics[tx.accountId]) {
+                const metric = metrics[tx.accountId];
+                metric.txCount++;
+                if (tx.type === "IN") metric.moneyIn += tx.amount;
+                else metric.moneyOut += tx.amount;
             }
         });
         return metrics;
