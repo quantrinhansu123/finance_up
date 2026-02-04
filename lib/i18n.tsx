@@ -326,6 +326,9 @@ export const translations = {
         // Income/Expense pages
         "create_income_transaction": "Tạo khoản thu",
         "manage_income": "Quản lý khoản thu",
+        "payment_type": "Loại thanh toán",
+        "full_payment": "Thanh toán toàn bộ (100%)",
+        "partial_payment": "Thanh toán 1 phần",
         "create_expense_transaction": "Tạo khoản chi",
         "manage_expense": "Quản lý khoản chi",
         "select_project": "Chọn dự án",
@@ -834,6 +837,9 @@ export const translations = {
         // Income/Expense pages
         "create_income_transaction": "Create Income",
         "manage_income": "Manage Income",
+        "payment_type": "Payment Type",
+        "full_payment": "Full Payment (100%)",
+        "partial_payment": "Partial Payment",
         "create_expense_transaction": "Create Expense",
         "manage_expense": "Manage Expense",
         "select_project": "Select Project",

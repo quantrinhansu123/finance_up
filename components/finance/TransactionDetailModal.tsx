@@ -193,6 +193,15 @@ export default function TransactionDetailModal({
                                 <div className="text-white font-medium">{transaction.fundId}</div>
                             </div>
                         )}
+
+                        {transaction.paymentType && (
+                            <div>
+                                <div className="text-sm text-[var(--muted)] mb-1">{t("payment_type")}</div>
+                                <div className={`text-sm font-bold px-2 py-0.5 rounded inline-block ${transaction.paymentType === "FULL" ? "bg-green-500/20 text-green-400" : "bg-orange-500/20 text-orange-400"}`}>
+                                    {transaction.paymentType === "FULL" ? t("full_payment") : t("partial_payment")}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
 

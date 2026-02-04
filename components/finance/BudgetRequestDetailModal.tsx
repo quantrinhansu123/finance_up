@@ -423,7 +423,7 @@ export default function BudgetRequestDetailModal({ transaction, onClose, onUpdat
                             onClick={() => setPendingAction("PAY")}
                             className="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-bold flex items-center gap-2"
                         >
-                            <Upload size={18} /> Xác Nhận & Up Bill
+                            <ArrowRightCircle size={18} /> Thanh toán (Tạo phiếu chi)
                         </button>
                     )}
 
@@ -485,11 +485,11 @@ export default function BudgetRequestDetailModal({ transaction, onClose, onUpdat
                     <div className="absolute inset-0 bg-black/90 z-10 flex items-center justify-center p-6">
                         <div className="w-full max-w-md bg-[#1e1e2e] rounded-xl p-6 border border-white/10">
                             <h3 className="text-xl font-bold text-white mb-2">
-                                {pendingAction === "PAY" ? "Upload Bill Chuyển Khoản" : "Upload Bằng Chứng Nhận Tiền"}
+                                {pendingAction === "PAY" ? "Tạo Phiếu Chi & Thanh Toán" : "Upload Bằng Chứng Nhận Tiền"}
                             </h3>
                             <p className="text-sm text-[var(--muted)] mb-4">
                                 {pendingAction === "PAY"
-                                    ? "Vui lòng chọn tài khoản nguồn và chụp ảnh màn hình giao dịch chuyển khoản thành công."
+                                    ? "Chọn tài khoản nguồn của dự án và tải lên bill chuyển khoản để hoàn tất giao dịch."
                                     : "Vui lòng tải lên 2 ảnh chứng minh (Ví dụ: Số dư tài khoản Ads)."}
                             </p>
 
@@ -503,7 +503,12 @@ export default function BudgetRequestDetailModal({ transaction, onClose, onUpdat
                                     >
                                         <option value="">-- Chọn tài khoản --</option>
                                         {allAccounts
-                                            .filter(a => !transaction.projectId || a.projectId === transaction.projectId || !a.projectId)
+                                            .filter(a => {
+                                                if (transaction.projectId) {
+                                                    return a.projectId === transaction.projectId;
+                                                }
+                                                return !a.projectId;
+                                            })
                                             .map(a => (
                                                 <option key={a.id} value={a.id}>
                                                     {a.name} ({a.balance.toLocaleString()} {a.currency})

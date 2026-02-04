@@ -49,6 +49,7 @@ export default function IncomePage() {
     const [source, setSource] = useState("");
     const [parentCategoryId, setParentCategoryId] = useState("");
     const [description, setDescription] = useState("");
+    const [paymentType, setPaymentType] = useState<"FULL" | "PARTIAL">("FULL");
     const [files, setFiles] = useState<File[]>([]);
 
     // Categories
@@ -171,6 +172,7 @@ export default function IncomePage() {
     const resetForm = () => {
         setProjectId(""); setAccountId(""); setAmount(""); setDescription(""); setFiles([]);
         setSource(""); setParentCategoryId(""); setWizardStep(1);
+        setPaymentType("FULL");
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -193,6 +195,7 @@ export default function IncomePage() {
                 source, accountId, projectId: projectId || undefined, description, date: new Date().toISOString(),
                 status: "APPROVED", createdBy: currentUser?.name || currentUser?.displayName || "Unknown",
                 userId: currentUser?.id || currentUser?.uid || "unknown", images: imageUrls,
+                paymentType,
                 createdAt: Date.now(), updatedAt: Date.now(),
             });
             await updateAccountBalance(accountId, selectedAccount!.balance + numAmount);
@@ -351,6 +354,32 @@ export default function IncomePage() {
                                     </div>
 
                                     <div className="space-y-4">
+                                        <label className="block text-sm font-bold text-[var(--muted)] uppercase tracking-wider">{t("payment_type")}</label>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <button
+                                                type="button"
+                                                onClick={() => setPaymentType("FULL")}
+                                                className={`p-3 rounded-xl border font-bold transition-all flex items-center justify-center gap-2 ${paymentType === "FULL" ? "bg-green-500/20 border-green-500/50 text-green-400" : "bg-white/5 border-white/10 text-[var(--muted)] hover:text-white"}`}
+                                            >
+                                                <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${paymentType === "FULL" ? "border-green-400" : "border-white/20"}`}>
+                                                    {paymentType === "FULL" && <div className="w-2 h-2 rounded-full bg-green-400" />}
+                                                </div>
+                                                {t("full_payment")}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setPaymentType("PARTIAL")}
+                                                className={`p-3 rounded-xl border font-bold transition-all flex items-center justify-center gap-2 ${paymentType === "PARTIAL" ? "bg-orange-500/20 border-orange-500/50 text-orange-400" : "bg-white/5 border-white/10 text-[var(--muted)] hover:text-white"}`}
+                                            >
+                                                <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${paymentType === "PARTIAL" ? "border-orange-400" : "border-white/20"}`}>
+                                                    {paymentType === "PARTIAL" && <div className="w-2 h-2 rounded-full bg-orange-400" />}
+                                                </div>
+                                                {t("partial_payment")}
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-4">
                                         <label className="block text-sm font-bold text-[var(--muted)] uppercase tracking-wider">{t("attached_images")}</label>
                                         <div className="flex flex-wrap gap-4">
                                             {files.map((file, i) => (
@@ -377,6 +406,7 @@ export default function IncomePage() {
                                         <WizardSummaryItem label={t("account")} value={getAccountName(accountId)} icon="💳" />
                                         <WizardSummaryItem label={t("category")} value={masterCategories.find(c => c.id === parentCategoryId)?.name || t("unselected")} icon="🗂️" />
                                         <WizardSummaryItem label={t("source")} value={source || t("unselected")} icon="🏷️" />
+                                        <WizardSummaryItem label={t("payment_type")} value={paymentType === "FULL" ? t("full_payment") : t("partial_payment")} icon="💰" />
                                         <div className="pt-4 border-t border-white/10">
                                             <p className="text-xs text-[var(--muted)] uppercase font-bold mb-1">{t("amount")}</p>
                                             <p className="text-3xl font-black text-green-400">{new Intl.NumberFormat().format(parseFloat(amount) || 0)} <span className="text-sm font-medium opacity-60">{selectedAccount?.currency}</span></p>
@@ -442,7 +472,14 @@ export default function IncomePage() {
                             render: (tx: Transaction) => (
                                 <div className="space-y-0.5">
                                     <p className="font-bold text-white">{tx.source || tx.category}</p>
-                                    <p className="text-[10px] text-[var(--muted)] uppercase tracking-tight">{tx.parentCategory || "N/A"}</p>
+                                    <div className="flex items-center gap-2">
+                                        <p className="text-[10px] text-[var(--muted)] uppercase tracking-tight">{tx.parentCategory || "N/A"}</p>
+                                        {tx.paymentType && (
+                                            <span className={`text-[8px] font-bold px-1 rounded uppercase ${tx.paymentType === "FULL" ? "bg-green-500/20 text-green-400" : "bg-orange-500/20 text-orange-400"}`}>
+                                                {tx.paymentType === "FULL" ? "FULL" : "PART"}
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
                             )
                         },
@@ -460,7 +497,7 @@ export default function IncomePage() {
                             render: (tx: Transaction) => (
                                 <div className="flex items-center gap-2">
                                     <span className="text-base">{CURRENCY_FLAGS[tx.currency] || "💰"}</span>
-                                    <TextCell primary={getAccountName(tx.accountId)} />
+                                    <TextCell primary={getAccountName(tx.accountId || "")} />
                                 </div>
                             )
                         },
@@ -495,7 +532,7 @@ export default function IncomePage() {
                     onClose={() => setIsDetailModalOpen(false)}
                     transaction={selectedTransaction}
                     projectName={getProjectName(selectedTransaction.projectId || "")}
-                    accountName={getAccountName(selectedTransaction.accountId)}
+                    accountName={getAccountName(selectedTransaction.accountId || "")}
                 />
             )}
         </div>

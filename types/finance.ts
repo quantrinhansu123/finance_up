@@ -96,6 +96,9 @@ export interface Transaction {
     createdBy: string;
     userId: string; // Restored for RLS filtering
 
+    // Payment Metadata
+    paymentType?: "FULL" | "PARTIAL"; // Added: Full or Partial payment
+
     createdAt: number;
     updatedAt: number;
 }
