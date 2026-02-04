@@ -119,6 +119,7 @@ export function checkProjectAccess(
             manage_members: "quản lý thành viên",
             view_reports: "xem báo cáo",
             request_budget: "xin ngân sách",
+            confirm_budget_request: "xác nhận ngân sách",
             pay_transactions: "thanh toán giao dịch"
         };
         return {
