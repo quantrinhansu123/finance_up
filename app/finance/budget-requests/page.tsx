@@ -295,7 +295,7 @@ export default function BudgetRequestsPage() {
                         {
                             key: "amount",
                             header: "Số tiền",
-                            render: (tx) => <span className="font-bold text-white">{tx.amount.toLocaleString()} {tx.currency}</span>
+                            render: (tx) => <span className="font-bold text-white">{tx.amount.toLocaleString("vi-VN")} {tx.currency}</span>
                         },
                         {
                             key: "status",

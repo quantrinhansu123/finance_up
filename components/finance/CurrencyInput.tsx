@@ -50,7 +50,7 @@ export default function CurrencyInput({
         if (isNaN(numValue)) return;
 
         // Update display with formatting
-        setDisplayValue(numValue.toLocaleString("en-US"));
+        setDisplayValue(numValue.toLocaleString("vi-VN"));
 
         // Update parent with numeric string
         onChange(numValue.toString());
@@ -69,11 +69,11 @@ export default function CurrencyInput({
                 inputMode="numeric"
             />
             <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-sm font-bold ${currency === 'VND' ? 'text-rose-400' :
-                    currency === 'USD' ? 'text-blue-400' :
-                        currency === 'KHR' ? 'text-emerald-400' :
-                            currency === 'TRY' ? 'text-orange-400' :
-                                currency === 'MMK' ? 'text-yellow-400' : // Myanmar colors
-                                    'text-green-400'
+                currency === 'USD' ? 'text-blue-400' :
+                    currency === 'KHR' ? 'text-emerald-400' :
+                        currency === 'TRY' ? 'text-orange-400' :
+                            currency === 'MMK' ? 'text-yellow-400' : // Myanmar colors
+                                'text-green-400'
                 }`}>
                 {currency}
             </span>

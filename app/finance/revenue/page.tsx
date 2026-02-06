@@ -100,7 +100,7 @@ export default function RevenuePage() {
                                     {rev.month}/{rev.year}
                                 </td>
                                 <td className="p-4 text-right font-bold text-green-400 text-lg">
-                                    {rev.amount.toLocaleString()} <span className="text-sm text-[var(--muted)]">{rev.currency}</span>
+                                    {rev.amount.toLocaleString("vi-VN")} <span className="text-sm text-[var(--muted)]">{rev.currency}</span>
                                 </td>
                                 <td className="p-4 text-[var(--muted)]">{rev.note || "-"}</td>
                                 <td className="p-4 text-right text-[var(--muted)] text-xs">
@@ -177,3 +177,4 @@ export default function RevenuePage() {
         </div>
     );
 }
+

@@ -109,7 +109,7 @@ export default function AccountSummaryCard({
             {/* Balance */}
             <div className="mb-3">
                 <div className="text-2xl font-bold text-white">
-                    {account.balance.toLocaleString()}
+                    {account.balance.toLocaleString("vi-VN")}
                     <span className="text-sm text-[var(--muted)] ml-1">{account.currency}</span>
                 </div>
                 <div className="text-xs text-[var(--muted)]">
@@ -128,7 +128,7 @@ export default function AccountSummaryCard({
                 <div className="flex justify-between mt-1">
                     <span className="text-[10px] text-[var(--muted)]">0</span>
                     <span className="text-[10px] text-[var(--muted)]">
-                        {maxBalance.toLocaleString()} {account.currency}
+                        {maxBalance.toLocaleString("vi-VN")} {account.currency}
                     </span>
                 </div>
             </div>
@@ -155,11 +155,11 @@ export default function AccountSummaryCard({
             {/* Mini Stats */}
             <div className="grid grid-cols-2 gap-2 mt-3">
                 <div className="bg-green-500/10 rounded-lg p-2 text-center">
-                    <div className="text-xs text-green-400">+{periodIn.toLocaleString()}</div>
+                    <div className="text-xs text-green-400">+{periodIn.toLocaleString("vi-VN")}</div>
                     <div className="text-[10px] text-[var(--muted)]">Vào</div>
                 </div>
                 <div className="bg-red-500/10 rounded-lg p-2 text-center">
-                    <div className="text-xs text-red-400">-{periodOut.toLocaleString()}</div>
+                    <div className="text-xs text-red-400">-{periodOut.toLocaleString("vi-VN")}</div>
                     <div className="text-[10px] text-[var(--muted)]">Ra</div>
                 </div>
             </div>
@@ -175,3 +175,4 @@ export default function AccountSummaryCard({
         </div>
     );
 }
+

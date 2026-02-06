@@ -335,7 +335,7 @@ export default function CreateTransactionModal({ isOpen, onClose, onSuccess, cur
                                 {selectedProject.description || "Không có mô tả"}
                                 {selectedProject.budget && (
                                     <span className="ml-2 text-blue-400">
-                                        • Ngân sách: {selectedProject.budget.toLocaleString()} {selectedProject.currency || "USD"}
+                                        • Ngân sách: {selectedProject.budget.toLocaleString("vi-VN")} {selectedProject.currency || "USD"}
                                     </span>
                                 )}
                             </div>
@@ -361,7 +361,7 @@ export default function CreateTransactionModal({ isOpen, onClose, onSuccess, cur
                                 <option value="">-- Chọn tài khoản --</option>
                                 {accessibleAccounts.map(acc => (
                                     <option key={acc.id} value={acc.id}>
-                                        {getCurrencyFlag(acc.currency)} {acc.name} • {acc.balance.toLocaleString()} {acc.currency}
+                                        {getCurrencyFlag(acc.currency)} {acc.name} • {acc.balance.toLocaleString("vi-VN")} {acc.currency}
                                         {acc.projectId ? " [Riêng]" : " [Chung]"}
                                     </option>
                                 ))}
@@ -377,7 +377,7 @@ export default function CreateTransactionModal({ isOpen, onClose, onSuccess, cur
                                     <div className="flex items-center justify-between mb-2">
                                         <span className="text-sm font-medium text-white">{selectedAccount.name}</span>
                                         <span className="text-lg font-bold" style={{ color: selectedAccount.balance >= 0 ? '#4ade80' : '#f87171' }}>
-                                            {selectedAccount.balance.toLocaleString()} {selectedAccount.currency}
+                                            {selectedAccount.balance.toLocaleString("vi-VN")} {selectedAccount.currency}
                                         </span>
                                     </div>
                                     <div className="flex flex-wrap gap-2 text-xs">
@@ -529,7 +529,7 @@ export default function CreateTransactionModal({ isOpen, onClose, onSuccess, cur
                                 <div className="flex justify-between">
                                     <span className="text-[var(--muted)]">Số tiền:</span>
                                     <span className={`font-bold ${type === "IN" ? "text-green-400" : "text-red-400"}`}>
-                                        {type === "IN" ? "+" : "-"}{parseFloat(amount).toLocaleString()} {currency}
+                                        {type === "IN" ? "+" : "-"}{parseFloat(amount).toLocaleString("vi-VN")} {currency}
                                     </span>
                                 </div>
                                 <div className="flex justify-between">
@@ -579,3 +579,4 @@ export default function CreateTransactionModal({ isOpen, onClose, onSuccess, cur
         </div>
     );
 }
+

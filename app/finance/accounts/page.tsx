@@ -152,7 +152,7 @@ export default function AccountsPage() {
             <div className="glass-card p-4 rounded-xl flex justify-between items-center bg-gradient-to-r from-emerald-900/30 to-transparent border border-emerald-500/20">
                 <div>
                     <p className="text-[var(--muted)] text-xs uppercase font-semibold">{t("total_liquidity")}</p>
-                    <h2 className="text-2xl font-bold text-emerald-400 mt-1">${totalBalanceUSD.toLocaleString()}</h2>
+                    <h2 className="text-2xl font-bold text-emerald-400 mt-1">${totalBalanceUSD.toLocaleString("vi-VN")}</h2>
                 </div>
                 <div className="text-right">
                     <p className="text-xs text-[var(--muted)]">{t("account_count").replace("{count}", accounts.length.toString())}</p>
@@ -236,7 +236,7 @@ export default function AccountsPage() {
                         header: t("initial_balance"),
                         align: "right",
                         render: (acc) => (
-                            <span className="text-white/70">{(acc.openingBalance || 0).toLocaleString()}</span>
+                            <span className="text-white/70">{(acc.openingBalance || 0).toLocaleString("vi-VN")}</span>
                         )
                     },
                     {
@@ -245,7 +245,7 @@ export default function AccountsPage() {
                         align: "right",
                         render: (acc) => {
                             const metrics = accountMetrics[acc.id] || { moneyIn: 0, moneyOut: 0, txCount: 0 };
-                            return <span className="text-green-400 font-medium">+{metrics.moneyIn.toLocaleString()}</span>;
+                            return <span className="text-green-400 font-medium">+{metrics.moneyIn.toLocaleString("vi-VN")}</span>;
                         }
                     },
                     {
@@ -254,14 +254,14 @@ export default function AccountsPage() {
                         align: "right",
                         render: (acc) => {
                             const metrics = accountMetrics[acc.id] || { moneyIn: 0, moneyOut: 0, txCount: 0 };
-                            return <span className="text-red-400 font-medium">-{metrics.moneyOut.toLocaleString()}</span>;
+                            return <span className="text-red-400 font-medium">-{metrics.moneyOut.toLocaleString("vi-VN")}</span>;
                         }
                     },
                     {
                         key: "balance",
                         header: t("balance"),
                         align: "right",
-                        render: (acc) => <span className="font-bold text-white">{acc.balance.toLocaleString()}</span>
+                        render: (acc) => <span className="font-bold text-white">{acc.balance.toLocaleString("vi-VN")}</span>
                     },
                     {
                         key: "project",
@@ -330,3 +330,4 @@ export default function AccountsPage() {
         </div>
     );
 }
+

@@ -108,11 +108,11 @@ export default function UserDetailsPage() {
 
     const handleDelete = async () => {
         if (!user) return;
-        
+
         const confirmMsg = `Bạn có chắc muốn XÓA VĨNH VIỄN người dùng "${user.displayName || user.email}"?\n\nLưu ý:\n- Hành động này không thể hoàn tác\n- Các giao dịch của người dùng sẽ vẫn được giữ lại`;
-        
+
         if (!confirm(confirmMsg)) return;
-        
+
         // Double confirm
         const doubleConfirm = prompt(`Nhập "XOA" để xác nhận xóa người dùng:`);
         if (doubleConfirm !== "XOA") {
@@ -131,9 +131,8 @@ export default function UserDetailsPage() {
     };
 
     const formatCurrency = (amount: number, currency: string) => {
-        return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(amount);
+        return new Intl.NumberFormat("vi-VN").format(amount) + " " + currency;
     };
-
     if (loading) return <div className="p-8 text-[var(--muted)]">Đang tải...</div>;
     if (!user) return <div className="p-8 text-red-400">Không tìm thấy người dùng</div>;
 
@@ -391,11 +390,10 @@ export default function UserDetailsPage() {
                                         {formatCurrency(tx.amount, tx.currency)}
                                     </td>
                                     <td className="p-3">
-                                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                                            tx.status === "APPROVED" ? "bg-green-500/20 text-green-400" :
+                                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${tx.status === "APPROVED" ? "bg-green-500/20 text-green-400" :
                                             tx.status === "REJECTED" ? "bg-red-500/20 text-red-400" :
-                                            "bg-yellow-500/20 text-yellow-400"
-                                        }`}>
+                                                "bg-yellow-500/20 text-yellow-400"
+                                            }`}>
                                             {tx.status}
                                         </span>
                                     </td>

@@ -177,11 +177,11 @@ export default function TransactionsPage() {
                 </div>
                 <div className="glass-card p-4 rounded-xl">
                     <p className="text-xs text-[var(--muted)] uppercase">{t("quick_stats_total_in")}</p>
-                    <p className="text-2xl font-bold text-green-400">+{totalIn.toLocaleString()}</p>
+                    <p className="text-2xl font-bold text-green-400">+{totalIn.toLocaleString("vi-VN")}</p>
                 </div>
                 <div className="glass-card p-4 rounded-xl">
                     <p className="text-xs text-[var(--muted)] uppercase">{t("quick_stats_total_out")}</p>
-                    <p className="text-2xl font-bold text-red-400">-{totalOut.toLocaleString()}</p>
+                    <p className="text-2xl font-bold text-red-400">-{totalOut.toLocaleString("vi-VN")}</p>
                 </div>
                 <div className="glass-card p-4 rounded-xl">
                     <p className="text-xs text-[var(--muted)] uppercase">{t("quick_stats_pending")}</p>
@@ -345,3 +345,4 @@ export default function TransactionsPage() {
         </div>
     );
 }
+

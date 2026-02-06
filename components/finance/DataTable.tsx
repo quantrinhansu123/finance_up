@@ -304,7 +304,7 @@ export default function DataTable<T extends { id?: string }>({
 export function AmountCell({ amount, type, currency }: { amount: number; type: "IN" | "OUT"; currency: string }) {
     return (
         <span className={`font-semibold ${type === "IN" ? "text-green-400" : "text-red-400"}`}>
-            {type === "IN" ? "+" : "-"}{amount.toLocaleString()} {currency}
+            {type === "IN" ? "+" : "-"}{amount.toLocaleString("vi-VN")} {currency}
         </span>
     );
 }
@@ -376,3 +376,4 @@ export function ActionCell({ children }: { children: ReactNode }) {
         </div>
     );
 }
+

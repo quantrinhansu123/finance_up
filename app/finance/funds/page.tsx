@@ -161,7 +161,7 @@ export default function FundsPage() {
                         align: "right",
                         render: (fund) => (
                             <span className="text-[var(--muted)]">
-                                {fund.targetBudget ? `$${fund.targetBudget.toLocaleString()}` : "∞"}
+                                {fund.targetBudget ? `$${fund.targetBudget.toLocaleString("vi-VN")}` : "∞"}
                             </span>
                         )
                     },
@@ -171,7 +171,7 @@ export default function FundsPage() {
                         align: "right",
                         render: (fund) => (
                             <span className="font-medium text-white">
-                                ${fund.spent.toLocaleString()}
+                                ${fund.spent.toLocaleString("vi-VN")}
                             </span>
                         )
                     },
@@ -283,7 +283,7 @@ export default function FundsPage() {
                                                     <div className="text-xs text-[var(--muted)] truncate max-w-[200px]">{tx.description || "-"}</div>
                                                 </td>
                                                 <td className="p-3 text-right font-bold text-white">
-                                                    {tx.amount.toLocaleString()} <span className="text-xs font-normal text-[var(--muted)]">{tx.currency}</span>
+                                                    {tx.amount.toLocaleString("vi-VN")} <span className="text-xs font-normal text-[var(--muted)]">{tx.currency}</span>
                                                 </td>
                                             </tr>
                                         ))}
@@ -297,7 +297,7 @@ export default function FundsPage() {
                         <div className="mt-4 pt-4 border-t border-white/10 flex justify-between items-center">
                             <span className="text-[var(--muted)]">{t("total_spent_month")}</span>
                             <span className="text-xl font-bold text-red-400">
-                                {getFundStats(detailFund).spent.toLocaleString()}
+                                {getFundStats(detailFund).spent.toLocaleString("vi-VN")}
                             </span>
                         </div>
                     </div>
@@ -314,3 +314,4 @@ export default function FundsPage() {
         </div>
     );
 }
+

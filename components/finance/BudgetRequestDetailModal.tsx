@@ -9,6 +9,7 @@ import { doc, updateDoc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { getUserRole, hasProjectPermission } from "@/lib/permissions";
 import { uploadImage } from "../../lib/upload";
+import CurrencyInput from "./CurrencyInput";
 
 interface Props {
     transaction: Transaction;
@@ -220,7 +221,7 @@ export default function BudgetRequestDetailModal({ transaction, onClose, onUpdat
                 <div className="p-6 border-b border-white/10 flex justify-between items-center">
                     <div>
                         <h2 className="text-xl font-bold text-white">Chi Tiết Yêu Cầu #{transaction.id.slice(0, 8)}</h2>
-                        <span className="text-sm text-[var(--muted)]">{new Date(transaction.date).toLocaleString()}</span>
+                        <span className="text-sm text-[var(--muted)]">{new Date(transaction.date).toLocaleString("vi-VN")}</span>
                     </div>
                     <button onClick={onClose} className="text-white/50 hover:text-white">
                         <X size={24} />
@@ -236,20 +237,19 @@ export default function BudgetRequestDetailModal({ transaction, onClose, onUpdat
                             <div className="p-4 bg-white/5 rounded-xl border border-white/10 relative group">
                                 <span className="text-sm text-[var(--muted)]">Số tiền yêu cầu</span>
                                 {isEditing && transaction.status === "PENDING" && isConfirmingPerson ? (
-                                    <div className="flex items-center gap-2 mt-1">
-                                        <input
-                                            type="number"
+                                    <div className="flex items-center gap-2 mt-1 w-full">
+                                        <CurrencyInput
                                             value={editedAmount}
-                                            onChange={(e) => setEditedAmount(Number(e.target.value))}
-                                            className="glass-input text-2xl font-bold text-blue-400 w-full"
-                                            autoFocus
+                                            onChange={(val) => setEditedAmount(Number(val))}
+                                            currency={transaction.currency}
+                                            className="text-2xl font-bold text-blue-400"
                                         />
                                         <button onClick={() => setIsEditing(false)} className="p-2 bg-green-600 rounded-lg text-white">Save</button>
                                     </div>
                                 ) : (
                                     <div className="flex items-center justify-between">
                                         <div className="text-3xl font-bold text-blue-400">
-                                            {editedAmount.toLocaleString()} {transaction.currency}
+                                            {editedAmount.toLocaleString("vi-VN")} {transaction.currency}
                                         </div>
                                         {transaction.status === "PENDING" && isConfirmingPerson && (
                                             <button
@@ -511,7 +511,7 @@ export default function BudgetRequestDetailModal({ transaction, onClose, onUpdat
                                             })
                                             .map(a => (
                                                 <option key={a.id} value={a.id}>
-                                                    {a.name} ({a.balance.toLocaleString()} {a.currency})
+                                                    {a.name} ({a.balance.toLocaleString("vi-VN")} {a.currency})
                                                 </option>
                                             ))}
                                     </select>
@@ -557,3 +557,4 @@ export default function BudgetRequestDetailModal({ transaction, onClose, onUpdat
         </div>
     );
 }
+

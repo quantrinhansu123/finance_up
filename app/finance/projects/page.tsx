@@ -288,7 +288,7 @@ export default function ProjectsPage() {
                         align: "right",
                         render: (p) => (
                             <span className="font-medium text-green-400">
-                                ${p.totalRevenue.toLocaleString()}
+                                ${p.totalRevenue.toLocaleString("vi-VN")}
                             </span>
                         )
                     },
@@ -298,7 +298,7 @@ export default function ProjectsPage() {
                         align: "right",
                         render: (p) => (
                             <span className="font-medium text-red-400">
-                                ${p.totalExpense.toLocaleString()}
+                                ${p.totalExpense.toLocaleString("vi-VN")}
                             </span>
                         )
                     },
@@ -323,7 +323,7 @@ export default function ProjectsPage() {
                         align: "right",
                         render: (p) => (
                             <span className="font-bold text-white">
-                                ${(p.totalRevenue - p.totalExpense).toLocaleString()}
+                                ${(p.totalRevenue - p.totalExpense).toLocaleString("vi-VN")}
                             </span>
                         )
                     },
@@ -428,3 +428,4 @@ export default function ProjectsPage() {
         </div >
     );
 }
+

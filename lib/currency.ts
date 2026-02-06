@@ -89,9 +89,11 @@ export function convertCurrency(amount: number, from: string, to: string, rates:
  */
 export function formatCurrencyVN(value: number | string): string {
     if (value === "" || value === undefined || value === null) return "";
-    const num = typeof value === "string" ? parseFloat(value.replace(/,/g, "")) : value;
+    // Handle both dot and comma separators during parsing for robustness
+    const num = typeof value === "string" ? parseFloat(value.replace(/\./g, "").replace(/,/g, "")) : value;
     if (isNaN(num)) return "";
-    return num.toLocaleString("en-US"); // Using US style (1,000,000) as it's common in VN software
+    // vi-VN uses . for thousands and , for decimals
+    return num.toLocaleString("vi-VN");
 }
 
 /**
@@ -100,7 +102,8 @@ export function formatCurrencyVN(value: number | string): string {
  */
 export function parseCurrencyVN(value: string): number {
     if (!value) return 0;
-    const cleanValue = value.replace(/,/g, "");
+    // Remove dots (thousands separator in vi-VN)
+    const cleanValue = value.replace(/\./g, "");
     const num = parseFloat(cleanValue);
     return isNaN(num) ? 0 : num;
 }

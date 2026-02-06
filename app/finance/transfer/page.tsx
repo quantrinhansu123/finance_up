@@ -276,7 +276,7 @@ export default function TransferPage() {
                                 options={accounts.map(a => ({
                                     id: a.id,
                                     label: a.name,
-                                    subLabel: `${a.balance.toLocaleString()} ${a.currency}`,
+                                    subLabel: `${a.balance.toLocaleString("vi-VN")} ${a.currency}`,
                                     icon: CURRENCY_FLAGS[a.currency]
                                 }))}
                                 value={fromAccount}
@@ -296,7 +296,7 @@ export default function TransferPage() {
                                     .map(a => ({
                                         id: a.id,
                                         label: a.name,
-                                        subLabel: `${a.balance.toLocaleString()} ${a.currency}`,
+                                        subLabel: `${a.balance.toLocaleString("vi-VN")} ${a.currency}`,
                                         icon: CURRENCY_FLAGS[a.currency]
                                     }))}
                                 value={toAccount}
@@ -318,7 +318,7 @@ export default function TransferPage() {
                         {fromAcc && parseFloat(amount) > 0 && (
                             <p className="text-xs text-[var(--muted)] mt-1">
                                 {t("balance_after_transfer")}: <span className={fromAcc.balance - parseFloat(amount) >= 0 ? "text-green-400" : "text-red-400"}>
-                                    {(fromAcc.balance - parseFloat(amount)).toLocaleString()} {fromAcc.currency}
+                                    {(fromAcc.balance - parseFloat(amount)).toLocaleString("vi-VN")} {fromAcc.currency}
                                 </span>
                             </p>
                         )}
@@ -387,7 +387,7 @@ export default function TransferPage() {
                                     <div className="flex justify-between items-center">
                                         <span className="text-sm text-green-400">{t("amount_received")}:</span>
                                         <span className="text-lg font-bold text-green-400">
-                                            {CURRENCY_FLAGS[toAcc?.currency || "USD"]} {finalReceivedAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })} {toAcc?.currency}
+                                            {CURRENCY_FLAGS[toAcc?.currency || "USD"]} {finalReceivedAmount.toLocaleString("vi-VN", { maximumFractionDigits: 2 })} {toAcc?.currency}
                                         </span>
                                     </div>
                                 </div>
@@ -462,3 +462,4 @@ export default function TransferPage() {
         </div>
     );
 }
+

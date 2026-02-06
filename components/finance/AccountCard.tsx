@@ -28,7 +28,12 @@ export default function AccountCard({ account }: AccountCardProps) {
                     <div>
                         <p className="text-white/70 text-sm font-medium tracking-wider mb-1">Current Balance</p>
                         <h3 className="text-3xl font-bold tracking-tight">
-                            {new Intl.NumberFormat('en-US', { style: 'currency', currency: account.currency }).format(account.balance)}
+                            {new Intl.NumberFormat('vi-VN', {
+                                style: 'currency',
+                                currency: account.currency,
+                                minimumFractionDigits: 0,
+                                maximumFractionDigits: 0
+                            }).format(account.balance)}
                         </h3>
                     </div>
                     {/* Chip Icon */}

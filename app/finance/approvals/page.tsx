@@ -146,7 +146,7 @@ export default function ApprovalsPage() {
 
             // 3. Log Activity
             const proj = allProjects.find(p => p.id === tx.projectId);
-            const logMsg = `Đã duyệt: ${tx.category} - ${tx.amount.toLocaleString()} ${tx.currency} | Dự án: ${proj?.name || "N/A"}`;
+            const logMsg = `Đã duyệt: ${tx.category} - ${tx.amount.toLocaleString("vi-VN")} ${tx.currency} | Dự án: ${proj?.name || "N/A"}`;
 
             await logActivity(
                 { uid: currentUser.id || currentUser.uid || "admin", displayName: currentUser.name || currentUser.displayName || "Admin" },
@@ -201,7 +201,7 @@ export default function ApprovalsPage() {
 
             // 3. Log Activity
             const proj = allProjects.find(p => p.id === rejectingTx.projectId);
-            const logMsg = `Từ chối: ${rejectingTx.category} - ${rejectingTx.amount.toLocaleString()} ${rejectingTx.currency} | Dự án: ${proj?.name || "N/A"} | Lý do: ${rejectionReason.trim()}`;
+            const logMsg = `Từ chối: ${rejectingTx.category} - ${rejectingTx.amount.toLocaleString("vi-VN")} ${rejectingTx.currency} | Dự án: ${proj?.name || "N/A"} | Lý do: ${rejectionReason.trim()}`;
 
             await logActivity(
                 { uid: currentUser.id || currentUser.uid || "admin", displayName: currentUser.name || currentUser.displayName || "Admin" },
@@ -306,7 +306,7 @@ export default function ApprovalsPage() {
                                         <span className="text-sm text-[var(--muted)]">{t("approved_by").replace("{name}", tx.createdBy)}</span>
                                     </div>
                                     <h3 className="text-xl font-bold text-white mb-1">
-                                        {tx.amount.toLocaleString()} {tx.currency}
+                                        {tx.amount.toLocaleString("vi-VN")} {tx.currency}
                                     </h3>
                                     <div className="space-y-1">
                                         <p className="text-white font-medium">{tx.category}</p>
@@ -438,7 +438,7 @@ export default function ApprovalsPage() {
                         <div className="mb-4 p-4 bg-white/5 rounded-lg">
                             <p className="text-sm text-[var(--muted)]">{t("transaction")}:</p>
                             <p className="text-lg font-bold text-white">
-                                {rejectingTx.amount.toLocaleString()} {rejectingTx.currency}
+                                {rejectingTx.amount.toLocaleString("vi-VN")} {rejectingTx.currency}
                             </p>
                             <p className="text-sm text-[var(--muted)]">{rejectingTx.category} • {rejectingTx.createdBy}</p>
                         </div>
@@ -477,3 +477,4 @@ export default function ApprovalsPage() {
         </div>
     );
 }
+

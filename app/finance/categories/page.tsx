@@ -9,10 +9,7 @@ import { db } from "@/lib/firebase";
 import { getTransactions, getProjects } from "@/lib/finance";
 
 const formatCurrency = (val: number, currency?: string) => {
-    if (currency && currency !== "USD") {
-        return new Intl.NumberFormat('vi-VN').format(val) + " " + currency;
-    }
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(val);
+    return new Intl.NumberFormat('vi-VN').format(val) + " " + (currency || "VND");
 };
 
 import {
@@ -428,8 +425,8 @@ export default function MasterCategoriesPage() {
                                         <div
                                             key={sub.id}
                                             className={`p-3 rounded-lg border transition-all ${sub.isActive
-                                                    ? "bg-white/5 border-white/10"
-                                                    : "bg-white/0 border-dashed border-white/5 opacity-50"
+                                                ? "bg-white/5 border-white/10"
+                                                : "bg-white/0 border-dashed border-white/5 opacity-50"
                                                 }`}
                                         >
                                             <div className="flex items-start justify-between gap-2">
@@ -642,8 +639,8 @@ export default function MasterCategoriesPage() {
                                         onClick={handleSaveSubCategory}
                                         disabled={saving || !subName.trim()}
                                         className={`flex-1 px-4 py-2.5 rounded-lg font-bold text-white text-sm transition-all shadow-lg ${selectedCategory.type === 'INCOME'
-                                                ? 'bg-green-600 hover:bg-green-500 shadow-green-600/20'
-                                                : 'bg-red-600 hover:bg-red-500 shadow-red-600/20'
+                                            ? 'bg-green-600 hover:bg-green-500 shadow-green-600/20'
+                                            : 'bg-red-600 hover:bg-red-500 shadow-red-600/20'
                                             } disabled:opacity-50`}
                                     >
                                         {saving ? "..." : (editingSubCategory ? "Cập nhật" : "Lưu")}

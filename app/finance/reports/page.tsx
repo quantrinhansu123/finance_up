@@ -258,7 +258,7 @@ export default function ReportsPage() {
                 <body>
                     <h1>Báo cáo Tài chính ${filterCurrency !== "ALL" ? `- Tiền ${filterCurrency}` : ""}</h1>
                     <div class="meta">
-                        Xuất lúc: ${new Date().toLocaleString()}<br/>
+                        Xuất lúc: ${new Date().toLocaleString("vi-VN")}<br/>
                         ${filterCurrency !== "ALL" ? `<strong>Loại tiền:</strong> ${filterCurrency}<br/>` : ""}
                         ${filterAccount ? `Tài khoản: ${accounts.find(a => a.id === filterAccount)?.name}<br/>` : ""}
                         ${filterProject ? `Dự án: ${projects.find(p => p.id === filterProject)?.name}<br/>` : ""}
@@ -269,8 +269,8 @@ export default function ReportsPage() {
                     
                     <div class="summary">
                         <strong>Tổng giao dịch:</strong> ${filteredTxs.length}<br/>
-                        <strong>Tổng thu:</strong> ${filteredTxs.filter(t => t.type === "IN").reduce((sum, t) => sum + t.amount, 0).toLocaleString()} ${filterCurrency !== "ALL" ? filterCurrency : ""}<br/>
-                        <strong>Tổng chi:</strong> ${filteredTxs.filter(t => t.type === "OUT").reduce((sum, t) => sum + t.amount, 0).toLocaleString()} ${filterCurrency !== "ALL" ? filterCurrency : ""}
+                        <strong>Tổng thu:</strong> ${filteredTxs.filter(t => t.type === "IN").reduce((sum, t) => sum + t.amount, 0).toLocaleString("vi-VN")} ${filterCurrency !== "ALL" ? filterCurrency : ""}<br/>
+                        <strong>Tổng chi:</strong> ${filteredTxs.filter(t => t.type === "OUT").reduce((sum, t) => sum + t.amount, 0).toLocaleString("vi-VN")} ${filterCurrency !== "ALL" ? filterCurrency : ""}
                     </div>
 
                     <table>
@@ -293,7 +293,7 @@ export default function ReportsPage() {
                                     <td>${idx + 1}</td>
                                     <td>${new Date(tx.date).toLocaleDateString('vi-VN')}</td>
                                     <td class="${tx.type === "IN" ? "income" : "expense"}">${tx.type === "IN" ? "Thu" : "Chi"}</td>
-                                    <td>${tx.amount.toLocaleString()}</td>
+                                    <td>${tx.amount.toLocaleString("vi-VN")}</td>
                                     <td><span class="currency-badge currency-${tx.currency}">${tx.currency}</span></td>
                                     <td>${tx.category}</td>
                                     <td>${tx.description || "-"}</td>
@@ -415,16 +415,16 @@ export default function ReportsPage() {
                                         <div className="space-y-2">
                                             <div className="flex justify-between">
                                                 <span className="text-[var(--muted)]">Thu:</span>
-                                                <span className="font-bold text-green-400">+{data.in.toLocaleString()}</span>
+                                                <span className="font-bold text-green-400">+{data.in.toLocaleString("vi-VN")}</span>
                                             </div>
                                             <div className="flex justify-between">
                                                 <span className="text-[var(--muted)]">Chi:</span>
-                                                <span className="font-bold text-red-400">-{data.out.toLocaleString()}</span>
+                                                <span className="font-bold text-red-400">-{data.out.toLocaleString("vi-VN")}</span>
                                             </div>
                                             <div className="flex justify-between pt-2 border-t border-white/10">
                                                 <span className="text-[var(--muted)]">Ròng:</span>
                                                 <span className={`font-bold ${net >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                                    {net >= 0 ? '+' : ''}{net.toLocaleString()}
+                                                    {net >= 0 ? '+' : ''}{net.toLocaleString("vi-VN")}
                                                 </span>
                                             </div>
                                             <div className="text-xs text-[var(--muted)] mt-2">
@@ -451,7 +451,7 @@ export default function ReportsPage() {
                                     <YAxis stroke="#525252" />
                                     <Tooltip
                                         contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: '8px' }}
-                                        formatter={(value: number) => value.toLocaleString()}
+                                        formatter={(value: number) => value.toLocaleString("vi-VN")}
                                     />
                                     <Legend />
                                     <Bar dataKey="Thu" fill="#4ade80" radius={[4, 4, 0, 0]} />
@@ -494,7 +494,7 @@ export default function ReportsPage() {
                                             })}
                                         </td>
                                         <td className="p-4 text-right font-bold text-red-400">
-                                            {tx.amount.toLocaleString()}
+                                            {tx.amount.toLocaleString("vi-VN")}
                                         </td>
                                         <td className="p-4">
                                             <span
@@ -545,7 +545,7 @@ export default function ReportsPage() {
                                     <div key={currency} className="p-4 bg-white/5 rounded-lg border border-white/10">
                                         <div className="text-xs text-[var(--muted)] mb-1">Tổng lương {currency}</div>
                                         <div className="text-xl font-bold text-red-400">
-                                            {total.toLocaleString()} {currency}
+                                            {total.toLocaleString("vi-VN")} {currency}
                                         </div>
                                         <div className="text-xs text-[var(--muted)] mt-1">{count} giao dịch</div>
                                     </div>
@@ -579,7 +579,7 @@ export default function ReportsPage() {
                                         <td className="p-4 font-medium text-white">{fc.name}</td>
                                         <td className="p-4 text-[var(--muted)]">{fc.category || "Khác"}</td>
                                         <td className="p-4 text-right font-bold text-white">
-                                            {fc.amount.toLocaleString()}
+                                            {fc.amount.toLocaleString("vi-VN")}
                                         </td>
                                         <td className="p-4">
                                             <span
@@ -645,7 +645,7 @@ export default function ReportsPage() {
                                                 <div key={currency} className="flex justify-between text-sm">
                                                     <span className="text-[var(--muted)]">{currency}:</span>
                                                     <span className="font-bold" style={{ color: CURRENCY_COLORS[currency] }}>
-                                                        {amount.toLocaleString()}
+                                                        {amount.toLocaleString("vi-VN")}
                                                     </span>
                                                 </div>
                                             ))}
@@ -842,3 +842,4 @@ export default function ReportsPage() {
         </div>
     );
 }
+

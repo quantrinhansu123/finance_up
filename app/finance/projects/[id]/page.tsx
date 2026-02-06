@@ -247,7 +247,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
 
     const formatCurrency = (val: number) => {
         const currency = project?.defaultCurrency || project?.currency || "VND";
-        return new Intl.NumberFormat('en-US', { style: 'currency', currency: currency, maximumFractionDigits: 0 }).format(val);
+        return new Intl.NumberFormat("vi-VN", { style: "currency", currency: currency, maximumFractionDigits: 0 }).format(val);
     };
 
     const handleUpdateMembers = async () => {
@@ -623,7 +623,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                                                     <div className="text-[9px] text-[var(--muted)]">{new Date(tx.date).toLocaleDateString()}</div>
                                                 </div>
                                                 <div className={`text-xs font-bold ${tx.type === "IN" ? "text-green-400" : "text-white"}`}>
-                                                    {tx.type === "IN" ? "+" : "-"}{tx.amount.toLocaleString()}
+                                                    {tx.type === "IN" ? "+" : "-"}{tx.amount.toLocaleString("vi-VN")}
                                                 </div>
                                             </div>
                                         ))
@@ -797,7 +797,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                                         render: (row: Transaction) => (
                                             <div className="flex flex-col items-end">
                                                 <span className={`text-sm font-bold ${row.type === "IN" ? "text-green-400" : "text-red-400"}`}>
-                                                    {row.type === "IN" ? "+" : "-"}{row.amount.toLocaleString()}
+                                                    {row.type === "IN" ? "+" : "-"}{row.amount.toLocaleString("vi-VN")}
                                                 </span>
                                                 <span className="text-[10px] text-[var(--muted)] font-medium">{row.currency}</span>
                                             </div>
@@ -867,7 +867,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                                                 <div className="flex flex-col items-end">
                                                     <span className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-tighter">Số dư hiện tại</span>
                                                     <div className={`text-xl font-black tracking-tight ${acc.balance >= 0 ? 'text-white' : 'text-red-400'}`}>
-                                                        {acc.balance.toLocaleString()}
+                                                        {acc.balance.toLocaleString("vi-VN")}
                                                         <span className="ml-1 text-xs font-medium text-[var(--muted)]">{acc.currency}</span>
                                                     </div>
                                                 </div>
@@ -878,11 +878,11 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                                             <div className="grid grid-cols-2 gap-2 mb-4">
                                                 <div className="bg-white/5 rounded-xl p-2">
                                                     <span className="text-[9px] text-[var(--muted)] block mb-1 uppercase font-bold">Tổng thu</span>
-                                                    <span className="text-xs font-bold text-green-400 tracking-tight">+{accIn.toLocaleString()}</span>
+                                                    <span className="text-xs font-bold text-green-400 tracking-tight">+{accIn.toLocaleString("vi-VN")}</span>
                                                 </div>
                                                 <div className="bg-white/5 rounded-xl p-2">
                                                     <span className="text-[9px] text-[var(--muted)] block mb-1 uppercase font-bold">Tổng chi</span>
-                                                    <span className="text-xs font-bold text-red-400 tracking-tight">-{accOut.toLocaleString()}</span>
+                                                    <span className="text-xs font-bold text-red-400 tracking-tight">-{accOut.toLocaleString("vi-VN")}</span>
                                                 </div>
                                             </div>
 
@@ -1428,7 +1428,7 @@ function AccountSelector({ selectedAccountIds, toggleSelection, currentProjectId
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <div className="font-medium text-white truncate">{acc.name}</div>
-                                        <div className="text-xs text-[var(--muted)]">{acc.currency} • {acc.balance.toLocaleString()}</div>
+                                        <div className="text-xs text-[var(--muted)]">{acc.currency} • {acc.balance.toLocaleString("vi-VN")}</div>
                                     </div>
                                     {isSelected && (
                                         <button
@@ -1550,7 +1550,7 @@ function AccountSelector({ selectedAccountIds, toggleSelection, currentProjectId
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <div className="font-medium text-white/60 truncate">{acc.name}</div>
-                                    <div className="text-xs text-[var(--muted)]">{acc.currency} • {acc.balance.toLocaleString()}</div>
+                                    <div className="text-xs text-[var(--muted)]">{acc.currency} • {acc.balance.toLocaleString("vi-VN")}</div>
                                     <div className="text-xs text-red-400 mt-1">📁 {getProjectName(acc.projectId!)}</div>
                                 </div>
                             </div>

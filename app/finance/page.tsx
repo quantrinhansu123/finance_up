@@ -629,11 +629,11 @@ export default function DashboardPage() {
     };
 
     const formatCurrency = (val: number, currency?: string) => {
-        if (currency && currency !== "USD") {
-            const locale = language === "vi" ? 'vi-VN' : 'en-US';
-            return new Intl.NumberFormat(locale).format(val) + " " + currency;
+        const locale = 'vi-VN';
+        if (currency === "USD") {
+            return new Intl.NumberFormat(locale, { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(val);
         }
-        return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(val);
+        return new Intl.NumberFormat(locale).format(val) + " " + (currency || "VND");
     };
 
     const getPeriodLabel = () => {
@@ -849,7 +849,7 @@ export default function DashboardPage() {
                                         <span className="font-medium text-white/70">{currency}</span>
                                     </span>
                                     <span className={`text-xl font-bold ${balance >= 0 ? 'text-white' : 'text-red-400'}`}>
-                                        {new Intl.NumberFormat('vi-VN').format(balance)}
+                                        {balance.toLocaleString("vi-VN")}
                                     </span>
                                 </div>
                             ))}
@@ -874,7 +874,7 @@ export default function DashboardPage() {
                                         <span className="font-medium text-white/70">{currency}</span>
                                     </span>
                                     <span className="text-xl font-bold text-green-400">
-                                        +{new Intl.NumberFormat('vi-VN').format(amount)}
+                                        +{amount.toLocaleString("vi-VN")}
                                     </span>
                                 </div>
                             ))}
@@ -899,7 +899,7 @@ export default function DashboardPage() {
                                         <span className="font-medium text-white/70">{currency}</span>
                                     </span>
                                     <span className="text-xl font-bold text-red-400">
-                                        -{new Intl.NumberFormat('vi-VN').format(amount)}
+                                        -{amount.toLocaleString("vi-VN")}
                                     </span>
                                 </div>
                             ))}
@@ -980,7 +980,7 @@ export default function DashboardPage() {
                                             )}
                                             <div className="text-[10px] text-[var(--muted)] truncate mb-1">{acc.name}</div>
                                             <div className="text-base font-bold text-white leading-tight">
-                                                {acc.balance.toLocaleString()} <span className="text-[10px]" style={{ color: CURRENCY_COLORS[acc.currency] }}>{acc.currency}</span>
+                                                {acc.balance.toLocaleString("vi-VN")} <span className="text-[10px]" style={{ color: CURRENCY_COLORS[acc.currency] }}>{acc.currency}</span>
                                             </div>
                                             <div className="h-1 bg-white/10 rounded-full overflow-hidden my-2">
                                                 <div className="h-full transition-all" style={{ width: `${progressPercent}%`, backgroundColor: CURRENCY_COLORS[acc.currency] }} />
@@ -1037,7 +1037,7 @@ export default function DashboardPage() {
                                                 const data = props.payload?.payload;
                                                 if (!data) return [formatCurrency(value, filterCurrency === "ALL" ? "USD" : filterCurrency), t("income")];
                                                 return [
-                                                    `${new Intl.NumberFormat(language === "vi" ? 'vi-VN' : 'en-US').format(data.originalIn || 0)} ${data.currency} (${formatCurrency(value, filterCurrency === "ALL" ? "USD" : filterCurrency)})`,
+                                                    `${new Intl.NumberFormat('vi-VN').format(data.originalIn || 0)} ${data.currency} (${formatCurrency(value, filterCurrency === "ALL" ? "USD" : filterCurrency)})`,
                                                     t("income")
                                                 ];
                                             }}
@@ -1092,7 +1092,7 @@ export default function DashboardPage() {
                                                 const data = props.payload?.payload;
                                                 if (!data) return [formatCurrency(value, filterCurrency === "ALL" ? "USD" : filterCurrency), t("expense")];
                                                 return [
-                                                    `${new Intl.NumberFormat(language === "vi" ? 'vi-VN' : 'en-US').format(data.originalOut || 0)} ${data.currency} (${formatCurrency(value, filterCurrency === "ALL" ? "USD" : filterCurrency)})`,
+                                                    `${new Intl.NumberFormat('vi-VN').format(data.originalOut || 0)} ${data.currency} (${formatCurrency(value, filterCurrency === "ALL" ? "USD" : filterCurrency)})`,
                                                     t("expense")
                                                 ];
                                             }}
@@ -1749,7 +1749,7 @@ export default function DashboardPage() {
                                         <div className="text-xs text-[var(--muted)]">{new Date(tx.date).toLocaleDateString(language === "vi" ? 'vi-VN' : 'en-US')}</div>
                                     </div>
                                     <div className="text-right">
-                                        <div className="font-bold text-red-400">{tx.amount.toLocaleString()} {tx.currency}</div>
+                                        <div className="font-bold text-red-400">{tx.amount.toLocaleString("vi-VN")} {tx.currency}</div>
                                         <span className={`text-xs px-2 py-0.5 rounded ${tx.status === "APPROVED" ? "bg-green-500/20 text-green-400" :
                                             tx.status === "PENDING" ? "bg-yellow-500/20 text-yellow-400" :
                                                 "bg-red-500/20 text-red-400"
@@ -1778,7 +1778,7 @@ export default function DashboardPage() {
                                         <div className="font-medium text-white">{tx.category}</div>
                                         <div className="text-xs text-[var(--muted)]">{tx.createdBy} • {new Date(tx.date).toLocaleDateString()}</div>
                                     </div>
-                                    <div className="font-bold text-yellow-400">{tx.amount.toLocaleString()} {tx.currency}</div>
+                                    <div className="font-bold text-yellow-400">{tx.amount.toLocaleString("vi-VN")} {tx.currency}</div>
                                 </div>
                             ))}
                             <Link href="/finance/approvals" className="block text-center text-sm text-blue-400 hover:text-blue-300 mt-2">
@@ -1825,7 +1825,7 @@ export default function DashboardPage() {
                                             )}
                                         </td>
                                         <td className={`p-4 font-bold ${tx.type === "IN" ? "text-green-400" : "text-red-400"}`}>
-                                            {tx.type === "IN" ? "+" : "-"}{tx.amount.toLocaleString()}
+                                            {tx.type === "IN" ? "+" : "-"}{tx.amount.toLocaleString("vi-VN")}
                                         </td>
                                         <td className="p-4">
                                             <span className="px-2 py-1 rounded text-xs" style={{ backgroundColor: CURRENCY_COLORS[tx.currency] + '30', color: CURRENCY_COLORS[tx.currency] }}>
@@ -1849,3 +1849,4 @@ export default function DashboardPage() {
         </div>
     );
 }
+

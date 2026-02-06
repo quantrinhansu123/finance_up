@@ -7,6 +7,7 @@ import { Account, Project, Currency, TransactionType, BankInfo, TransactionStatu
 import { getAccessibleProjects, getProjectsWithPermission } from "@/lib/permissions";
 import { uploadImage } from "../../lib/upload";
 import { getCurrencyFlag } from "@/lib/currency";
+import CurrencyInput from "./CurrencyInput";
 
 
 interface Props {
@@ -160,13 +161,14 @@ export default function CreateBudgetRequestModal({ onClose, onSuccess, username,
     const selectedAccount = accounts.find(a => a.id === accountId);
 
     // Auto-set currency when project changes (default to project currency or VND)
+    // Disabled as per user request to use VND fixed for budget requests
     useEffect(() => {
-        const selectedProject = projects.find(p => p.id === projectId);
-        if (selectedProject?.currency) {
-            setCurrency(selectedProject.currency);
-        } else {
-            setCurrency("VND");
-        }
+        // const selectedProject = projects.find(p => p.id === projectId);
+        // if (selectedProject?.currency) {
+        //     setCurrency(selectedProject.currency);
+        // } else {
+        setCurrency("VND");
+        // }
     }, [projectId, projects]);
 
     // Auto-select account if only one exists in project
@@ -381,19 +383,13 @@ export default function CreateBudgetRequestModal({ onClose, onSuccess, username,
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-sm text-[var(--muted)] mb-1">Số tiền đề xuất *</label>
-                                <div className="relative group">
-                                    <input
-                                        type="number"
-                                        value={amount}
-                                        onChange={(e) => setAmount(Number(e.target.value))}
-                                        className="glass-input w-full p-3 pr-20 rounded-xl text-xl font-bold focus:ring-2 focus:ring-blue-500/50 transition-all"
-                                        placeholder="0"
-                                    />
-                                    <div className="absolute right-3 top-1/2 -translate-y-1/2 px-3 py-1 bg-white/10 rounded-lg text-sm font-bold text-blue-400 border border-white/10 flex items-center gap-1">
-                                        <span>{getCurrencyFlag(currency)}</span>
-                                        <span>{currency}</span>
-                                    </div>
-                                </div>
+                                <CurrencyInput
+                                    value={amount}
+                                    onChange={(val) => setAmount(Number(val))}
+                                    currency={currency}
+                                    className="text-xl font-bold"
+                                    placeholder="0"
+                                />
                             </div>
                         </div>
                         <div>

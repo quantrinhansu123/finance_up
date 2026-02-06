@@ -288,7 +288,7 @@ export default function IncomePage() {
                                                 {accountId === acc.id && <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />}
                                             </div>
                                             <h3 className="font-bold text-white truncate">{acc.name}</h3>
-                                            <p className="text-sm font-bold text-green-400 mt-1">{new Intl.NumberFormat().format(acc.balance)} <span className="text-[10px] opacity-70 uppercase">{acc.currency}</span></p>
+                                            <p className="text-sm font-bold text-green-400 mt-1">{new Intl.NumberFormat("vi-VN").format(acc.balance)} <span className="text-[10px] opacity-70 uppercase">{acc.currency}</span></p>
                                         </button>
                                     ))}
                                     {accessibleAccounts.length === 0 && (
@@ -409,7 +409,7 @@ export default function IncomePage() {
                                         <WizardSummaryItem label={t("payment_type")} value={paymentType === "FULL" ? t("full_payment") : t("partial_payment")} icon="💰" />
                                         <div className="pt-4 border-t border-white/10">
                                             <p className="text-xs text-[var(--muted)] uppercase font-bold mb-1">{t("amount")}</p>
-                                            <p className="text-3xl font-black text-green-400">{new Intl.NumberFormat().format(parseFloat(amount) || 0)} <span className="text-sm font-medium opacity-60">{selectedAccount?.currency}</span></p>
+                                            <p className="text-3xl font-black text-green-400">{new Intl.NumberFormat("vi-VN").format(parseFloat(amount) || 0)} <span className="text-sm font-medium opacity-60">{selectedAccount?.currency}</span></p>
                                         </div>
                                     </div>
 
