@@ -49,15 +49,6 @@ export default function LoginPage() {
                 throw new Error("Mật khẩu không đúng");
             }
 
-            // Check finance access permission
-            const user = foundUser as any;
-            const isAdmin = user.email?.toLowerCase() === "ceo.fata@gmail.com" || 
-                           user.employment?.position?.toUpperCase() === "CEO&FOUNDER";
-            
-            if (!isAdmin && (!user.financeRole || user.financeRole === "NONE")) {
-                throw new Error("Bạn chưa được phân quyền truy cập hệ thống tài chính. Vui lòng liên hệ Admin.");
-            }
-
             // Login success
             const userData = JSON.stringify(foundUser);
             if (rememberMe) {

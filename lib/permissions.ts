@@ -119,17 +119,9 @@ export function getUserRole(user: any): Role {
 // Kiểm tra user có quyền truy cập hệ thống tài chính không
 export function canAccessFinanceSystem(user: any): boolean {
     if (!user) return false;
-
-    // Admin luôn được truy cập
-    if (getUserRole(user) === "ADMIN") return true;
-
-    // User được truy cập nếu có financeRole không phải NONE
-    if (user.financeRole && user.financeRole !== "NONE") {
-        return true;
-    }
-
-    // Nếu chưa được phân quyền financeRole -> không cho truy cập
-    return false;
+    // Bỏ kiểm tra cấp độ toàn cục, cho phép tất cả user trong hệ thống truy cập
+    // Quyền chi tiết sẽ được kiểm tra ở cấp độ dự án
+    return true;
 }
 
 // Tất cả user đều có thể chuyển tiền nội bộ (nếu có quyền trong dự án)
