@@ -383,13 +383,28 @@ export default function CreateBudgetRequestModal({ onClose, onSuccess, username,
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-sm text-[var(--muted)] mb-1">Số tiền đề xuất *</label>
-                                <CurrencyInput
-                                    value={amount}
-                                    onChange={(val) => setAmount(Number(val))}
-                                    currency={currency}
-                                    className="text-xl font-bold"
-                                    placeholder="0"
-                                />
+                                <div className="grid grid-cols-4 gap-2">
+                                    <div className="col-span-3">
+                                        <CurrencyInput
+                                            value={amount}
+                                            onChange={(val) => setAmount(Number(val))}
+                                            currency={currency}
+                                            className="text-xl font-bold"
+                                            placeholder="0"
+                                        />
+                                    </div>
+                                    <select
+                                        value={currency}
+                                        onChange={(e) => setCurrency(e.target.value as Currency)}
+                                        className="glass-input p-2 rounded-xl text-center font-bold text-blue-400"
+                                    >
+                                        <option value="VND">VND</option>
+                                        <option value="USD">USD</option>
+                                        <option value="KHR">KHR</option>
+                                        <option value="THB">THB</option>
+                                        <option value="TRY">TRY</option>
+                                    </select>
+                                </div>
                             </div>
                         </div>
                         <div>

@@ -98,6 +98,14 @@ export default function BudgetRequestDetailModal({ transaction, onClose, onUpdat
     const [uploadFiles, setUploadFiles] = useState<File[]>([]);
     const [uploading, setUploading] = useState(false);
     const [selectedAccountId, setSelectedAccountId] = useState(transaction.accountId || "");
+    const [exchangeRate, setExchangeRate] = useState<string>("1");
+
+    const selectedAccountObj = allAccounts.find(a => a.id === selectedAccountId);
+    const usesDifferentCurrency = selectedAccountObj && selectedAccountObj.currency !== transaction.currency;
+
+    const deductAmount = usesDifferentCurrency
+        ? transaction.amount * (parseFloat(exchangeRate) || 1)
+        : transaction.amount;
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files) {
@@ -130,21 +138,23 @@ export default function BudgetRequestDetailModal({ transaction, onClose, onUpdat
                     const accSnap = await getDoc(accRef);
                     if (accSnap.exists()) {
                         const accData = accSnap.data();
-                        const newBalance = (accData.balance || 0) - transaction.amount;
+                        const finalDeductAmount = usesDifferentCurrency ? (transaction.amount * (parseFloat(exchangeRate) || 1)) : transaction.amount;
+                        const newBalance = (accData.balance || 0) - finalDeductAmount;
                         await updateDoc(accRef, { balance: newBalance });
                     }
                 } catch (balanceError) {
                     console.error("Failed to update balance:", balanceError);
-                    // Continue anyway? Or throw? Better throw to avoid inconsistent state
                     throw new Error("Không thể cập nhật số dư tài khoản. Vui lòng thử lại.");
                 }
 
                 await updateTransactionStatus(transaction.id, "PAID");
+                const rateInfo = usesDifferentCurrency ? ` (Tỷ giá: 1 ${transaction.currency} = ${exchangeRate} ${selectedAccountObj?.currency})` : "";
                 await updateDoc(doc(db, "finance_transactions", transaction.id), {
                     paidBy: currentUser.displayName || currentUser.email,
                     accountId: selectedAccountId,
                     proofOfPayment: urls,
-                    updatedAt: Date.now()
+                    updatedAt: Date.now(),
+                    description: (transaction.description || "") + rateInfo
                 });
             } else if (pendingAction === "CONFIRM") {
                 // Enforce 2 photos for Marketing Budget confirmation
@@ -494,27 +504,49 @@ export default function BudgetRequestDetailModal({ transaction, onClose, onUpdat
                             </p>
 
                             {pendingAction === "PAY" && (
-                                <div className="mb-4">
-                                    <label className="block text-xs text-[var(--muted)] uppercase font-bold mb-1">Chọn tài khoản nguồn *</label>
-                                    <select
-                                        value={selectedAccountId}
-                                        onChange={(e) => setSelectedAccountId(e.target.value)}
-                                        className="glass-input w-full p-2 rounded-lg text-sm text-white"
-                                    >
-                                        <option value="">-- Chọn tài khoản --</option>
-                                        {allAccounts
-                                            .filter(a => {
-                                                if (transaction.projectId) {
-                                                    return a.projectId === transaction.projectId;
-                                                }
-                                                return !a.projectId;
-                                            })
-                                            .map(a => (
-                                                <option key={a.id} value={a.id}>
-                                                    {a.name} ({a.balance.toLocaleString("vi-VN")} {a.currency})
-                                                </option>
-                                            ))}
-                                    </select>
+                                <div className="mb-4 space-y-4">
+                                    <div>
+                                        <label className="block text-xs text-[var(--muted)] uppercase font-bold mb-1">Chọn tài khoản nguồn *</label>
+                                        <select
+                                            value={selectedAccountId}
+                                            onChange={(e) => setSelectedAccountId(e.target.value)}
+                                            className="glass-input w-full p-2 rounded-lg text-sm text-white"
+                                        >
+                                            <option value="">-- Chọn tài khoản --</option>
+                                            {allAccounts
+                                                .filter(a => {
+                                                    if (transaction.projectId) {
+                                                        return a.projectId === transaction.projectId;
+                                                    }
+                                                    return !a.projectId;
+                                                })
+                                                .map(a => (
+                                                    <option key={a.id} value={a.id}>
+                                                        {a.name} ({a.balance.toLocaleString("vi-VN")} {a.currency})
+                                                    </option>
+                                                ))}
+                                        </select>
+                                    </div>
+
+                                    {usesDifferentCurrency && (
+                                        <div className="p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg space-y-2">
+                                            <div className="text-xs font-bold text-yellow-500 uppercase">Quy đổi ngoại tệ</div>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-sm text-white">1 {transaction.currency} = </span>
+                                                <input
+                                                    type="number"
+                                                    value={exchangeRate}
+                                                    onChange={(e) => setExchangeRate(e.target.value)}
+                                                    className="glass-input flex-1 p-2 rounded text-sm text-white font-mono"
+                                                    placeholder="Tỷ giá..."
+                                                />
+                                                <span className="text-sm text-white">{selectedAccountObj?.currency}</span>
+                                            </div>
+                                            <div className="text-xs text-[var(--muted)]">
+                                                Số tiền sẽ trừ: <span className="text-white font-bold">{deductAmount.toLocaleString("vi-VN")} {selectedAccountObj?.currency}</span>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             )}
 
