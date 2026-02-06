@@ -32,43 +32,6 @@ const FULL_CATEGORIES = [
             "Lương cơ bản Marketing",
             "Thưởng %KPI Marketing"
         ]
-    },
-    {
-        group: "VĂN PHÒNG",
-        items: [
-            "Tiền điện",
-            "Wifi",
-            "Phí vệ sinh",
-            "Văn phòng phẩm",
-            "Văn phòng Việt Nam",
-            "Văn phòng Campuchia"
-        ]
-    },
-    {
-        group: "CHI PHÍ VẬN CHUYỂN",
-        items: [
-            "Cước chuyển VET",
-            "Cước chuyển JNT",
-            "Ship nội thành",
-            "Cước chuyển SEA",
-            "Cước chuyển ROAD"
-        ]
-    },
-    {
-        group: "SALE",
-        items: [
-            "Lương cơ bản Sale",
-            "Thưởng Hotbonus",
-            "Thưởng %KPI Sale"
-        ]
-    },
-    {
-        group: "THUẾ",
-        items: [
-            "Dịch vụ kế toán thuế",
-            "Tư vấn thuế (Long Heng)",
-            "Đóng thuế Tháng/Năm"
-        ]
     }
 ];
 
