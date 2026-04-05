@@ -159,6 +159,7 @@ export default function ProjectsPage() {
             fetchData();
         } catch (error) {
             console.error(error);
+            alert("Error: " + JSON.stringify(error) + "\n" + String(error));
         }
     };
 

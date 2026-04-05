@@ -1,25 +1,47 @@
 "use client";
 
 import { initSSOListener } from "./sso-listener";
-import { db } from "./firebase";
-import { collection, query, where, getDocs } from "firebase/firestore";
+import { supabase } from "./supabase";
 
 async function handleLogin(email: string, password: string) {
-    const usersRef = collection(db, "users");
-    const q = query(usersRef, where("email", "==", email));
+    const { data: users, error } = await supabase
+        .from("employees")
+        .select("*")
+        .eq("email", email);
 
-    const querySnapshot = await getDocs(q);
-    if (querySnapshot.empty) {
+    if (error) {
+        console.error(error);
+        throw new Error("Lỗi khi kết nối cơ sở dữ liệu");
+    }
+
+    if (!users || users.length === 0) {
         throw new Error("Email không tồn tại");
     }
 
-    let foundUser = null;
-    querySnapshot.forEach((doc) => {
-        const user = doc.data();
-        if (user.password === password) {
-            foundUser = { id: doc.id, ...user };
+    let foundUser: any = null;
+    for (const user of users) {
+        // Fallback check if password is in column or inside employment json
+        let userPass = user.password || user.pass;
+        if (!userPass && user.employment && typeof user.employment === 'object') {
+            userPass = (user.employment as any).password;
         }
-    });
+
+        if (userPass === password) {
+            foundUser = { 
+                id: user.id,
+                uid: user.id, // Support old apps looking for uid
+                email: user.email,
+                displayName: user.display_name,
+                role: user.role,
+                position: user.position,
+                departmentId: user.department_id,
+                photoURL: user.photo_url,
+                // Include employment fields needed for JWT/Session
+                financeRole: user.finance_role,
+            };
+            break;
+        }
+    }
 
     if (!foundUser) {
         throw new Error("Mật khẩu không đúng");

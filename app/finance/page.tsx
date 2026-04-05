@@ -8,8 +8,7 @@ import { getTransactions, getAccounts, getRevenues, getFixedCosts, getProjects }
 import { Transaction, Account, Currency, MonthlyRevenue, Fund, FixedCost, Project } from "@/types/finance";
 import { getUserRole, Role, getAccessibleProjects, hasProjectPermission } from "@/lib/permissions";
 import { getExchangeRates, convertCurrency } from "@/lib/currency";
-import { collection, getDocs } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { getFunds } from "@/lib/finance";
 import Link from "next/link";
 import { BarChart3, Calendar } from "lucide-react";
 import { useTranslation } from "@/lib/i18n";
@@ -245,7 +244,7 @@ export default function DashboardPage() {
                     getAccounts(),
                     getExchangeRates(),
                     getRevenues(),
-                    getDocs(collection(db, "finance_funds")).then(s => s.docs.map(d => ({ id: d.id, ...d.data() } as Fund))),
+                    getFunds(),
                     getProjects(),
                     getFixedCosts()
                 ]);

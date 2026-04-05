@@ -4,8 +4,8 @@ import { useState, useEffect, useMemo } from "react";
 import { MasterCategory, Transaction, Project, MasterSubCategory } from "@/types/finance";
 import { getUserRole, Role } from "@/lib/permissions";
 import { useRouter } from "next/navigation";
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from "@/lib/firebase-compat";
+import { db } from "@/lib/firebase-compat";
 import { getTransactions, getProjects } from "@/lib/finance";
 
 const formatCurrency = (val: number, currency?: string) => {

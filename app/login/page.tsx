@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { db } from "@/lib/firebase";
-import { collection, query, where, getDocs } from "firebase/firestore";
+import { db } from "@/lib/firebase-compat";
+import { collection, query, where, getDocs } from "@/lib/firebase-compat";
 
 export default function LoginPage() {
     const router = useRouter();
@@ -37,10 +37,11 @@ export default function LoginPage() {
             }
 
             let foundUser = null;
-            querySnapshot.forEach((doc) => {
+            querySnapshot.forEach((doc: any) => {
                 const user = doc.data();
+                const dbPassword = user.password || user.pass;
                 // Validating password
-                if (user.password === password) {
+                if (dbPassword === password) {
                     foundUser = { id: doc.id, ...user };
                 }
             });

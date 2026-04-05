@@ -2,8 +2,8 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { db } from "@/lib/firebase";
-import { doc, updateDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase-compat";
+import { doc, updateDoc } from "@/lib/firebase-compat";
 import { getUserRole } from "@/lib/permissions";
 import { Save, Eye, EyeOff, User, Mail, Phone, Briefcase, Shield, Calendar, Key, Edit3, X } from "lucide-react";
 import { useTranslation } from "@/lib/i18n";

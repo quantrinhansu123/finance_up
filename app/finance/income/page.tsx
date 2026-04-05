@@ -4,8 +4,8 @@ import { useState, useEffect, useMemo } from "react";
 import { createTransaction, getAccounts, updateAccountBalance, getProjects, updateProject } from "@/lib/finance";
 import { Account, Project, Transaction, MasterCategory, MasterSubCategory } from "@/types/finance";
 import { uploadImage } from "@/lib/upload";
-import { collection, getDocs, addDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { collection, getDocs, addDoc } from "@/lib/firebase-compat";
+import { db } from "@/lib/firebase-compat";
 import { getUserRole, getAccessibleProjects, getAccessibleAccounts, hasProjectPermission, Role } from "@/lib/permissions";
 import { FolderOpen, CreditCard, Wallet, Upload, AlertCircle, Plus, Tag, Layers } from "lucide-react";
 import CurrencyInput from "@/components/finance/CurrencyInput";
@@ -178,7 +178,7 @@ export default function IncomePage() {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!canCreateIncome) { alert(t("no_create_income_permission")); return; }
-        if (!source) { alert("Vui lòng chọn danh mục con"); return; }
+        if (availableSubCategories.length > 0 && !source) { alert("Vui lòng chọn danh mục con"); return; }
         setSubmitting(true);
         try {
             const numAmount = parseFloat(amount);
@@ -188,13 +188,14 @@ export default function IncomePage() {
 
             const parentCat = masterCategories.find(c => c.id === parentCategoryId);
             const parentCategoryName = parentCat?.name || "";
+            const finalSource = source || parentCategoryName || t("unselected");
 
             await createTransaction({
-                type: "IN", amount: numAmount, currency, category: source,
+                type: "IN", amount: numAmount, currency, category: finalSource,
                 parentCategory: parentCategoryName, parentCategoryId,
-                source, accountId, projectId: projectId || undefined, description, date: new Date().toISOString(),
-                status: "APPROVED", createdBy: currentUser?.name || currentUser?.displayName || "Unknown",
-                userId: currentUser?.id || currentUser?.uid || "unknown", images: imageUrls,
+                source: finalSource, accountId, projectId: projectId || undefined, description, date: new Date().toISOString(),
+                status: "APPROVED", createdBy: currentUser?.id || currentUser?.uid,
+                userId: currentUser?.id || currentUser?.uid, images: imageUrls,
                 paymentType,
                 createdAt: Date.now(), updatedAt: Date.now(),
             });
@@ -416,7 +417,7 @@ export default function IncomePage() {
                                     <div className="pt-6 flex gap-3">
                                         <button type="button" onClick={() => setWizardStep(1)} className="flex-1 py-3 px-4 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 text-white font-bold transition-all active:scale-95">{t("cancel")}</button>
                                         <button
-                                            type="submit" disabled={submitting || !amount || !accountId || !projectId || !source}
+                                            type="submit" disabled={submitting || !amount || !accountId || !projectId || (!source && availableSubCategories.length > 0)}
                                             className="flex-[2] py-3 px-6 rounded-xl bg-gradient-to-r from-green-600 to-emerald-600 text-white font-bold shadow-lg shadow-green-500/20 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 disabled:scale-100"
                                         >
                                             {submitting ? t("processing") : t("save")}

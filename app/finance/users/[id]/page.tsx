@@ -7,8 +7,8 @@ import { UserProfile } from "@/types/user";
 import { getTransactions } from "@/lib/finance";
 import { Transaction } from "@/types/finance";
 import { getUserRole } from "@/lib/permissions";
-import { db } from "@/lib/firebase";
-import { doc, updateDoc, deleteDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase-compat";
+import { doc, updateDoc, deleteDoc } from "@/lib/firebase-compat";
 import { ArrowLeft, Edit2, Trash2, Save, X, Eye, EyeOff } from "lucide-react";
 
 const FINANCE_ROLES = [

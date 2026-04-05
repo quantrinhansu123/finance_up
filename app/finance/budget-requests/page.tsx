@@ -8,8 +8,8 @@ import { getUserRole, hasProjectPermission, getAccessibleProjects } from "@/lib/
 import DataTable from "@/components/finance/DataTable";
 import { Plus, Filter, RefreshCw, Upload, CheckCircle, Clock, ArrowRightCircle, XCircle, AlertTriangle, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { db } from "@/lib/firebase";
-import { updateDoc, doc, deleteDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase-compat";
+import { updateDoc, doc, deleteDoc } from "@/lib/firebase-compat";
 import CreateBudgetRequestModal from "../../../components/finance/CreateBudgetRequestModal";
 import BudgetRequestDetailModal from "../../../components/finance/BudgetRequestDetailModal";
 

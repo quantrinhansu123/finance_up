@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { db } from "@/lib/firebase";
-import { collection, query, orderBy, getDocs, limit, startAfter, where, Timestamp, DocumentData, QueryDocumentSnapshot } from "firebase/firestore";
+import { db } from "@/lib/firebase-compat";
+import { collection, query, orderBy, getDocs, limit, startAfter, where, Timestamp, DocumentData, QueryDocumentSnapshot } from "@/lib/firebase-compat";
 import { ActivityLog } from "@/types/finance";
 import { ChevronLeft, ChevronRight, Download, FileSpreadsheet, FileText, FileJson, Loader2 } from "lucide-react";
 

@@ -5,7 +5,20 @@ export const logAction = async (
     userId: string = "system"
 ) => {
     try {
-        // Fire and forget
+        let finalUserId = userId;
+        let finalUserName = typeof details === 'object' ? details.userName : undefined;
+
+        if (finalUserId === "system" && typeof window !== "undefined") {
+            const userStr = localStorage.getItem("user") || sessionStorage.getItem("user");
+            if (userStr) {
+                try {
+                    const u = JSON.parse(userStr);
+                    finalUserId = u.uid || u.id || "system";
+                    if (!finalUserName) finalUserName = u.displayName || u.name;
+                } catch(e) {}
+            }
+        }
+
         fetch('/api/log', {
             method: 'POST',
             headers: {
@@ -15,8 +28,8 @@ export const logAction = async (
                 action,
                 details,
                 targetId,
-                userId,
-                userName: typeof details === 'object' ? details.userName : undefined
+                userId: finalUserId,
+                userName: finalUserName
             }),
         });
     } catch (error) {

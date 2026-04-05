@@ -3,8 +3,8 @@
 import { useState, useEffect, useMemo } from "react";
 import { getTransactions, getAccounts, getProjects, getFixedCosts } from "@/lib/finance";
 import { Transaction, Account, Project, Fund, FixedCost, Currency } from "@/types/finance";
-import { collection, getDocs } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { collection, getDocs } from "@/lib/firebase-compat";
+import { db } from "@/lib/firebase-compat";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 import { getUserRole, getAccessibleProjects, hasProjectPermission, Role } from "@/lib/permissions";
 

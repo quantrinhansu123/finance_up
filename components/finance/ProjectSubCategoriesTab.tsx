@@ -3,8 +3,8 @@
 import { useState, useEffect } from "react";
 import { Project, MasterCategory, ProjectSubCategory } from "@/types/finance";
 import { updateProject } from "@/lib/finance";
-import { collection, getDocs } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { collection, getDocs } from "@/lib/firebase-compat";
+import { db } from "@/lib/firebase-compat";
 import { Plus, Edit2, Trash2, TrendingUp, TrendingDown, Save, X, ChevronDown } from "lucide-react";
 
 interface Props {

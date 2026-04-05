@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/firebase';
-import { collection, addDoc } from 'firebase/firestore';
+import { supabase } from '@/lib/supabase';
 
 export async function POST(req: Request) {
     try {
@@ -12,13 +11,6 @@ export async function POST(req: Request) {
         const ip = forwardedFor ? forwardedFor.split(',')[0] : 'Unknown IP';
         const userAgent = req.headers.get('user-agent') || 'Unknown UA';
 
-        // Simple Location Lookup (Mock for now, or use a free API if reliable)
-        // For production, you'd use a service like ip-api.com or similar server-side
-        // const locationData = await fetch(`http://ip-api.com/json/${ip}`).then(res => res.json());
-        // const location = locationData.status === 'success' ? `${locationData.city}, ${locationData.country}` : 'Unknown Location';
-
-        // Using "Unknown" as placeholder to avoid blocking on rate limits during dev
-        // In a real implementation, we would un-comment the fetch above.
         let location = "Unknown Location";
         if (ip !== 'Unknown IP' && ip !== '::1' && ip !== '127.0.0.1') {
             try {
@@ -35,24 +27,26 @@ export async function POST(req: Request) {
         }
 
         const logEntry = {
-            userId: userId || 'anonymous',
+            user_id: userId && userId !== 'anonymous' && userId !== 'system' ? userId : "00000000-0000-0000-0000-000000000000",
             action,
-            entityId: targetId || null, // Map targetId to entityId for consistency
-            details: typeof details === 'string' ? details : JSON.stringify(details), // Ensure details is string if legacy expects it, or keep object if flexible
+            entity_id: targetId || null, 
+            entity_type: body.entityType || 'unknown',
+            details: typeof details === 'string' ? details : JSON.stringify(details),
             ip,
             location,
-            device: userAgent, // Map userAgent to device field
-            timestamp: Date.now(),
-            userName: body.userName || 'System' // Capture userName if passed
+            device: userAgent,
+            user_name: body.userName || 'System'
         };
 
-        await addDoc(collection(db, 'finance_logs'), logEntry);
+        const { error } = await supabase.from('finance_activity_logs').insert([logEntry]);
+        if (error) {
+            console.error('Supabase logging failed:', error);
+            // Non-fatal error to avoid breaking application flow
+        }
 
         return NextResponse.json({ success: true });
     } catch (error) {
-        console.error('Logging failed:', error);
-        // We return 200 even if logging fails to not break the app flow, 
-        // but in strict audit mode you might want 500.
+        console.error('Logging endpoint failed:', error);
         return NextResponse.json({ success: false, error: 'Logging failed' }, { status: 500 });
     }
 }

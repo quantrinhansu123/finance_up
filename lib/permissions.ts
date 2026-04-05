@@ -102,13 +102,15 @@ export function getUserRole(user: any): Role {
     }
 
     // 3. Kiểm tra financeRole hoặc role = ADMIN
-    if (user.financeRole === "ADMIN" || user.role?.toUpperCase() === "ADMIN") {
+    const roleStr = typeof user.role === 'string' ? user.role.toUpperCase() : "";
+    if (user.financeRole === "ADMIN" || roleStr === "ADMIN") {
         return "ADMIN";
     }
 
     // 4. Kiểm tra position
-    const position = user.position ? user.position.toUpperCase() : "";
-    if (position.includes("CEO")) {
+    const rawPosition = user.position || user.viTri || user.vi_tri || "";
+    const position = typeof rawPosition === 'string' ? rawPosition.toUpperCase() : "";
+    if (position.includes("CEO") || position === "ADMIN") {
         return "ADMIN";
     }
 

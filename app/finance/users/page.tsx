@@ -8,8 +8,8 @@ import { Plus, Edit2, Trash2, History, Save, X, User, Shield } from "lucide-reac
 import DataTableToolbar from "@/components/finance/DataTableToolbar";
 import SearchableSelect from "@/components/finance/SearchableSelect";
 import { exportToCSV } from "@/lib/export";
-import { doc, setDoc, updateDoc, deleteDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { doc, setDoc, updateDoc, deleteDoc } from "@/lib/firebase-compat";
+import { db } from "@/lib/firebase-compat";
 import { getUserRole, Role } from "@/lib/permissions";
 import DataTable, { ActionCell } from "@/components/finance/DataTable";
 import { useTranslation } from "@/lib/i18n";

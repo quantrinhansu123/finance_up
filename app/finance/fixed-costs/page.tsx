@@ -3,8 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { getFixedCosts, createFixedCost, createTransaction, getAccounts, deleteFixedCost } from "@/lib/finance";
 import { FixedCost, Currency, Account } from "@/types/finance";
-import { doc, updateDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { updateFixedCost } from "@/lib/finance";
 import CurrencyInput from "@/components/finance/CurrencyInput";
 import { Plus, Eye, Edit2, Trash2, Zap, X, Save } from "lucide-react";
 import DataTableToolbar from "@/components/finance/DataTableToolbar";
@@ -144,8 +143,7 @@ export default function FixedCostsPage() {
             // Optimistic Update
             setCosts(prev => prev.map(c => c.id === id ? { ...c, ...finalUpdates } : c));
 
-            const ref = doc(db, "finance_fixed_costs", id);
-            await updateDoc(ref, finalUpdates);
+            await updateFixedCost(id, finalUpdates);
         } catch (error) {
             console.error("Update failed", error);
             fetchData(); // Revert on failure
@@ -204,8 +202,7 @@ export default function FixedCostsPage() {
                     updatedAt: Date.now()
                 });
 
-                // Update lastGenerated
-                await updateDoc(doc(db, "finance_fixed_costs", cost.id), {
+                await updateFixedCost(cost.id, {
                     lastGenerated: currentMonth
                 });
 

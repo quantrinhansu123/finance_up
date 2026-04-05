@@ -5,8 +5,8 @@ import { createTransaction, getAccounts, updateAccountBalance, getProjects } fro
 import { Account, Currency, TransactionType, Project, Fund } from "@/types/finance";
 import { getCategoriesForRole, Role, getAccessibleProjects, getAccessibleAccounts } from "@/lib/permissions";
 import { uploadImage } from "@/lib/upload";
-import { collection, getDocs } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { collection, getDocs } from "@/lib/firebase-compat";
+import { db } from "@/lib/firebase-compat";
 import CurrencyInput from "./CurrencyInput";
 import { getCurrencyFlag } from "@/lib/currency";
 
@@ -247,8 +247,8 @@ export default function CreateTransactionModal({ isOpen, onClose, onSuccess, cur
                 description,
                 date: new Date().toISOString(),
                 status,
-                createdBy: currentUser?.name || "Unknown",
-                userId: currentUser?.id || "unknown",
+                createdBy: currentUser?.id || currentUser?.uid || "unknown",
+                userId: currentUser?.id || currentUser?.uid || "unknown",
                 projectId: projectId || undefined,
                 fundId: fundId || undefined,
                 source: type === "IN" ? source : undefined,

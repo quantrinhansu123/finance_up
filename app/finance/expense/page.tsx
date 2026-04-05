@@ -4,8 +4,8 @@ import { useState, useEffect, useMemo } from "react";
 import { createTransaction, getAccounts, updateAccountBalance, getProjects, updateProject } from "@/lib/finance";
 import { Account, Project, Transaction, Fund, MasterCategory, MasterSubCategory } from "@/types/finance";
 import { uploadImage } from "@/lib/upload";
-import { collection, getDocs, addDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { collection, getDocs, addDoc } from "@/lib/firebase-compat";
+import { db } from "@/lib/firebase-compat";
 import { getUserRole, getAccessibleProjects, getAccessibleAccounts, getCategoriesForRole, hasProjectPermission, Role } from "@/lib/permissions";
 import { FolderOpen, CreditCard, Receipt, Upload, AlertCircle, Plus, Tag, Layers, ChevronRight, X, Eye } from "lucide-react";
 import CurrencyInput from "@/components/finance/CurrencyInput";
@@ -186,7 +186,7 @@ export default function ExpensePage() {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!canCreateExpense) { alert(t("no_create_expense_permission")); return; }
-        if (!category) { alert("Vui lòng chọn danh mục chi"); return; }
+        if (availableSubCategories.length > 0 && !category) { alert("Vui lòng chọn danh mục chi"); return; }
 
         const numAmount = parseFloat(amount);
         if (numAmount > selectedAccount!.balance) { alert(t("insufficient_balance")); return; }
@@ -199,14 +199,15 @@ export default function ExpensePage() {
 
             const parentCat = masterCategories.find(c => c.id === parentCategoryId);
             const parentCategoryName = parentCat?.name || "";
+            const finalCategory = category || parentCategoryName || t("unselected");
 
             const status = requiresApproval() ? "PENDING" : "APPROVED";
             await createTransaction({
-                type: "OUT", amount: numAmount, currency, category,
+                type: "OUT", amount: numAmount, currency, category: finalCategory,
                 parentCategory: parentCategoryName, parentCategoryId,
                 accountId, projectId: projectId || undefined, description, date: new Date().toISOString(),
-                status, createdBy: currentUser?.name || currentUser?.displayName || "Unknown",
-                userId: currentUser?.id || currentUser?.uid || "unknown", images: imageUrls,
+                status, createdBy: currentUser?.id || currentUser?.uid,
+                userId: currentUser?.id || currentUser?.uid, images: imageUrls,
                 createdAt: Date.now(), updatedAt: Date.now(),
             });
 
@@ -411,7 +412,7 @@ export default function ExpensePage() {
                                     <div className="pt-6 flex gap-3">
                                         <button type="button" onClick={() => setWizardStep(1)} className="flex-1 py-3 px-4 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 text-white font-bold transition-all active:scale-95">{t("cancel")}</button>
                                         <button
-                                            type="submit" disabled={submitting || !amount || !accountId || !projectId || !category}
+                                            type="submit" disabled={submitting || !amount || !accountId || !projectId || (!category && availableSubCategories.length > 0)}
                                             className="flex-[2] py-3 px-6 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 text-white font-bold shadow-lg shadow-red-500/20 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 disabled:scale-100"
                                         >
                                             {submitting ? t("processing") : t("save")}

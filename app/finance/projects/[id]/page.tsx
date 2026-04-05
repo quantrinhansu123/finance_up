@@ -6,8 +6,8 @@ import { Transaction, Account, Project, ProjectMember, ProjectRole, ProjectPermi
 import { getExchangeRates, convertCurrency } from "@/lib/currency";
 import { getUsers } from "@/lib/users";
 import { UserProfile } from "@/types/user";
-import { doc, getDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { doc, getDoc } from "@/lib/firebase-compat";
+import { db } from "@/lib/firebase-compat";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {

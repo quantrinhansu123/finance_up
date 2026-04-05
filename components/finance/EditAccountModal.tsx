@@ -3,8 +3,8 @@
 import { useState, useEffect } from "react";
 import { updateAccount, getProjects } from "@/lib/finance";
 import { Account, Currency, Project } from "@/types/finance";
-import { doc, updateDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { doc, updateDoc } from "@/lib/firebase-compat";
+import { db } from "@/lib/firebase-compat";
 import { useTranslation } from "@/lib/i18n";
 import { CURRENCY_METADATA } from "@/lib/currency";
 

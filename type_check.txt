@@ -1,0 +1,17 @@
+app/finance/beneficiaries/page.tsx(92,21): error TS2353: Object literal may only specify known properties, and 'createdAt' does not exist in type 'Omit<Beneficiary, "id" | "createdAt" | "updatedAt">'.
+app/finance/expense/page.tsx(210,17): error TS2353: Object literal may only specify known properties, and 'createdAt' does not exist in type 'Omit<Transaction, "id" | "createdAt" | "updatedAt">'.
+app/finance/fixed-costs/page.tsx(201,21): error TS2353: Object literal may only specify known properties, and 'createdAt' does not exist in type 'Omit<Transaction, "id" | "createdAt" | "updatedAt">'.
+app/finance/income/page.tsx(199,17): error TS2353: Object literal may only specify known properties, and 'createdAt' does not exist in type 'Omit<Transaction, "id" | "createdAt" | "updatedAt">'.
+app/finance/logs/page.tsx(20,44): error TS2315: Type 'QueryDocumentSnapshot' is not generic.
+app/finance/projects/page.tsx(152,21): error TS2353: Object literal may only specify known properties, and 'totalRevenue' does not exist in type 'Omit<Project, "id" | "createdAt" | "totalRevenue" | "totalExpense">'.
+app/finance/revenue/page.tsx(55,17): error TS2353: Object literal may only specify known properties, and 'createdAt' does not exist in type 'Omit<MonthlyRevenue, "id" | "createdAt">'.
+app/finance/transfer/page.tsx(181,17): error TS2353: Object literal may only specify known properties, and 'createdAt' does not exist in type 'Omit<Transaction, "id" | "createdAt" | "updatedAt">'.
+app/finance/transfer/page.tsx(199,17): error TS2353: Object literal may only specify known properties, and 'createdAt' does not exist in type 'Omit<Transaction, "id" | "createdAt" | "updatedAt">'.
+app/login/page.tsx(40,36): error TS7006: Parameter 'doc' implicitly has an 'any' type.
+components/finance/CreateAccountModal.tsx(73,17): error TS2353: Object literal may only specify known properties, and 'createdAt' does not exist in type 'Omit<Account, "id" | "createdAt">'.
+components/finance/CreateAccountModal.tsx(91,21): error TS2353: Object literal may only specify known properties, and 'createdAt' does not exist in type 'Omit<Transaction, "id" | "createdAt" | "updatedAt">'.
+components/finance/CreateTransactionModal.tsx(256,17): error TS2353: Object literal may only specify known properties, and 'createdAt' does not exist in type 'Omit<Transaction, "id" | "createdAt" | "updatedAt">'.
+components/finance/FundModal.tsx(60,21): error TS2353: Object literal may only specify known properties, and 'createdAt' does not exist in type 'Omit<Fund, "id" | "createdAt">'.
+debug_user_v2.ts(2,20): error TS2307: Cannot find module './lib/firebase' or its corresponding type declarations.
+debug_user_v2.ts(13,26): error TS7006: Parameter 'doc' implicitly has an 'any' type.
+lib/firebase-compat.ts(73,38): error TS2589: Type instantiation is excessively deep and possibly infinite.

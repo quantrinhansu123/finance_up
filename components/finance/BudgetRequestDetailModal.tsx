@@ -5,8 +5,8 @@ import { X, CheckCircle, Clock, Upload, ArrowRightCircle, ShieldCheck, Download,
 import { useState } from "react";
 import { useTranslation } from "@/lib/i18n";
 import { updateTransactionStatus } from "@/lib/finance";
-import { doc, updateDoc, getDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { doc, updateDoc, getDoc } from "@/lib/firebase-compat";
+import { db } from "@/lib/firebase-compat";
 import { getUserRole, hasProjectPermission } from "@/lib/permissions";
 import { uploadImage } from "../../lib/upload";
 import CurrencyInput from "./CurrencyInput";

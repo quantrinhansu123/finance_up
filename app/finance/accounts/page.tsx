@@ -3,11 +3,9 @@
 import { useEffect, useState, useMemo } from "react";
 import CreateAccountModal from "@/components/finance/CreateAccountModal";
 import EditAccountModal from "@/components/finance/EditAccountModal";
-import { getAccounts, getTransactions, getProjects } from "@/lib/finance";
+import { getAccounts, getTransactions, getProjects, updateAccount, deleteAccount as apiDeleteAccount } from "@/lib/finance";
 import { Account, Transaction } from "@/types/finance";
 import { getExchangeRates, convertCurrency } from "@/lib/currency";
-import { updateDoc, doc, deleteDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
 import Link from "next/link";
 import { getUserRole, Role } from "@/lib/permissions";
 import { Plus, Lock, Unlock, Edit2, History, Wallet, Trash2, Building2, Banknote, Smartphone } from "lucide-react";
@@ -66,7 +64,7 @@ export default function AccountsPage() {
     const toggleLock = async (acc: Account) => {
         if (!confirm(t(acc.isLocked ? "unlock_confirm" : "lock_confirm").replace("{name}", acc.name))) return;
         try {
-            await updateDoc(doc(db, "finance_accounts", acc.id), { isLocked: !acc.isLocked });
+            await updateAccount(acc.id, { isLocked: !acc.isLocked });
             fetchData();
         } catch (e) {
             console.error("Failed to toggle lock", e);
@@ -85,7 +83,7 @@ export default function AccountsPage() {
         }
         if (!confirm(t("delete_acc_confirm").replace("{name}", acc.name))) return;
         try {
-            await deleteDoc(doc(db, "finance_accounts", acc.id));
+            await apiDeleteAccount(acc.id);
             fetchData();
         } catch (e) {
             console.error("Failed to delete account", e);
