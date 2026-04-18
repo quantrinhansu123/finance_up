@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { getTransactions, updateTransactionStatus, updateAccountBalance, getAccounts, getProjects, getBudgetRequests, updateBudgetStatus } from "@/lib/finance";
+import { getTransactions, updateTransactionStatus, updateAccountBalance, getAccounts, getProjects, getBudgetRequests, updateBudgetStatus, approveBudgetByDirector, approveBudgetByAccountant, disburseBudgetRequest } from "@/lib/finance";
 import { Transaction, Account, Project, BudgetRequest } from "@/types/finance";
 import { logActivity } from "@/lib/logger";
 import { doc, updateDoc } from "@/lib/firebase-compat";
 import { db } from "@/lib/firebase-compat";
 import { supabase } from "@/lib/supabase";
+import { uploadImage } from "@/lib/upload";
 import { getUserRole, hasProjectPermission } from "@/lib/permissions";
 import { useRouter } from "next/navigation";
 import { ShieldX } from "lucide-react";
@@ -50,6 +51,10 @@ export default function ApprovalsPage() {
     const [showBudgetRejectModal, setShowBudgetRejectModal] = useState(false);
     const [rejectingBudget, setRejectingBudget] = useState<BudgetRequest | null>(null);
     const [budgetRejectionReason, setBudgetRejectionReason] = useState("");
+    const [showDisburseModal, setShowDisburseModal] = useState(false);
+    const [disbursingBudget, setDisbursingBudget] = useState<BudgetRequest | null>(null);
+    const [disburseFiles, setDisburseFiles] = useState<File[]>([]);
+    const [isDisbursing, setIsDisbursing] = useState(false);
 
     useEffect(() => {
         const u = localStorage.getItem("user") || sessionStorage.getItem("user");
@@ -119,7 +124,15 @@ export default function ApprovalsPage() {
             const { data: activityLogs, error: logsError } = await supabase
                 .from("finance_activity_logs")
                 .select("id, action, entity_id, user_name, details, logged_at")
-                .in("action", ["APPROVE", "REJECT", "APPROVE_BUDGET", "REJECT_BUDGET"])
+                .in("action", [
+                    "APPROVE",
+                    "REJECT",
+                    "APPROVE_BUDGET",
+                    "REJECT_BUDGET",
+                    "DIRECTOR_APPROVE_BUDGET",
+                    "ACCOUNTANT_APPROVE_BUDGET",
+                    "DISBURSE_BUDGET"
+                ])
                 .order("logged_at", { ascending: false })
                 .limit(50);
 
@@ -163,6 +176,34 @@ export default function ApprovalsPage() {
 
     const formatMoneyVND = (amount: number) => {
         return `${Number(amount || 0).toLocaleString("vi-VN")} VND`;
+    };
+
+    const getCurrentUserName = () => {
+        return currentUser?.name || currentUser?.displayName || currentUser?.email || "Unknown";
+    };
+
+    const canDirectorApproveBudget = (request: BudgetRequest) => {
+        const role = getUserRole(currentUser);
+        const financeRole = currentUser?.financeRole;
+        if (role === "ADMIN" || financeRole === "ADMIN" || financeRole === "DIRECTOR" || financeRole === "MANAGER") return true;
+
+        const projectId = request.id_du_an;
+        const project = allProjects.find((p) => p.id === projectId);
+        if (!project) return false;
+
+        return hasProjectPermission(currentUser?.uid || currentUser?.id, project, "approve_transactions", currentUser);
+    };
+
+    const canAccountantApproveBudget = (request: BudgetRequest) => {
+        const role = getUserRole(currentUser);
+        const financeRole = currentUser?.financeRole;
+        if (role === "ADMIN" || financeRole === "ADMIN" || financeRole === "ACCOUNTANT") return true;
+
+        const projectId = request.id_du_an;
+        const project = allProjects.find((p) => p.id === projectId);
+        if (!project) return false;
+
+        return hasProjectPermission(currentUser?.uid || currentUser?.id, project, "pay_transactions", currentUser);
     };
 
     const getFilteredTransactions = () => {
@@ -292,6 +333,93 @@ export default function ApprovalsPage() {
         setRejectingBudget(request);
         setBudgetRejectionReason("");
         setShowBudgetRejectModal(true);
+    };
+
+    const handleDirectorApproveBudget = async (request: BudgetRequest) => {
+        if (!confirm("Xác nhận giám đốc duyệt báo giá này?")) return;
+        try {
+            const userName = getCurrentUserName();
+            await approveBudgetByDirector(request.id, userName);
+
+            await logActivity(
+                { uid: currentUser?.id || currentUser?.uid || "admin", displayName: userName },
+                "DIRECTOR_APPROVE_BUDGET",
+                "BUDGET_REQUEST",
+                request.id,
+                `Giám đốc duyệt báo giá: ${formatMoneyVND(request.ngan_sach_xin)} | Dự án: ${request.du_an?.ten_du_an || "N/A"}`
+            );
+
+            fetchData();
+        } catch (error) {
+            console.error("Director approval failed", error);
+            alert("Lỗi khi giám đốc duyệt");
+        }
+    };
+
+    const handleAccountantApproveBudget = async (request: BudgetRequest) => {
+        if (!confirm("Xác nhận kế toán duyệt báo giá này?")) return;
+        try {
+            const userName = getCurrentUserName();
+            await approveBudgetByAccountant(request.id, userName);
+
+            await logActivity(
+                { uid: currentUser?.id || currentUser?.uid || "admin", displayName: userName },
+                "ACCOUNTANT_APPROVE_BUDGET",
+                "BUDGET_REQUEST",
+                request.id,
+                `Kế toán duyệt báo giá: ${formatMoneyVND(request.ngan_sach_xin)} | Dự án: ${request.du_an?.ten_du_an || "N/A"}`
+            );
+
+            fetchData();
+        } catch (error) {
+            console.error("Accountant approval failed", error);
+            alert("Lỗi khi kế toán duyệt");
+        }
+    };
+
+    const openDisburseModal = (request: BudgetRequest) => {
+        setDisbursingBudget(request);
+        setDisburseFiles([]);
+        setShowDisburseModal(true);
+    };
+
+    const handleDisburseFilesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (!e.target.files) return;
+        setDisburseFiles(Array.from(e.target.files));
+    };
+
+    const handleDisburseBudget = async () => {
+        if (!disbursingBudget) return;
+        if (disburseFiles.length === 0) {
+            alert("Vui lòng tải lên ít nhất 1 ảnh giải ngân");
+            return;
+        }
+
+        setIsDisbursing(true);
+        try {
+            const imageUrls = await Promise.all(disburseFiles.map((file) => uploadImage(file)));
+            const userName = getCurrentUserName();
+
+            await disburseBudgetRequest(disbursingBudget.id, imageUrls, userName);
+
+            await logActivity(
+                { uid: currentUser?.id || currentUser?.uid || "admin", displayName: userName },
+                "DISBURSE_BUDGET",
+                "BUDGET_REQUEST",
+                disbursingBudget.id,
+                `Đã giải ngân báo giá: ${formatMoneyVND(disbursingBudget.ngan_sach_xin)} | Dự án: ${disbursingBudget.du_an?.ten_du_an || "N/A"} | Ảnh: ${imageUrls.length}`
+            );
+
+            setShowDisburseModal(false);
+            setDisbursingBudget(null);
+            setDisburseFiles([]);
+            fetchData();
+        } catch (error) {
+            console.error("Disburse failed", error);
+            alert("Lỗi khi giải ngân");
+        } finally {
+            setIsDisbursing(false);
+        }
     };
 
     const handleRejectBudget = async () => {
@@ -493,6 +621,9 @@ export default function ApprovalsPage() {
                                     <tr>
                                         <th className="text-left px-4 py-3 font-semibold text-white/80">Dự án / Agency</th>
                                         <th className="text-left px-4 py-3 font-semibold text-white/80">Ngân sách xin</th>
+                                        <th className="text-left px-4 py-3 font-semibold text-white/80">Giám đốc</th>
+                                        <th className="text-left px-4 py-3 font-semibold text-white/80">Kế toán</th>
+                                        <th className="text-left px-4 py-3 font-semibold text-white/80">Giải ngân</th>
                                         <th className="text-left px-4 py-3 font-semibold text-white/80">Chứng từ</th>
                                         <th className="text-left px-4 py-3 font-semibold text-white/80">Thao tác</th>
                                     </tr>
@@ -505,6 +636,44 @@ export default function ApprovalsPage() {
                                                 <div className="text-xs text-[var(--muted)]">{request.crm_agencies?.ten_agency || "N/A"}</div>
                                             </td>
                                             <td className="px-4 py-3 text-blue-300 font-semibold">{formatMoneyVND(request.ngan_sach_xin)}</td>
+                                            <td className="px-4 py-3">
+                                                {request.giam_doc_da_duyet ? (
+                                                    <span className="px-2 py-1 rounded bg-green-500/20 text-green-300 text-xs">Đã duyệt</span>
+                                                ) : (
+                                                    <span className="px-2 py-1 rounded bg-yellow-500/20 text-yellow-300 text-xs">Chờ duyệt</span>
+                                                )}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                {request.ke_toan_da_duyet ? (
+                                                    <span className="px-2 py-1 rounded bg-green-500/20 text-green-300 text-xs">Đã duyệt</span>
+                                                ) : (
+                                                    <span className="px-2 py-1 rounded bg-yellow-500/20 text-yellow-300 text-xs">Chờ duyệt</span>
+                                                )}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                {request.da_giai_ngan ? (
+                                                    <div className="space-y-2">
+                                                        <span className="px-2 py-1 rounded bg-blue-500/20 text-blue-300 text-xs">Đã giải ngân</span>
+                                                        {!!request.anh_giai_ngan_urls?.length && (
+                                                            <div className="flex flex-wrap gap-2">
+                                                                {request.anh_giai_ngan_urls.map((url, index) => (
+                                                                    <a
+                                                                        key={`${request.id}-disburse-${index}`}
+                                                                        href={url}
+                                                                        target="_blank"
+                                                                        rel="noreferrer"
+                                                                        className="px-2 py-1 rounded bg-white/10 text-blue-300 hover:bg-white/20 text-xs"
+                                                                    >
+                                                                        Ảnh GN {index + 1}
+                                                                    </a>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ) : (
+                                                    <span className="px-2 py-1 rounded bg-white/10 text-[var(--muted)] text-xs">Chưa giải ngân</span>
+                                                )}
+                                            </td>
                                             <td className="px-4 py-3">
                                                 {request.chung_tu_urls?.length ? (
                                                     <div className="flex flex-wrap gap-2">
@@ -532,12 +701,30 @@ export default function ApprovalsPage() {
                                                     >
                                                         Từ chối
                                                     </button>
-                                                    <button
-                                                        onClick={() => handleApproveBudget(request)}
-                                                        className="px-3 py-1.5 rounded bg-green-500/20 text-green-300 hover:bg-green-500/30 font-medium"
-                                                    >
-                                                        Đồng ý
-                                                    </button>
+                                                    {!request.giam_doc_da_duyet && canDirectorApproveBudget(request) && (
+                                                        <button
+                                                            onClick={() => handleDirectorApproveBudget(request)}
+                                                            className="px-3 py-1.5 rounded bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30 font-medium"
+                                                        >
+                                                            Duyệt Giám đốc
+                                                        </button>
+                                                    )}
+                                                    {!request.ke_toan_da_duyet && canAccountantApproveBudget(request) && (
+                                                        <button
+                                                            onClick={() => handleAccountantApproveBudget(request)}
+                                                            className="px-3 py-1.5 rounded bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30 font-medium"
+                                                        >
+                                                            Duyệt Kế toán
+                                                        </button>
+                                                    )}
+                                                    {request.giam_doc_da_duyet && request.ke_toan_da_duyet && !request.da_giai_ngan && (
+                                                        <button
+                                                            onClick={() => openDisburseModal(request)}
+                                                            className="px-3 py-1.5 rounded bg-green-500/20 text-green-300 hover:bg-green-500/30 font-medium"
+                                                        >
+                                                            Giải ngân
+                                                        </button>
+                                                    )}
                                                 </div>
                                             </td>
                                         </tr>
@@ -580,13 +767,13 @@ export default function ApprovalsPage() {
                             header: t("action"),
                             align: "center",
                             render: (log) => {
-                                const isApprovedAction = log.action === "APPROVE" || log.action === "APPROVE_BUDGET";
+                                const isRejectAction = log.action === "REJECT" || log.action === "REJECT_BUDGET";
                                 return (
-                                    <span className={`px-2 py-1 rounded text-xs font-bold ${isApprovedAction
-                                        ? "bg-green-500/20 text-green-400"
-                                        : "bg-red-500/20 text-red-400"
+                                    <span className={`px-2 py-1 rounded text-xs font-bold ${isRejectAction
+                                        ? "bg-red-500/20 text-red-400"
+                                        : "bg-green-500/20 text-green-400"
                                         }`}>
-                                        {isApprovedAction ? t("approved") : t("rejected_label")}
+                                        {isRejectAction ? t("rejected_label") : t("approved")}
                                     </span>
                                 );
                             }
@@ -714,6 +901,56 @@ export default function ApprovalsPage() {
                                 className="flex-1 px-4 py-3 rounded-lg bg-red-500 hover:bg-red-600 text-white font-bold transition-colors"
                             >
                                 Xác nhận từ chối
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {showDisburseModal && disbursingBudget && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                    <div className="glass-card w-full max-w-md p-6 rounded-2xl relative">
+                        <button
+                            onClick={() => setShowDisburseModal(false)}
+                            className="absolute top-4 right-4 text-[var(--muted)] hover:text-white"
+                        >
+                            ✕
+                        </button>
+                        <h2 className="text-xl font-bold mb-4 text-green-400">Giải ngân báo giá</h2>
+
+                        <div className="mb-4 p-4 bg-white/5 rounded-lg">
+                            <p className="text-sm text-[var(--muted)]">Khoản giải ngân:</p>
+                            <p className="text-lg font-bold text-white">{formatMoneyVND(disbursingBudget.ngan_sach_xin)}</p>
+                            <p className="text-sm text-[var(--muted)]">
+                                {disbursingBudget.du_an?.ten_du_an || "N/A"} • {disbursingBudget.crm_agencies?.ten_agency || "N/A"}
+                            </p>
+                        </div>
+
+                        <div className="mb-4 border-2 border-dashed border-white/20 rounded-xl p-4 text-center">
+                            <input
+                                type="file"
+                                multiple
+                                onChange={handleDisburseFilesChange}
+                                className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                            />
+                            {disburseFiles.length > 0 && (
+                                <div className="mt-2 text-sm text-green-400">Đã chọn {disburseFiles.length} ảnh giải ngân</div>
+                            )}
+                        </div>
+
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setShowDisburseModal(false)}
+                                className="flex-1 px-4 py-3 rounded-lg bg-white/5 text-[var(--muted)] hover:text-white transition-colors"
+                            >
+                                Hủy
+                            </button>
+                            <button
+                                onClick={handleDisburseBudget}
+                                disabled={isDisbursing || disburseFiles.length === 0}
+                                className="flex-1 px-4 py-3 rounded-lg bg-green-500 hover:bg-green-600 text-white font-bold transition-colors disabled:opacity-50"
+                            >
+                                {isDisbursing ? "Đang giải ngân..." : "Xác nhận giải ngân"}
                             </button>
                         </div>
                     </div>

@@ -445,3 +445,50 @@ export async function updateBudgetStatus(id: string, status: 'dong_y' | 'tu_choi
 export async function updateBudgetRequestStatus(id: string, status: 'dong_y' | 'tu_choi', reason?: string): Promise<void> {
     await updateBudgetStatus(id, status, reason);
 }
+
+export async function approveBudgetByDirector(id: string, approverName: string): Promise<void> {
+    const now = new Date().toISOString();
+    const { error } = await supabase
+        .from("budget_requests")
+        .update({
+            giam_doc_da_duyet: true,
+            giam_doc_duyet_boi: approverName,
+            giam_doc_duyet_at: now,
+            updated_at: now
+        })
+        .eq("id", id);
+
+    if (error) throw error;
+}
+
+export async function approveBudgetByAccountant(id: string, approverName: string): Promise<void> {
+    const now = new Date().toISOString();
+    const { error } = await supabase
+        .from("budget_requests")
+        .update({
+            ke_toan_da_duyet: true,
+            ke_toan_duyet_boi: approverName,
+            ke_toan_duyet_at: now,
+            updated_at: now
+        })
+        .eq("id", id);
+
+    if (error) throw error;
+}
+
+export async function disburseBudgetRequest(id: string, imageUrls: string[], disburserName: string): Promise<void> {
+    const now = new Date().toISOString();
+    const { error } = await supabase
+        .from("budget_requests")
+        .update({
+            da_giai_ngan: true,
+            anh_giai_ngan_urls: imageUrls,
+            giai_ngan_boi: disburserName,
+            giai_ngan_at: now,
+            trang_thai: "dong_y",
+            updated_at: now
+        })
+        .eq("id", id);
+
+    if (error) throw error;
+}

@@ -270,6 +270,19 @@ export interface BudgetRequest {
     ngay_gio_xin?: string;
     created_at: string;
     updated_at?: string;
+
+    // Multi-step approval workflow
+    giam_doc_da_duyet?: boolean;
+    giam_doc_duyet_boi?: string;
+    giam_doc_duyet_at?: string;
+    ke_toan_da_duyet?: boolean;
+    ke_toan_duyet_boi?: string;
+    ke_toan_duyet_at?: string;
+    da_giai_ngan?: boolean;
+    giai_ngan_boi?: string;
+    giai_ngan_at?: string;
+    anh_giai_ngan_urls?: string[];
+
     // Join fields
     du_an?: { ten_du_an: string } | null;
     crm_agencies?: { ten_agency: string } | null;
