@@ -255,3 +255,22 @@ export interface ActivityLog {
     location?: string;
     device?: string;
 }
+
+export interface BudgetRequest {
+    id: string;
+    trang_thai: 'cho_phe_duyet' | 'dong_y' | 'tu_choi';
+    ngan_sach_xin: number;
+    ly_do_tu_choi?: string;
+    ghi_chu?: string;
+    chung_tu_urls: string[];
+    id_du_an?: string;
+    agency_id?: string;
+    tkqc_account_id?: string;
+    tkqc_id?: string;
+    ngay_gio_xin?: string;
+    created_at: string;
+    updated_at?: string;
+    // Join fields
+    du_an?: { ten_du_an: string } | null;
+    crm_agencies?: { ten_agency: string } | null;
+}

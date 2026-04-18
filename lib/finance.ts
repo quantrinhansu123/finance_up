@@ -1,5 +1,5 @@
 import { supabase } from "./supabase";
-import { Account, Project, Transaction, FixedCost, MonthlyRevenue, Fund, Beneficiary } from "@/types/finance";
+import { Account, Project, Transaction, FixedCost, MonthlyRevenue, Fund, Beneficiary, BudgetRequest } from "@/types/finance";
 import { logAction } from "./logger";
 
 // --- Accounts ---
@@ -412,4 +412,36 @@ export async function deleteBeneficiary(id: string): Promise<void> {
     const { error } = await supabase.from("finance_beneficiaries").delete().eq("id", id);
     if (error) throw error;
     await logAction("DELETE_BENEFICIARY", {}, id);
+}
+
+// --- Budget Requests (Manager Approval) ---
+
+export async function getBudgetRequests(): Promise<BudgetRequest[]> {
+    const { data, error } = await supabase
+        .from("budget_requests")
+        .select("*, du_an(ten_du_an), crm_agencies(ten_agency)")
+        .eq("trang_thai", "cho_phe_duyet")
+        .order("created_at", { ascending: false });
+    
+    if (error) throw error;
+    return data || [];
+}
+
+export async function updateBudgetStatus(id: string, status: 'dong_y' | 'tu_choi', reason?: string): Promise<void> {
+    const updateData: any = { 
+        trang_thai: status,
+        updated_at: new Date().toISOString()
+    };
+    if (reason) updateData.ly_do_tu_choi = reason;
+    
+    const { error } = await supabase
+        .from("budget_requests")
+        .update(updateData)
+        .eq("id", id);
+    
+    if (error) throw error;
+}
+
+export async function updateBudgetRequestStatus(id: string, status: 'dong_y' | 'tu_choi', reason?: string): Promise<void> {
+    await updateBudgetStatus(id, status, reason);
 }
