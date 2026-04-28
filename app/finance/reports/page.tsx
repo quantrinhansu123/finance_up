@@ -1,10 +1,8 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { getTransactions, getAccounts, getProjects, getFixedCosts } from "@/lib/finance";
+import { getTransactions, getAccounts, getProjects, getFixedCosts, getFunds } from "@/lib/finance";
 import { Transaction, Account, Project, Fund, FixedCost, Currency } from "@/types/finance";
-import { collection, getDocs } from "@/lib/firebase-compat";
-import { db } from "@/lib/firebase-compat";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 import { getUserRole, getAccessibleProjects, hasProjectPermission, Role } from "@/lib/permissions";
 
@@ -78,7 +76,7 @@ export default function ReportsPage() {
                 const [accs, projs, fundsData, fcData] = await Promise.all([
                     getAccounts(),
                     getProjects(),
-                    getDocs(collection(db, "finance_funds")).then(s => s.docs.map(d => ({ id: d.id, ...d.data() } as Fund))),
+                    getFunds(),
                     getFixedCosts()
                 ]);
                 setAccounts(accs);

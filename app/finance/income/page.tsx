@@ -1,11 +1,10 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { createTransaction, getAccounts, updateAccountBalance, getProjects, updateProject } from "@/lib/finance";
+import { createTransaction, getAccounts, updateAccountBalance, getProjects, updateProject, getTransactions } from "@/lib/finance";
+import { getMasterCategories, getMasterSubCategories } from "@/lib/master-categories";
 import { Account, Project, Transaction, MasterCategory, MasterSubCategory } from "@/types/finance";
 import { uploadImage } from "@/lib/upload";
-import { collection, getDocs, addDoc } from "@/lib/firebase-compat";
-import { db } from "@/lib/firebase-compat";
 import { getUserRole, getAccessibleProjects, getAccessibleAccounts, hasProjectPermission, Role } from "@/lib/permissions";
 import { FolderOpen, CreditCard, Wallet, Upload, AlertCircle, Plus, Tag, Layers } from "lucide-react";
 import CurrencyInput from "@/components/finance/CurrencyInput";
@@ -117,14 +116,16 @@ export default function IncomePage() {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [accs, projs] = await Promise.all([getAccounts(), getProjects()]);
-            setAccounts(accs); setProjects(projs);
-
-            const categoriesSnap = await getDocs(collection(db, "finance_master_categories"));
-            setMasterCategories(categoriesSnap.docs.map(d => ({ id: d.id, ...d.data() } as MasterCategory)).filter(c => c.isActive && c.type === "INCOME"));
-
-            const subCategoriesSnap = await getDocs(collection(db, "finance_master_sub_categories"));
-            setGlobalSubCategories(subCategoriesSnap.docs.map(d => ({ id: d.id, ...d.data() } as MasterSubCategory)).filter(c => c.isActive));
+            const [accs, projs, cats, subs] = await Promise.all([
+                getAccounts(),
+                getProjects(),
+                getMasterCategories(),
+                getMasterSubCategories(),
+            ]);
+            setAccounts(accs);
+            setProjects(projs);
+            setMasterCategories(cats.filter((c) => c.isActive && c.type === "INCOME"));
+            setGlobalSubCategories(subs.filter((c) => c.isActive));
 
             await fetchTransactions();
         } catch (e) { console.error(e); } finally { setLoading(false); }
@@ -133,8 +134,8 @@ export default function IncomePage() {
     const fetchTransactions = async () => {
         if (!currentUser) return;
         try {
-            const snapshot = await getDocs(collection(db, "finance_transactions"));
-            let txs = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Transaction)).filter(t => t.type === "IN");
+            const all = await getTransactions();
+            let txs = all.filter((t) => t.type === "IN");
             if (userRole !== "ADMIN") { const userId = currentUser.uid || currentUser.id; txs = txs.filter(t => t.userId === userId); }
             if (activeFilters.startDate) txs = txs.filter(t => t.date.split("T")[0] >= activeFilters.startDate);
             if (activeFilters.endDate) txs = txs.filter(t => t.date.split("T")[0] <= activeFilters.endDate);

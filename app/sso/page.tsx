@@ -2,8 +2,7 @@
 
 import { useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { db } from "@/lib/firebase-compat";
-import { collection, query, where, getDocs } from "@/lib/firebase-compat";
+import { getUserByEmail } from "@/lib/users";
 
 function SSOHandler() {
     const router = useRouter();
@@ -33,22 +32,13 @@ function SSOHandler() {
 
                 const email = data.email;
 
-                // 2. Tìm User trong DB
-                const usersRef = collection(db, "users");
-                const q = query(usersRef, where("email", "==", email));
-                const querySnapshot = await getDocs(q);
-
-                if (querySnapshot.empty) {
+                const profile = await getUserByEmail(email);
+                if (!profile) {
                     throw new Error("Không tìm thấy người dùng trong hệ thống UpBank");
                 }
 
-                let foundUser = null;
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                querySnapshot.forEach((doc: any) => {
-                    foundUser = { id: doc.id, ...doc.data() };
-                });
+                const foundUser = { ...profile, id: profile.uid };
 
-                // 3. Fake thao tác Đăng nhập & Lưu Session vào LocalStorage
                 const userData = JSON.stringify(foundUser);
                 localStorage.setItem("user", userData);
                 localStorage.setItem("isLoggedIn", "true");

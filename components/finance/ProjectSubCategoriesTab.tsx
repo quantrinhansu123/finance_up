@@ -2,9 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { Project, MasterCategory, ProjectSubCategory } from "@/types/finance";
-import { updateProject } from "@/lib/finance";
-import { collection, getDocs } from "@/lib/firebase-compat";
-import { db } from "@/lib/firebase-compat";
+import { updateProject, getProject } from "@/lib/finance";
+import { getMasterCategories } from "@/lib/master-categories";
 import { Plus, Edit2, Trash2, TrendingUp, TrendingDown, Save, X, ChevronDown } from "lucide-react";
 
 interface Props {
@@ -13,8 +12,6 @@ interface Props {
     canEdit: boolean;
     currentUserId: string;
 }
-
-const MASTER_CATEGORIES_COL = "finance_master_categories";
 
 export default function ProjectSubCategoriesTab({ project, onProjectUpdate, canEdit, currentUserId }: Props) {
     const [masterCategories, setMasterCategories] = useState<MasterCategory[]>([]);
@@ -36,9 +33,8 @@ export default function ProjectSubCategoriesTab({ project, onProjectUpdate, canE
     const fetchMasterCategories = async () => {
         setLoading(true);
         try {
-            const snapshot = await getDocs(collection(db, MASTER_CATEGORIES_COL));
-            const cats = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as MasterCategory));
-            setMasterCategories(cats.filter(c => c.isActive));
+            const cats = await getMasterCategories();
+            setMasterCategories(cats.filter((c) => c.isActive));
         } catch (error) {
             console.error("Error fetching master categories:", error);
         } finally {
@@ -144,12 +140,8 @@ export default function ProjectSubCategoriesTab({ project, onProjectUpdate, canE
                 expenseSubCategories: cleanExpenseSubCategories
             });
 
-            const updatedProject = {
-                ...project,
-                incomeSubCategories: cleanIncomeSubCategories,
-                expenseSubCategories: cleanExpenseSubCategories
-            };
-            onProjectUpdate(updatedProject);
+            const updatedProject = await getProject(project.id);
+            if (updatedProject) onProjectUpdate(updatedProject);
 
             setIsModalOpen(false);
             setSubCategoryName("");
@@ -209,12 +201,8 @@ export default function ProjectSubCategoriesTab({ project, onProjectUpdate, canE
                 expenseSubCategories: cleanExpenseSubCategories
             });
 
-            const updatedProject = {
-                ...project,
-                incomeSubCategories: cleanIncomeSubCategories,
-                expenseSubCategories: cleanExpenseSubCategories
-            };
-            onProjectUpdate(updatedProject);
+            const updatedProject = await getProject(project.id);
+            if (updatedProject) onProjectUpdate(updatedProject);
         } catch (error) {
             console.error("Error deleting sub-category:", error);
             alert("Lỗi khi xóa danh mục con");
@@ -273,12 +261,8 @@ export default function ProjectSubCategoriesTab({ project, onProjectUpdate, canE
                 expenseSubCategories: cleanExpenseSubCategories
             });
 
-            const updatedProject = {
-                ...project,
-                incomeSubCategories: cleanIncomeSubCategories,
-                expenseSubCategories: cleanExpenseSubCategories
-            };
-            onProjectUpdate(updatedProject);
+            const updatedProject = await getProject(project.id);
+            if (updatedProject) onProjectUpdate(updatedProject);
         } catch (error) {
             console.error("Error toggling sub-category:", error);
             alert("Lỗi khi cập nhật trạng thái");

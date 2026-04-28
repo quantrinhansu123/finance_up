@@ -3,8 +3,6 @@
 import { useState, useEffect } from "react";
 import { updateAccount, getProjects } from "@/lib/finance";
 import { Account, Currency, Project } from "@/types/finance";
-import { doc, updateDoc } from "@/lib/firebase-compat";
-import { db } from "@/lib/firebase-compat";
 import { useTranslation } from "@/lib/i18n";
 import { CURRENCY_METADATA } from "@/lib/currency";
 
@@ -67,15 +65,13 @@ export default function EditAccountModal({ isOpen, onClose, onSuccess, account }
         e.preventDefault();
         setLoading(true);
         try {
-            const accRef = doc(db, "finance_accounts", account.id);
-            await updateDoc(accRef, {
+            await updateAccount(account.id, {
                 name,
                 currency,
                 balance: parseFloat(balance) || 0,
-                projectId: projectId || null,
-                restrictCurrency: true, // Forced default
-                allowedCategories: null, // Forced default (all categories)
-                updatedAt: Date.now(),
+                projectId: projectId || undefined,
+                restrictCurrency: true,
+                allowedCategories: [],
             });
 
             onSuccess();

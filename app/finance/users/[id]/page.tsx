@@ -2,13 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { getUserById } from "@/lib/users";
-import { UserProfile } from "@/types/user";
+import { getUserById, updateUser, deleteUser } from "@/lib/users";
+import { UserProfile, type FinanceRole } from "@/types/user";
 import { getTransactions } from "@/lib/finance";
 import { Transaction } from "@/types/finance";
 import { getUserRole } from "@/lib/permissions";
-import { db } from "@/lib/firebase-compat";
-import { doc, updateDoc, deleteDoc } from "@/lib/firebase-compat";
 import { ArrowLeft, Edit2, Trash2, Save, X, Eye, EyeOff } from "lucide-react";
 
 const FINANCE_ROLES = [
@@ -36,6 +34,7 @@ export default function UserDetailsPage() {
     const [editForm, setEditForm] = useState({
         displayName: "",
         email: "",
+        boPhan: "",
         password: "",
         phoneNumber: "",
         position: "",
@@ -52,6 +51,7 @@ export default function UserDetailsPage() {
                     setEditForm({
                         displayName: userData.displayName || "",
                         email: userData.email || "",
+                        boPhan: userData.boPhan || "",
                         password: userData.password || "",
                         phoneNumber: userData.phoneNumber || "",
                         position: userData.position || "",
@@ -78,19 +78,20 @@ export default function UserDetailsPage() {
         if (!user) return;
         setSaving(true);
         try {
-            await updateDoc(doc(db, "users", user.uid), {
+            await updateUser(user.uid, {
                 displayName: editForm.displayName,
                 email: editForm.email,
-                password: editForm.password,
+                boPhan: editForm.boPhan || undefined,
+                ...(editForm.password ? { password: editForm.password } : {}),
                 phoneNumber: editForm.phoneNumber,
-                position: editForm.position,
-                financeRole: editForm.financeRole,
-                updatedAt: new Date(),
+                position: (editForm.position || undefined) as UserProfile["position"],
+                financeRole: editForm.financeRole as FinanceRole,
             });
             setUser({
                 ...user,
                 displayName: editForm.displayName,
                 email: editForm.email,
+                boPhan: editForm.boPhan,
                 password: editForm.password,
                 phoneNumber: editForm.phoneNumber,
                 position: editForm.position as any,
@@ -121,7 +122,7 @@ export default function UserDetailsPage() {
         }
 
         try {
-            await deleteDoc(doc(db, "users", user.uid));
+            await deleteUser(user.uid);
             alert("Đã xóa người dùng");
             router.push("/finance/users");
         } catch (error) {

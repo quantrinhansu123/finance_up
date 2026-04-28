@@ -2,8 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { db } from "@/lib/firebase-compat";
-import { doc, updateDoc } from "@/lib/firebase-compat";
+import { updateUser } from "@/lib/users";
 import { getUserRole } from "@/lib/permissions";
 import { Save, Eye, EyeOff, User, Mail, Phone, Briefcase, Shield, Calendar, Key, Edit3, X } from "lucide-react";
 import { useTranslation } from "@/lib/i18n";
@@ -52,11 +51,10 @@ export default function ProfilePage() {
         if (!user) return;
         setSaving(true);
         try {
-            await updateDoc(doc(db, "users", user.uid || user.id), {
+            await updateUser(user.uid || user.id, {
                 displayName: form.displayName,
                 phoneNumber: form.phoneNumber,
-                password: form.password,
-                updatedAt: new Date(),
+                ...(form.password ? { password: form.password } : {}),
             });
 
             const updatedUser = { ...user, ...form };

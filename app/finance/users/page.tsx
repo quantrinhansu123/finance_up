@@ -2,14 +2,12 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { getUsers } from "@/lib/users";
+import { getUsers, createUser, updateUser, deleteUser } from "@/lib/users";
 import { UserProfile, FinanceRole, Position } from "@/types/user";
 import { Plus, Edit2, Trash2, History, Save, X, User, Shield } from "lucide-react";
 import DataTableToolbar from "@/components/finance/DataTableToolbar";
 import SearchableSelect from "@/components/finance/SearchableSelect";
 import { exportToCSV } from "@/lib/export";
-import { doc, setDoc, updateDoc, deleteDoc } from "@/lib/firebase-compat";
-import { db } from "@/lib/firebase-compat";
 import { getUserRole, Role } from "@/lib/permissions";
 import DataTable, { ActionCell } from "@/components/finance/DataTable";
 import { useTranslation } from "@/lib/i18n";
@@ -43,6 +41,7 @@ export default function UsersPage() {
     // Filters
     const [activeFilters, setActiveFilters] = useState<Record<string, string>>({
         financeRole: "",
+        boPhan: "",
         position: "",
         approved: ""
     });
@@ -57,6 +56,7 @@ export default function UsersPage() {
     const [formData, setFormData] = useState({
         displayName: "",
         email: "",
+        boPhan: "",
         phoneNumber: "",
         position: "" as Position | "",
         financeRole: "NONE" as FinanceRole,
@@ -99,11 +99,14 @@ export default function UsersPage() {
                 email.toLowerCase().includes(searchTerm.toLowerCase());
 
             const matchFinanceRole = !activeFilters.financeRole || u.financeRole === activeFilters.financeRole;
+            const matchBoPhan =
+                !activeFilters.boPhan ||
+                (u.boPhan || u.employment?.department || "") === activeFilters.boPhan;
             const matchPosition = !activeFilters.position || u.position === activeFilters.position;
             const matchApproved = !activeFilters.approved ||
                 (activeFilters.approved === "true" ? u.approved : !u.approved);
 
-            return matchSearch && matchFinanceRole && matchPosition && matchApproved;
+            return matchSearch && matchFinanceRole && matchBoPhan && matchPosition && matchApproved;
         });
     }, [users, searchTerm, activeFilters]);
 
@@ -112,6 +115,7 @@ export default function UsersPage() {
         setFormData({
             displayName: "",
             email: "",
+            boPhan: "",
             phoneNumber: "",
             position: "",
             financeRole: "NONE",
@@ -126,6 +130,7 @@ export default function UsersPage() {
         setFormData({
             displayName: user.displayName || "",
             email: user.email || "",
+            boPhan: user.boPhan || "",
             phoneNumber: user.phoneNumber || "",
             position: user.position || "",
             financeRole: user.financeRole || "NONE",
@@ -144,32 +149,29 @@ export default function UsersPage() {
         setSaving(true);
         try {
             if (editingUser) {
-                // Update existing user
-                await updateDoc(doc(db, "users", editingUser.uid), {
+                await updateUser(editingUser.uid, {
                     displayName: formData.displayName,
                     email: formData.email,
+                    boPhan: formData.boPhan || undefined,
                     phoneNumber: formData.phoneNumber,
-                    position: formData.position || null,
+                    position: formData.position || undefined,
                     financeRole: formData.financeRole,
                     approved: formData.approved,
                     monthlySalary: formData.monthlySalary,
-                    updatedAt: new Date()
                 });
             } else {
-                // Create new user
-                const newUserId = `user_${Date.now()}`;
-                await setDoc(doc(db, "users", newUserId), {
+                const newUserId = crypto.randomUUID();
+                await createUser(newUserId, {
                     displayName: formData.displayName,
                     email: formData.email,
-                    password: "default123", // Default password
+                    boPhan: formData.boPhan || undefined,
+                    password: "default123",
                     phoneNumber: formData.phoneNumber,
-                    position: formData.position || null,
+                    position: formData.position || undefined,
                     financeRole: formData.financeRole,
                     approved: formData.approved,
                     monthlySalary: formData.monthlySalary,
                     role: "staff",
-                    createdAt: new Date(),
-                    updatedAt: new Date()
                 });
             }
 
@@ -189,7 +191,7 @@ export default function UsersPage() {
         }
 
         try {
-            await deleteDoc(doc(db, "users", user.uid));
+            await deleteUser(user.uid);
             await fetchUsers();
         } catch (error) {
             console.error("Failed to delete user", error);
@@ -236,12 +238,13 @@ export default function UsersPage() {
                 activeFilters={activeFilters}
                 onFilterChange={(id, val) => setActiveFilters(prev => ({ ...prev, [id]: val }))}
                 onReset={() => {
-                    setActiveFilters({ financeRole: "", position: "", approved: "" });
+                    setActiveFilters({ financeRole: "", boPhan: "", position: "", approved: "" });
                     setSearchTerm("");
                 }}
                 onExport={() => exportToCSV(filteredUsers, "Danh_Sach_Nguoi_Dung", {
                     displayName: t("name"),
                     email: t("email"),
+                    boPhan: "Bo_phan",
                     phoneNumber: t("phone"),
                     position: t("position"),
                     financeRole: t("finance_role"),
@@ -257,6 +260,18 @@ export default function UsersPage() {
                             value: r.value,
                             label: t(r.value.toLowerCase() as any) || r.label
                         }))
+                    },
+                    {
+                        id: "boPhan",
+                        label: "Bộ phận",
+                        options: Array.from(
+                            new Set(
+                                users
+                                    .map((u) => u.boPhan || u.employment?.department || "")
+                                    .filter(Boolean)
+                            )
+                        ).map((v) => ({ value: v, label: v })),
+                        advanced: true
                     },
                     {
                         id: "position",
@@ -302,6 +317,15 @@ export default function UsersPage() {
                         key: "email",
                         header: t("email"),
                         className: "text-[var(--muted)]"
+                    },
+                    {
+                        key: "boPhan",
+                        header: "Bộ phận",
+                        render: (user: UserProfile) => (
+                            <span className="text-[var(--muted)]">
+                                {user.boPhan || user.employment?.department || "-"}
+                            </span>
+                        )
                     },
                     {
                         key: "position",
@@ -428,6 +452,32 @@ export default function UsersPage() {
                                 {editingUser && (
                                     <p className="text-xs text-[var(--muted)] mt-1">{t("email_not_changeable")}</p>
                                 )}
+                            </div>
+
+                            {/* Phone Number */}
+                            <div>
+                                <label className="block text-sm font-medium text-white mb-2">
+                                    Bộ phận
+                                </label>
+                                <input
+                                    type="text"
+                                    list="bo-phan-options"
+                                    value={formData.boPhan}
+                                    onChange={(e) => setFormData(prev => ({ ...prev, boPhan: e.target.value }))}
+                                    className="glass-input w-full px-4 py-2 rounded-lg"
+                                    placeholder="Chọn hoặc nhập Bộ phận"
+                                />
+                                <datalist id="bo-phan-options">
+                                    {Array.from(
+                                        new Set(
+                                            users
+                                                .map((u) => u.boPhan || u.employment?.department || "")
+                                                .filter(Boolean)
+                                        )
+                                    ).map((v) => (
+                                        <option key={v} value={v} />
+                                    ))}
+                                </datalist>
                             </div>
 
                             {/* Phone Number */}

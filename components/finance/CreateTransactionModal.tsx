@@ -1,12 +1,10 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { createTransaction, getAccounts, updateAccountBalance, getProjects } from "@/lib/finance";
+import { createTransaction, getAccounts, updateAccountBalance, getProjects, getFunds } from "@/lib/finance";
 import { Account, Currency, TransactionType, Project, Fund } from "@/types/finance";
 import { getCategoriesForRole, Role, getAccessibleProjects, getAccessibleAccounts } from "@/lib/permissions";
 import { uploadImage } from "@/lib/upload";
-import { collection, getDocs } from "@/lib/firebase-compat";
-import { db } from "@/lib/firebase-compat";
 import CurrencyInput from "./CurrencyInput";
 import { getCurrencyFlag } from "@/lib/currency";
 
@@ -175,15 +173,14 @@ export default function CreateTransactionModal({ isOpen, onClose, onSuccess, cur
         if (isOpen) {
             const fetchData = async () => {
                 try {
-                    const [accs, projs] = await Promise.all([
+                    const [accs, projs, fundsList] = await Promise.all([
                         getAccounts(),
-                        getProjects()
+                        getProjects(),
+                        getFunds(),
                     ]);
                     setAccounts(accs);
                     setProjects(projs);
-
-                    const fundsSnapshot = await getDocs(collection(db, "finance_funds"));
-                    setFunds(fundsSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as Fund)));
+                    setFunds(fundsList);
                 } catch (error) {
                     console.error("Failed to load data:", error);
                 }

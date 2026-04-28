@@ -1,6 +1,19 @@
 import { supabase } from "./supabase";
-import { Account, Project, Transaction, FixedCost, MonthlyRevenue, Fund, Beneficiary, BudgetRequest } from "@/types/finance";
+import {
+    Account,
+    BudgetRequest,
+    Project,
+    ProjectMember,
+    ProjectPermission,
+    ProjectSubCategory,
+    Transaction,
+    FixedCost,
+    MonthlyRevenue,
+    Fund,
+    Beneficiary,
+} from "@/types/finance";
 import { logAction } from "./logger";
+import { v4 as uuidv4 } from "uuid";
 
 // --- Accounts ---
 
@@ -27,7 +40,7 @@ const mapAccountToDB = (data: any) => {
     if (data.currency !== undefined) res.currency = data.currency;
     if (data.balance !== undefined) res.balance = data.balance;
     if (data.openingBalance !== undefined) res.opening_balance = data.openingBalance;
-    if (data.projectId !== undefined) res.project_id = data.projectId;
+    if (data.projectId !== undefined) res.project_id = data.projectId || null;
     if (data.departmentId !== undefined) res.department_id = data.departmentId;
     if (data.isLocked !== undefined) res.is_locked = data.isLocked;
     if (data.restrictCurrency !== undefined) res.restrict_currency = data.restrictCurrency;
@@ -40,6 +53,12 @@ export async function getAccounts(): Promise<Account[]> {
     const { data, error } = await supabase.from("finance_accounts").select("*");
     if (error) throw error;
     return (data || []).map(mapAccountFromDB);
+}
+
+export async function getAccount(id: string): Promise<Account | null> {
+    const { data, error } = await supabase.from("finance_accounts").select("*").eq("id", id).maybeSingle();
+    if (error) throw error;
+    return data ? mapAccountFromDB(data) : null;
 }
 
 export async function createAccount(account: Omit<Account, "id">): Promise<string> {
@@ -96,10 +115,113 @@ const mapProjectToDB = (data: any) => {
     return res;
 };
 
+const isUuid = (s: string) =>
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(s);
+
+const mapProjectSubRow = (row: any): ProjectSubCategory => ({
+    id: row.id,
+    name: row.name,
+    parentCategoryId: row.parent_category_id,
+    parentCategoryName: row.parent_category_name || undefined,
+    type: row.type,
+    description: row.description || undefined,
+    isActive: row.is_active,
+    createdAt: new Date(row.created_at).getTime(),
+    createdBy: row.created_by || "",
+    projectId: row.project_id,
+});
+
+const mapProjectMemberRow = (row: any): ProjectMember => ({
+    id: row.user_id,
+    role: row.role,
+    permissions: (row.permissions || []) as ProjectPermission[],
+    addedAt: new Date(row.added_at).getTime(),
+    addedBy: row.added_by || undefined,
+});
+
+async function attachRelationsToProjects(projects: Project[]): Promise<Project[]> {
+    if (projects.length === 0) return projects;
+    const ids = projects.map((p) => p.id);
+    const [{ data: subRows, error: e1 }, { data: memRows, error: e2 }] = await Promise.all([
+        supabase.from("finance_project_sub_categories").select("*").in("project_id", ids),
+        supabase.from("finance_project_members").select("*").in("project_id", ids),
+    ]);
+    if (e1) throw e1;
+    if (e2) throw e2;
+    const subsBy = new Map<string, any[]>();
+    const memsBy = new Map<string, any[]>();
+    for (const r of subRows || []) {
+        const k = r.project_id;
+        if (!subsBy.has(k)) subsBy.set(k, []);
+        subsBy.get(k)!.push(r);
+    }
+    for (const r of memRows || []) {
+        const k = r.project_id;
+        if (!memsBy.has(k)) memsBy.set(k, []);
+        memsBy.get(k)!.push(r);
+    }
+    return projects.map((p) => {
+        const subs = subsBy.get(p.id) || [];
+        const mems = memsBy.get(p.id) || [];
+        return {
+            ...p,
+            incomeSubCategories: subs.filter((s) => s.type === "INCOME").map(mapProjectSubRow),
+            expenseSubCategories: subs.filter((s) => s.type === "EXPENSE").map(mapProjectSubRow),
+            members: mems.map(mapProjectMemberRow),
+            memberIds: mems.map((m) => m.user_id),
+        };
+    });
+}
+
+async function replaceProjectSubCategories(
+    projectId: string,
+    income: ProjectSubCategory[],
+    expense: ProjectSubCategory[]
+) {
+    const { error: delErr } = await supabase
+        .from("finance_project_sub_categories")
+        .delete()
+        .eq("project_id", projectId);
+    if (delErr) throw delErr;
+    const all = [...income, ...expense];
+    if (all.length === 0) return;
+    const rows = all.map((sub) => ({
+        id: isUuid(sub.id) ? sub.id : uuidv4(),
+        project_id: projectId,
+        name: sub.name,
+        parent_category_id: sub.parentCategoryId,
+        parent_category_name: sub.parentCategoryName || null,
+        type: sub.type,
+        description: sub.description || null,
+        is_active: sub.isActive,
+        created_by: sub.createdBy && isUuid(sub.createdBy) ? sub.createdBy : null,
+        created_at: new Date(sub.createdAt).toISOString(),
+    }));
+    const { error } = await supabase.from("finance_project_sub_categories").insert(rows);
+    if (error) throw error;
+}
+
+async function replaceProjectMembers(projectId: string, members: ProjectMember[]) {
+    const { error: delErr } = await supabase.from("finance_project_members").delete().eq("project_id", projectId);
+    if (delErr) throw delErr;
+    if (members.length === 0) return;
+    const rows = members.map((m) => ({
+        project_id: projectId,
+        user_id: m.id,
+        role: m.role,
+        permissions: m.permissions,
+        added_at: new Date(m.addedAt).toISOString(),
+        added_by: m.addedBy && isUuid(m.addedBy) ? m.addedBy : null,
+    }));
+    const { error } = await supabase.from("finance_project_members").insert(rows);
+    if (error) throw error;
+}
+
 export async function getProjects(): Promise<Project[]> {
     const { data, error } = await supabase.from("finance_projects").select("*");
     if (error) throw error;
-    return (data || []).map(mapProjectFromDB);
+    const base = (data || []).map(mapProjectFromDB);
+    return attachRelationsToProjects(base);
 }
 
 export async function createProject(project: Omit<Project, "id">): Promise<string> {
@@ -112,13 +234,36 @@ export async function createProject(project: Omit<Project, "id">): Promise<strin
 export async function getProject(id: string): Promise<Project | null> {
     const { data, error } = await supabase.from("finance_projects").select("*").eq("id", id).maybeSingle();
     if (error) throw error;
-    return data ? mapProjectFromDB(data) : null;
+    if (!data) return null;
+    const [withRels] = await attachRelationsToProjects([mapProjectFromDB(data)]);
+    return withRels;
 }
 
 export async function updateProject(projectId: string, data: Partial<Project>): Promise<void> {
-    const { error } = await supabase.from("finance_projects").update(mapProjectToDB(data)).eq("id", projectId);
-    if (error) throw error;
-    await logAction("UPDATE_PROJECT", data, projectId);
+    const { incomeSubCategories, expenseSubCategories, members, memberIds, ...projectFields } = data;
+    void memberIds;
+
+    const dbPayload = mapProjectToDB(projectFields);
+    if (Object.keys(dbPayload).length > 0) {
+        const { error } = await supabase.from("finance_projects").update(dbPayload).eq("id", projectId);
+        if (error) throw error;
+    }
+
+    if (incomeSubCategories !== undefined && expenseSubCategories !== undefined) {
+        await replaceProjectSubCategories(projectId, incomeSubCategories, expenseSubCategories);
+    }
+
+    if (members !== undefined) {
+        await replaceProjectMembers(projectId, members);
+    }
+
+    if (
+        Object.keys(dbPayload).length > 0 ||
+        (incomeSubCategories !== undefined && expenseSubCategories !== undefined) ||
+        members !== undefined
+    ) {
+        await logAction("UPDATE_PROJECT", projectFields, projectId);
+    }
 }
 
 export async function deleteProject(projectId: string): Promise<void> {
@@ -222,6 +367,12 @@ export async function updateTransaction(txId: string, tx: Partial<Transaction>):
     if (error) throw error;
 }
 
+export async function deleteTransaction(txId: string): Promise<void> {
+    const { error } = await supabase.from("finance_transactions").delete().eq("id", txId);
+    if (error) throw error;
+    await logAction("DELETE_TRANSACTION", {}, txId);
+}
+
 // --- Fixed Costs ---
 const mapFixedCostFromDB = (data: any): FixedCost => ({
     id: data.id,
@@ -298,7 +449,7 @@ const mapRevToDB = (data: any) => {
     if (data.amount !== undefined) res.amount = data.amount;
     if (data.currency !== undefined) res.currency = data.currency;
     if (data.note !== undefined) res.note = data.note;
-    // id in firebase was a string, let's use user-provided id or generate one
+    // Composite id e.g. YYYY-MM when provided
     if (data.id !== undefined) res.id = data.id;
     return res;
 };

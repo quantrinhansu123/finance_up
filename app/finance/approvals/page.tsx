@@ -1,11 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { getTransactions, updateTransactionStatus, updateAccountBalance, getAccounts, getProjects, getBudgetRequests, updateBudgetStatus, approveBudgetByDirector, approveBudgetByAccountant, disburseBudgetRequest } from "@/lib/finance";
+import { getTransactions, updateTransactionStatus, updateTransaction, updateAccountBalance, getAccounts, getProjects, getBudgetRequests, updateBudgetStatus, approveBudgetByDirector, approveBudgetByAccountant, disburseBudgetRequest } from "@/lib/finance";
 import { Transaction, Account, Project, BudgetRequest } from "@/types/finance";
 import { logActivity } from "@/lib/logger";
-import { doc, updateDoc } from "@/lib/firebase-compat";
-import { db } from "@/lib/firebase-compat";
 import { supabase } from "@/lib/supabase";
 import { uploadImage } from "@/lib/upload";
 import { getUserRole, hasProjectPermission } from "@/lib/permissions";
@@ -226,10 +224,8 @@ export default function ApprovalsPage() {
             await updateTransactionStatus(tx.id, "APPROVED");
 
             // 2. Update transaction with approver info
-            const txRef = doc(db, "finance_transactions", tx.id);
-            await updateDoc(txRef, {
+            await updateTransaction(tx.id, {
                 approvedBy: currentUser.name || currentUser.displayName || "Admin",
-                updatedAt: Date.now()
             });
 
             // 3. Log Activity
@@ -280,11 +276,9 @@ export default function ApprovalsPage() {
             await updateTransactionStatus(rejectingTx.id, "REJECTED");
 
             // 2. Update transaction with rejection info
-            const txRef = doc(db, "finance_transactions", rejectingTx.id);
-            await updateDoc(txRef, {
+            await updateTransaction(rejectingTx.id, {
                 rejectedBy: currentUser.name || currentUser.displayName || "Admin",
                 rejectionReason: rejectionReason.trim(),
-                updatedAt: Date.now()
             });
 
             // 3. Log Activity

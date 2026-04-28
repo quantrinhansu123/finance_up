@@ -39,6 +39,7 @@ export interface UserProfile {
   email: string;
   password: string;
   displayName: string;
+  boPhan?: string;
   role: UserRole;
   position?: Position; // Chức vụ
   departmentId?: string; // ID phòng ban

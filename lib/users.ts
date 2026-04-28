@@ -5,7 +5,8 @@ const mapUserFromDB = (data: any): UserProfile => ({
     uid: data.id,
     email: data.email || "",
     password: data.password || data.pass || "", // password column might not exist in employees, handle fallback in SSO
-    displayName: data.display_name || "",
+    displayName: data.name || data.display_name || "",
+    boPhan: data.bo_phan || data.department || undefined,
     role: data.role || "student",
     position: data.position || undefined,
     departmentId: data.department_id || undefined,
@@ -26,7 +27,7 @@ const mapUserFromDB = (data: any): UserProfile => ({
     employmentSalaryPercentage: data.employment_salary_percentage ? Number(data.employment_salary_percentage) : undefined,
     employmentActive: data.employment_active !== null ? data.employment_active : undefined,
     employment: data.employment || undefined,
-    financeRole: data.finance_role || undefined,
+    financeRole: data.finance_role || data.financeRole || data.employment?.financeRole || undefined,
     createdAt: new Date(data.created_at || Date.now()),
     updatedAt: new Date(data.updated_at || Date.now())
 });
@@ -34,7 +35,15 @@ const mapUserFromDB = (data: any): UserProfile => ({
 const mapUserToDB = (data: any) => {
     const res: any = {};
     if (data.email !== undefined) res.email = data.email;
-    if (data.displayName !== undefined) res.display_name = data.displayName;
+    if (data.displayName !== undefined) {
+        res.name = data.displayName;
+        res.display_name = data.displayName;
+    }
+    if (data.boPhan !== undefined) {
+        res.bo_phan = data.boPhan;
+        // Backward-compatible fallback for schemas that only have `department`
+        res.department = data.boPhan;
+    }
     if (data.role !== undefined) res.role = data.role;
     if (data.position !== undefined) res.position = data.position;
     if (data.departmentId !== undefined) res.department_id = data.departmentId;
@@ -55,7 +64,17 @@ const mapUserToDB = (data: any) => {
     if (data.employmentSalaryPercentage !== undefined) res.employment_salary_percentage = data.employmentSalaryPercentage;
     if (data.employmentActive !== undefined) res.employment_active = data.employmentActive;
     if (data.employment !== undefined) res.employment = data.employment;
-    if (data.financeRole !== undefined) res.finance_role = data.financeRole;
+    if (data.financeRole !== undefined) {
+        res.finance_role = data.financeRole;
+        // Backward-compatible fallback for legacy schemas using camelCase column
+        res.financeRole = data.financeRole;
+        // Keep in nested employment payload too (if app reads from JSON object)
+        const currentEmployment =
+            data.employment && typeof data.employment === "object" ? { ...data.employment } : {};
+        currentEmployment.financeRole = data.financeRole;
+        res.employment = currentEmployment;
+    }
+    if (data.password !== undefined) res.password = data.password;
     return res;
 };
 
@@ -71,21 +90,83 @@ export async function getUserById(userId: string): Promise<UserProfile | null> {
     return data ? mapUserFromDB(data) : null;
 }
 
+export async function getUserByEmail(email: string): Promise<UserProfile | null> {
+    const { data, error } = await supabase.from("employees").select("*").eq("email", email).maybeSingle();
+    if (error) throw error;
+    return data ? mapUserFromDB(data) : null;
+}
+
 export async function createUser(userId: string, userData: Partial<UserProfile>): Promise<void> {
     const dbData = mapUserToDB(userData);
     dbData.id = userId;
-    const { error } = await supabase.from("employees").insert([dbData]);
-    if (error) throw error;
+    await insertWithMissingColumnRetry("employees", dbData);
 }
 
 export async function updateUser(userId: string, userData: Partial<UserProfile>): Promise<void> {
     const dbData = mapUserToDB(userData);
     dbData.updated_at = new Date().toISOString();
-    const { error } = await supabase.from("employees").update(dbData).eq("id", userId);
-    if (error) throw error;
+    await updateWithMissingColumnRetry("employees", dbData, userId);
 }
 
 export async function deleteUser(userId: string): Promise<void> {
     const { error } = await supabase.from("employees").delete().eq("id", userId);
     if (error) throw error;
+}
+
+function extractMissingColumn(error: unknown): string | null {
+    if (!error || typeof error !== "object") return null;
+    const msg = String((error as { message?: unknown }).message || "");
+    const match = msg.match(/Could not find the '([^']+)' column/i);
+    return match ? match[1] : null;
+}
+
+function missingColumnError(column: string): Error {
+    if (column === "approved") {
+        return new Error(
+            "Thiếu cột approved trong bảng employees. Hãy chạy migration 20260428133000_add_approved_to_employees.sql rồi thử lại."
+        );
+    }
+    if (column === "position" || column === "finance_role") {
+        return new Error(
+            "Thiếu cột position/finance_role trong bảng employees. Hãy chạy migration 20260428141000_add_position_finance_role_to_employees.sql rồi thử lại."
+        );
+    }
+    return new Error(`Thiếu cột ${column} trong bảng employees.`);
+}
+
+async function insertWithMissingColumnRetry(
+    table: string,
+    payload: Record<string, unknown>
+): Promise<void> {
+    const data = { ...payload };
+    for (let i = 0; i < 12; i++) {
+        const { error } = await supabase.from(table).insert([data]);
+        if (!error) return;
+        const missing = extractMissingColumn(error);
+        if (missing === "approved" || missing === "position" || missing === "finance_role") {
+            throw missingColumnError(missing);
+        }
+        if (!missing || !(missing in data)) throw error;
+        delete data[missing];
+    }
+    throw new Error("Không thể lưu user: schema employees thiếu quá nhiều cột.");
+}
+
+async function updateWithMissingColumnRetry(
+    table: string,
+    payload: Record<string, unknown>,
+    id: string
+): Promise<void> {
+    const data = { ...payload };
+    for (let i = 0; i < 12; i++) {
+        const { error } = await supabase.from(table).update(data).eq("id", id);
+        if (!error) return;
+        const missing = extractMissingColumn(error);
+        if (missing === "approved" || missing === "position" || missing === "finance_role") {
+            throw missingColumnError(missing);
+        }
+        if (!missing || !(missing in data)) throw error;
+        delete data[missing];
+    }
+    throw new Error("Không thể cập nhật user: schema employees thiếu quá nhiều cột.");
 }

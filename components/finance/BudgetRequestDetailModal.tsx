@@ -4,9 +4,7 @@ import { Transaction, TransactionStatus, Project, Account } from "@/types/financ
 import { X, CheckCircle, Clock, Upload, ArrowRightCircle, ShieldCheck, Download, ExternalLink, XCircle, Wallet } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "@/lib/i18n";
-import { updateTransactionStatus } from "@/lib/finance";
-import { doc, updateDoc, getDoc } from "@/lib/firebase-compat";
-import { db } from "@/lib/firebase-compat";
+import { updateTransactionStatus, updateTransaction, updateAccountBalance, getAccount } from "@/lib/finance";
 import { getUserRole, hasProjectPermission } from "@/lib/permissions";
 import { uploadImage } from "../../lib/upload";
 import CurrencyInput from "./CurrencyInput";
@@ -56,10 +54,9 @@ export default function BudgetRequestDetailModal({ transaction, onClose, onUpdat
         setLoading(true);
         try {
             await updateTransactionStatus(transaction.id, "APPROVED");
-            await updateDoc(doc(db, "finance_transactions", transaction.id), {
-                amount: Number(editedAmount), // Use the possibly edited amount
+            await updateTransaction(transaction.id, {
+                amount: Number(editedAmount),
                 approvedBy: currentUser.displayName || currentUser.email,
-                updatedAt: Date.now()
             });
             onUpdate();
         } catch (e) {
@@ -79,10 +76,9 @@ export default function BudgetRequestDetailModal({ transaction, onClose, onUpdat
         setLoading(true);
         try {
             await updateTransactionStatus(transaction.id, "REJECTED");
-            await updateDoc(doc(db, "finance_transactions", transaction.id), {
+            await updateTransaction(transaction.id, {
                 rejectedBy: currentUser.displayName || currentUser.email,
                 rejectionReason: rejectionReason,
-                updatedAt: Date.now()
             });
             onUpdate();
             setIsRejecting(false);
@@ -134,13 +130,13 @@ export default function BudgetRequestDetailModal({ transaction, onClose, onUpdat
 
                 // Update Balance when marked as PAID
                 try {
-                    const accRef = doc(db, "finance_accounts", selectedAccountId);
-                    const accSnap = await getDoc(accRef);
-                    if (accSnap.exists()) {
-                        const accData = accSnap.data();
-                        const finalDeductAmount = usesDifferentCurrency ? (transaction.amount * (parseFloat(exchangeRate) || 1)) : transaction.amount;
-                        const newBalance = (accData.balance || 0) - finalDeductAmount;
-                        await updateDoc(accRef, { balance: newBalance });
+                    const accRow = await getAccount(selectedAccountId);
+                    if (accRow) {
+                        const finalDeductAmount = usesDifferentCurrency
+                            ? transaction.amount * (parseFloat(exchangeRate) || 1)
+                            : transaction.amount;
+                        const newBalance = accRow.balance - finalDeductAmount;
+                        await updateAccountBalance(selectedAccountId, newBalance);
                     }
                 } catch (balanceError) {
                     console.error("Failed to update balance:", balanceError);
@@ -149,12 +145,11 @@ export default function BudgetRequestDetailModal({ transaction, onClose, onUpdat
 
                 await updateTransactionStatus(transaction.id, "PAID");
                 const rateInfo = usesDifferentCurrency ? ` (Tỷ giá: 1 ${transaction.currency} = ${exchangeRate} ${selectedAccountObj?.currency})` : "";
-                await updateDoc(doc(db, "finance_transactions", transaction.id), {
+                await updateTransaction(transaction.id, {
                     paidBy: currentUser.displayName || currentUser.email,
                     accountId: selectedAccountId,
                     proofOfPayment: urls,
-                    updatedAt: Date.now(),
-                    description: (transaction.description || "") + rateInfo
+                    description: (transaction.description || "") + rateInfo,
                 });
             } else if (pendingAction === "CONFIRM") {
                 // Enforce 2 photos for Marketing Budget confirmation
@@ -165,10 +160,9 @@ export default function BudgetRequestDetailModal({ transaction, onClose, onUpdat
                 }
 
                 await updateTransactionStatus(transaction.id, "COMPLETED");
-                await updateDoc(doc(db, "finance_transactions", transaction.id), {
+                await updateTransaction(transaction.id, {
                     confirmedBy: currentUser.displayName || currentUser.email,
                     proofOfReceipt: urls,
-                    updatedAt: Date.now()
                 });
             }
 

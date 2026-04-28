@@ -3,13 +3,11 @@
 import { useState, useEffect } from "react";
 import { useTranslation } from "@/lib/i18n";
 import { Transaction, Account, Project, TransactionStatus } from "@/types/finance";
-import { getTransactions, getAccounts, getProjects, updateTransactionStatus } from "@/lib/finance";
+import { getTransactions, getAccounts, getProjects, deleteTransaction } from "@/lib/finance";
 import { getUserRole, hasProjectPermission, getAccessibleProjects } from "@/lib/permissions";
 import DataTable from "@/components/finance/DataTable";
 import { Plus, Filter, RefreshCw, Upload, CheckCircle, Clock, ArrowRightCircle, XCircle, AlertTriangle, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { db } from "@/lib/firebase-compat";
-import { updateDoc, doc, deleteDoc } from "@/lib/firebase-compat";
 import CreateBudgetRequestModal from "../../../components/finance/CreateBudgetRequestModal";
 import BudgetRequestDetailModal from "../../../components/finance/BudgetRequestDetailModal";
 
@@ -119,7 +117,7 @@ export default function BudgetRequestsPage() {
         if (!confirm("Bạn có chắc chắn muốn xóa yêu cầu này?")) return;
 
         try {
-            await deleteDoc(doc(db, "finance_transactions", tx.id));
+            await deleteTransaction(tx.id);
             fetchData();
         } catch (error) {
             console.error("Failed to delete request", error);

@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
-import { db } from "@/lib/firebase-compat";
-import { collection, query, orderBy, getDocs, limit, startAfter, where, Timestamp, DocumentData, QueryDocumentSnapshot } from "@/lib/firebase-compat";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { fetchActivityLogsPage, fetchActivityLogsAllInRange } from "@/lib/activity-logs";
 import { ActivityLog } from "@/types/finance";
 import { ChevronLeft, ChevronRight, Download, FileSpreadsheet, FileText, FileJson, Loader2 } from "lucide-react";
 
@@ -17,7 +16,7 @@ export default function LogsPage() {
     const [exporting, setExporting] = useState(false);
     const [showExportMenu, setShowExportMenu] = useState(false);
     const [hasMore, setHasMore] = useState(true);
-    const [lastDoc, setLastDoc] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
+    const logsRef = useRef<ActivityLog[]>([]);
     const [totalEstimate, setTotalEstimate] = useState(0);
 
     // Filters
@@ -41,73 +40,65 @@ export default function LogsPage() {
     const [cachedUsers, setCachedUsers] = useState<string[]>([]);
     const [cachedEntities, setCachedEntities] = useState<string[]>([]);
 
+    useEffect(() => {
+        logsRef.current = logs;
+    }, [logs]);
+
     const fetchLogs = useCallback(async (isInitial = true) => {
         if (isInitial) {
             setLoading(true);
             setLogs([]);
-            setLastDoc(null);
+            logsRef.current = [];
             setHasMore(true);
         } else {
             setLoadingMore(true);
         }
 
         try {
-            // Build query with date range filter (server-side)
-            let constraints: any[] = [orderBy("timestamp", "desc")];
-
+            let fromMs: number | undefined;
+            let toMs: number | undefined;
             if (filterDateFrom) {
                 const fromDate = new Date(filterDateFrom);
                 fromDate.setHours(0, 0, 0, 0);
-                constraints.push(where("timestamp", ">=", fromDate.getTime()));
+                fromMs = fromDate.getTime();
             }
-
             if (filterDateTo) {
                 const toDate = new Date(filterDateTo);
                 toDate.setHours(23, 59, 59, 999);
-                constraints.push(where("timestamp", "<=", toDate.getTime()));
+                toMs = toDate.getTime();
             }
 
-            constraints.push(limit(isInitial ? INITIAL_LOAD : LOAD_MORE_COUNT));
+            const limit = isInitial ? INITIAL_LOAD : LOAD_MORE_COUNT;
+            const offset = isInitial ? 0 : logsRef.current.length;
 
-            if (!isInitial && lastDoc) {
-                constraints.push(startAfter(lastDoc));
-            }
-
-            const q = query(collection(db, "finance_logs"), ...constraints);
-            const snapshot = await getDocs(q);
-
-            const newLogs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ActivityLog));
+            const newLogs = await fetchActivityLogsPage({ fromMs, toMs, limit, offset });
 
             if (isInitial) {
                 setLogs(newLogs);
-                // Update cached options
                 const users = new Set(cachedUsers);
                 const entities = new Set(cachedEntities);
-                newLogs.forEach(log => {
+                newLogs.forEach((log) => {
                     if (log.userName) users.add(log.userName);
                     if (log.entityType) entities.add(log.entityType);
                 });
                 setCachedUsers(Array.from(users).sort());
                 setCachedEntities(Array.from(entities).sort());
             } else {
-                setLogs(prev => [...prev, ...newLogs]);
+                setLogs((prev) => [...prev, ...newLogs]);
             }
 
-            setLastDoc(snapshot.docs[snapshot.docs.length - 1] || null);
-            setHasMore(snapshot.docs.length === (isInitial ? INITIAL_LOAD : LOAD_MORE_COUNT));
+            setHasMore(newLogs.length === limit);
 
-            // Estimate total (rough)
-            if (isInitial && snapshot.docs.length > 0) {
-                setTotalEstimate(snapshot.docs.length);
+            if (isInitial && newLogs.length > 0) {
+                setTotalEstimate(newLogs.length);
             }
-
         } catch (error) {
             console.error("Failed to fetch logs", error);
         } finally {
             setLoading(false);
             setLoadingMore(false);
         }
-    }, [filterDateFrom, filterDateTo, lastDoc, cachedUsers, cachedEntities]);
+    }, [filterDateFrom, filterDateTo, cachedUsers, cachedEntities]);
 
     // Initial load
     useEffect(() => {
@@ -245,32 +236,24 @@ export default function LogsPage() {
 
     // Load all logs for export (with current filters)
     const getAllLogsForExport = async (): Promise<ActivityLog[]> => {
-        // If we have all data loaded, use filtered logs
-        if (!hasMore) {
-            return filteredLogs;
-        }
-
-        // Otherwise, fetch all with date range
-        let constraints: any[] = [orderBy("timestamp", "desc")];
+        let fromMs: number | undefined;
+        let toMs: number | undefined;
         if (filterDateFrom) {
             const fromDate = new Date(filterDateFrom);
             fromDate.setHours(0, 0, 0, 0);
-            constraints.push(where("timestamp", ">=", fromDate.getTime()));
+            fromMs = fromDate.getTime();
         }
         if (filterDateTo) {
             const toDate = new Date(filterDateTo);
             toDate.setHours(23, 59, 59, 999);
-            constraints.push(where("timestamp", "<=", toDate.getTime()));
+            toMs = toDate.getTime();
         }
 
-        const q = query(collection(db, "finance_logs"), ...constraints);
-        const snapshot = await getDocs(q);
-        let allLogs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ActivityLog));
+        let allLogs = await fetchActivityLogsAllInRange({ fromMs, toMs });
 
-        // Apply client-side filters
-        if (filterAction) allLogs = allLogs.filter(l => l.action === filterAction);
-        if (filterUser) allLogs = allLogs.filter(l => l.userName.toLowerCase().includes(filterUser.toLowerCase()));
-        if (filterEntity) allLogs = allLogs.filter(l => l.entityType === filterEntity);
+        if (filterAction) allLogs = allLogs.filter((l) => l.action === filterAction);
+        if (filterUser) allLogs = allLogs.filter((l) => l.userName.toLowerCase().includes(filterUser.toLowerCase()));
+        if (filterEntity) allLogs = allLogs.filter((l) => l.entityType === filterEntity);
 
         return allLogs;
     };

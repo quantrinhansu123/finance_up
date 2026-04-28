@@ -2,8 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { db } from "@/lib/firebase-compat";
-import { collection, query, where, getDocs } from "@/lib/firebase-compat";
+import { supabase } from "@/lib/supabase";
 
 export default function LoginPage() {
     const router = useRouter();
@@ -27,54 +26,57 @@ export default function LoginPage() {
         setLoading(true);
 
         try {
-            const usersRef = collection(db, "users");
-            // Query Firestore for the email
-            const q = query(usersRef, where("email", "==", email));
-            const querySnapshot = await getDocs(q);
-
-            if (querySnapshot.empty) {
-                throw new Error("Không tìm thấy người dùng");
-            }
-
-            let foundUser = null;
-            querySnapshot.forEach((doc: any) => {
-                const user = doc.data();
-                const dbPassword = user.password || user.pass;
-                // Validating password
-                if (dbPassword === password) {
-                    foundUser = { id: doc.id, ...user };
-                }
+            const res = await fetch("/api/auth/login", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email, password }),
             });
-
-            if (!foundUser) {
-                throw new Error("Mật khẩu không đúng");
+            const payload = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                setError(payload.error || "Đăng nhập thất bại");
+                return;
             }
 
-            // Login success
-            const userData = JSON.stringify(foundUser);
+            const user = payload.user as Record<string, unknown> | undefined;
+            if (!user) {
+                setError("Phản hồi đăng nhập không hợp lệ");
+                return;
+            }
+
+            if (payload.access_token && payload.refresh_token) {
+                await supabase.auth.setSession({
+                    access_token: payload.access_token,
+                    refresh_token: payload.refresh_token,
+                });
+            } else {
+                await supabase.auth.signOut();
+            }
+
+            const userData = JSON.stringify(user);
             if (rememberMe) {
                 localStorage.setItem("user", userData);
                 localStorage.setItem("isLoggedIn", "true");
             } else {
                 sessionStorage.setItem("user", userData);
                 sessionStorage.setItem("isLoggedIn", "true");
+                await supabase.auth.signOut();
             }
 
             router.push("/finance");
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error("Login Error:", err);
-            if (err.code === "permission-denied") {
-                setError("Truy cập bị từ chối: Vui lòng kiểm tra quyền Firestore.");
-            } else {
-                setError(err.message || "Đã xảy ra lỗi không xác định");
-            }
+            const msg = err instanceof Error ? err.message : "Đã xảy ra lỗi không xác định";
+            setError(msg);
         } finally {
             setLoading(false);
         }
     };
 
     return (
-        <div className="flex items-center justify-center min-h-screen bg-[url('/bg-finance.jpg')] bg-cover bg-center">
+        <div
+            className="flex items-center justify-center min-h-screen bg-[url('/bg-finance.jpg')] bg-cover bg-center"
+            suppressHydrationWarning
+        >
             {/* Overlay for better text contrast if bg image is added later */}
             <div className="absolute inset-0 bg-black/60 backdrop-blur-sm"></div>
 

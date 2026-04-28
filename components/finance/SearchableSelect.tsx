@@ -19,6 +19,8 @@ interface SearchableSelectProps {
     className?: string;
     disabled?: boolean;
     required?: boolean;
+    allowCustom?: boolean;
+    customOptionPrefix?: string;
 }
 
 export default function SearchableSelect({
@@ -29,7 +31,9 @@ export default function SearchableSelect({
     searchPlaceholder = "Gõ để tìm kiếm...",
     className = "",
     disabled = false,
-    required = false
+    required = false,
+    allowCustom = false,
+    customOptionPrefix = "Dùng:"
 }: SearchableSelectProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState("");
@@ -70,6 +74,14 @@ export default function SearchableSelect({
         }
     };
 
+    const commitCustom = () => {
+        const val = searchTerm.trim();
+        if (!allowCustom || !val) return;
+        onChange(val);
+        setIsOpen(false);
+        setSearchTerm("");
+    };
+
     const clearSelection = (e: React.MouseEvent) => {
         e.stopPropagation();
         onChange("");
@@ -96,6 +108,12 @@ export default function SearchableSelect({
                     value={isOpen ? searchTerm : (selectedOption ? selectedOption.label : "")}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     onFocus={handleInputFocus}
+                    onKeyDown={(e) => {
+                        if (e.key === "Enter" && allowCustom && searchTerm.trim()) {
+                            e.preventDefault();
+                            commitCustom();
+                        }
+                    }}
                     readOnly={!isOpen && !!selectedOption}
                     disabled={disabled}
                 />
@@ -145,6 +163,15 @@ export default function SearchableSelect({
                             <div className="p-4 text-center text-sm text-[var(--muted)]">
                                 Không tìm thấy kết quả cho "{searchTerm}"
                             </div>
+                        )}
+                        {allowCustom && searchTerm.trim() && !filteredOptions.some((o) => o.label.toLowerCase() === searchTerm.trim().toLowerCase()) && (
+                            <button
+                                type="button"
+                                className="w-full text-left p-3 rounded-lg mt-1 bg-blue-500/10 hover:bg-blue-500/20 text-blue-300"
+                                onClick={commitCustom}
+                            >
+                                {customOptionPrefix} "{searchTerm.trim()}"
+                            </button>
                         )}
                     </div>
                 </div>

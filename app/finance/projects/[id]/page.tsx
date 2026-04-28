@@ -1,13 +1,11 @@
 "use client";
 
 import { useState, useEffect, use } from "react";
-import { getTransactions, getAccounts, updateProject, updateAccount, deleteProject } from "@/lib/finance";
+import { getTransactions, getAccounts, updateProject, updateAccount, deleteProject, getProject } from "@/lib/finance";
 import { Transaction, Account, Project, ProjectMember, ProjectRole, ProjectPermission } from "@/types/finance";
 import { getExchangeRates, convertCurrency } from "@/lib/currency";
 import { getUsers } from "@/lib/users";
 import { UserProfile } from "@/types/user";
-import { doc, getDoc } from "@/lib/firebase-compat";
-import { db } from "@/lib/firebase-compat";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -124,19 +122,18 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     const loadData = async () => {
         setLoading(true);
         try {
-            const [projectDoc, txs, accs, exchangeRates, usersList] = await Promise.all([
-                getDoc(doc(db, "finance_projects", projectId)),
+            const [projectRow, txs, accs, exchangeRates, usersList] = await Promise.all([
+                getProject(projectId),
                 getTransactions(),
                 getAccounts(),
                 getExchangeRates(),
                 getUsers()
             ]);
 
-            if (projectDoc.exists()) {
-                const progData = { id: projectDoc.id, ...projectDoc.data() } as Project;
-                setProject(progData);
-                setSelectedMemberIds(progData.memberIds || []);
-                setProjectMembers(progData.members || []);
+            if (projectRow) {
+                setProject(projectRow);
+                setSelectedMemberIds(projectRow.memberIds || []);
+                setProjectMembers(projectRow.members || []);
             }
             setAllUsers(usersList);
 
@@ -152,8 +149,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
             setRates(exchangeRates);
 
             // Determine target currency
-            const progData = projectDoc.exists() ? { id: projectDoc.id, ...projectDoc.data() } as Project : null;
-            const targetCurrency = progData?.defaultCurrency || progData?.currency || "VND";
+            const targetCurrency = projectRow?.defaultCurrency || projectRow?.currency || "VND";
 
             // Calculate stats
             let inTotal = 0;

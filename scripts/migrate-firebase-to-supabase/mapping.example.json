@@ -1,0 +1,64 @@
+{
+  "collections": [
+    {
+      "firestoreCollection": "finance_accounts",
+      "supabaseTable": "finance_accounts",
+      "idColumn": "id",
+      "onConflict": "id",
+      "batchSize": 500
+    },
+    {
+      "firestoreCollection": "finance_projects",
+      "supabaseTable": "finance_projects",
+      "idColumn": "id",
+      "onConflict": "id",
+      "batchSize": 500
+    },
+    {
+      "firestoreCollection": "finance_transactions",
+      "supabaseTable": "finance_transactions",
+      "idColumn": "id",
+      "onConflict": "id",
+      "batchSize": 500
+    },
+    {
+      "firestoreCollection": "finance_fixed_costs",
+      "supabaseTable": "finance_fixed_costs",
+      "idColumn": "id",
+      "onConflict": "id",
+      "batchSize": 500
+    },
+    {
+      "firestoreCollection": "finance_revenues",
+      "supabaseTable": "finance_revenues",
+      "idColumn": "id",
+      "onConflict": "id",
+      "batchSize": 500
+    },
+    {
+      "firestoreCollection": "finance_funds",
+      "supabaseTable": "finance_funds",
+      "idColumn": "id",
+      "onConflict": "id",
+      "batchSize": 500
+    },
+    {
+      "firestoreCollection": "finance_beneficiaries",
+      "supabaseTable": "finance_beneficiaries",
+      "idColumn": "id",
+      "onConflict": "id",
+      "batchSize": 500
+    },
+    {
+      "firestoreCollection": "users",
+      "supabaseTable": "users",
+      "idColumn": "uid",
+      "onConflict": "uid",
+      "batchSize": 500,
+      "fieldMap": {
+        "uid": "uid"
+      }
+    }
+  ]
+}
+

@@ -4,9 +4,17 @@ import { useState, useEffect, useMemo } from "react";
 import { MasterCategory, Transaction, Project, MasterSubCategory } from "@/types/finance";
 import { getUserRole, Role } from "@/lib/permissions";
 import { useRouter } from "next/navigation";
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from "@/lib/firebase-compat";
-import { db } from "@/lib/firebase-compat";
 import { getTransactions, getProjects } from "@/lib/finance";
+import {
+    getMasterCategories,
+    getMasterSubCategories,
+    updateMasterCategory,
+    insertMasterCategory,
+    deleteMasterCategory,
+    updateMasterSubCategory,
+    insertMasterSubCategory,
+    deleteMasterSubCategory,
+} from "@/lib/master-categories";
 
 const formatCurrency = (val: number, currency?: string) => {
     return new Intl.NumberFormat('vi-VN').format(val) + " " + (currency || "VND");
@@ -23,10 +31,13 @@ import DataTable, { ActionCell } from "@/components/finance/DataTable";
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
 import { useTranslation } from "@/lib/i18n";
 
-const MASTER_CATEGORIES_COL = "finance_master_categories";
-const MASTER_SUB_CATEGORIES_COL = "finance_master_sub_categories";
-
 type FilterType = "ALL" | "INCOME" | "EXPENSE";
+
+const profileIdOrNull = (u: { uid?: string; id?: string } | null): string | null => {
+    const id = u?.uid || u?.id;
+    if (!id) return null;
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id) ? id : null;
+};
 
 interface CategoryStats {
     totalAmount: number;
@@ -101,15 +112,12 @@ export default function MasterCategoriesPage() {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [catsSnapshot, subCatsSnapshot, txs, projs] = await Promise.all([
-                getDocs(collection(db, MASTER_CATEGORIES_COL)),
-                getDocs(collection(db, MASTER_SUB_CATEGORIES_COL)),
+            const [cats, subCats, txs, projs] = await Promise.all([
+                getMasterCategories(),
+                getMasterSubCategories(),
                 getTransactions(),
                 getProjects()
             ]);
-
-            const cats = catsSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as MasterCategory));
-            const subCats = subCatsSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as MasterSubCategory));
 
             setCategories(cats);
             setMasterSubCategories(subCats);
@@ -201,19 +209,18 @@ export default function MasterCategoriesPage() {
         setSaving(true);
         try {
             if (editingCategory) {
-                await updateDoc(doc(db, MASTER_CATEGORIES_COL, editingCategory.id), {
+                await updateMasterCategory(editingCategory.id, {
                     name: categoryName.trim(),
                     description: categoryDescription.trim() || "",
                     type: categoryType
                 });
             } else {
-                await addDoc(collection(db, MASTER_CATEGORIES_COL), {
+                await insertMasterCategory({
                     name: categoryName.trim(),
                     type: categoryType,
                     description: categoryDescription.trim() || "",
                     isActive: true,
-                    createdAt: Date.now(),
-                    createdBy: currentUser?.uid || currentUser?.id || "unknown"
+                    createdBy: profileIdOrNull(currentUser),
                 });
             }
 
@@ -235,7 +242,7 @@ export default function MasterCategoriesPage() {
 
         setSaving(true);
         try {
-            await deleteDoc(doc(db, MASTER_CATEGORIES_COL, category.id));
+            await deleteMasterCategory(category.id);
             await fetchData();
             if (selectedCategory?.id === category.id) {
                 setSelectedCategory(null);
@@ -252,7 +259,7 @@ export default function MasterCategoriesPage() {
         e.stopPropagation();
         setSaving(true);
         try {
-            await updateDoc(doc(db, MASTER_CATEGORIES_COL, category.id), {
+            await updateMasterCategory(category.id, {
                 isActive: !category.isActive
             });
             await fetchData();
@@ -284,20 +291,18 @@ export default function MasterCategoriesPage() {
         setSaving(true);
         try {
             if (editingSubCategory) {
-                await updateDoc(doc(db, MASTER_SUB_CATEGORIES_COL, editingSubCategory.id), {
+                await updateMasterSubCategory(editingSubCategory.id, {
                     name: subName.trim(),
                     description: subDescription.trim() || ""
                 });
             } else {
-                await addDoc(collection(db, MASTER_SUB_CATEGORIES_COL), {
+                await insertMasterSubCategory({
                     name: subName.trim(),
                     parentCategoryId: selectedCategory.id,
                     parentCategoryName: selectedCategory.name,
                     type: selectedCategory.type,
                     description: subDescription.trim() || "",
-                    isActive: true,
-                    createdAt: Date.now(),
-                    createdBy: currentUser?.uid || currentUser?.id || "unknown"
+                    createdBy: profileIdOrNull(currentUser),
                 });
             }
 
@@ -318,7 +323,7 @@ export default function MasterCategoriesPage() {
 
         setSaving(true);
         try {
-            await deleteDoc(doc(db, MASTER_SUB_CATEGORIES_COL, sub.id));
+            await deleteMasterSubCategory(sub.id);
             await fetchData();
         } catch (error) {
             console.error("Error deleting sub-category:", error);
@@ -331,7 +336,7 @@ export default function MasterCategoriesPage() {
     const handleToggleSubCategory = async (sub: MasterSubCategory) => {
         setSaving(true);
         try {
-            await updateDoc(doc(db, MASTER_SUB_CATEGORIES_COL, sub.id), {
+            await updateMasterSubCategory(sub.id, {
                 isActive: !sub.isActive
             });
             await fetchData();
