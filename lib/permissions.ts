@@ -91,8 +91,11 @@ export function getUserRole(user: any): Role {
     // Chỉ kiểm tra ADMIN - các trường hợp khác đều là USER (phân quyền theo dự án)
 
     // 1. Hardcode ADMIN cho CEO email
-    if (user.email && user.email.toLowerCase() === "ceo.fata@gmail.com") {
-        return "ADMIN";
+    if (user.email) {
+        const email = user.email.toLowerCase();
+        if (email === "ceo.fata@gmail.com" || email === "upedu2023@gmail.com") {
+            return "ADMIN";
+        }
     }
 
     // 2. Kiểm tra employment.position

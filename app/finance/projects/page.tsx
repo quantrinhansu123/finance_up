@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { getProjects, createProject, updateProject, getTransactions, deleteProject } from "@/lib/finance";
+import { getProjects, createProject, updateProject, getTransactions, deleteProject, getDuAnList } from "@/lib/finance";
 import { Project } from "@/types/finance";
 import { useRouter } from "next/navigation";
 import { getUserRole, getAccessibleProjects, hasProjectPermission, Role } from "@/lib/permissions";
@@ -11,6 +11,8 @@ import DataTableToolbar from "@/components/finance/DataTableToolbar";
 import { exportToCSV } from "@/lib/export";
 import DataTable, { ActionCell } from "@/components/finance/DataTable";
 import { useTranslation } from "@/lib/i18n";
+import { getUsers } from "@/lib/users";
+import { UserProfile } from "@/types/user";
 
 const ITEMS_PER_PAGE = 10;
 
@@ -38,6 +40,17 @@ export default function ProjectsPage() {
     const [budget, setBudget] = useState("");
     const [currency, setCurrency] = useState<"USD" | "VND" | "KHR">("USD");
 
+    // Member picker (checkbox multi-select)
+    const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
+    const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
+    const [usersLoading, setUsersLoading] = useState(false);
+    const [memberSearchTerm, setMemberSearchTerm] = useState("");
+
+    // du_an picker (dropdown)
+    const [duAnOptions, setDuAnOptions] = useState<Array<{ id: string; tenDuAn: string }>>([]);
+    const [duAnLoading, setDuAnLoading] = useState(false);
+    const [selectedDuAnId, setSelectedDuAnId] = useState<string>("");
+
     // Filtered data
     const filteredProjects = useMemo(() => {
         return projects.filter(p => {
@@ -51,6 +64,34 @@ export default function ProjectsPage() {
     // Reset page when filter changes removed - DataTable handles its own internal state
     // But we might want to pass a key to DataTable to force reset if needed, 
     // however for now standard internal reset is fine.
+
+    const loadUsersForProjectModal = async () => {
+        if (usersLoading) return;
+        if (allUsers.length > 0) return;
+        setUsersLoading(true);
+        try {
+            const users = await getUsers();
+            setAllUsers(users);
+        } catch (e) {
+            console.error("Failed to load users for project modal", e);
+        } finally {
+            setUsersLoading(false);
+        }
+    };
+
+    const loadDuAnOptions = async () => {
+        if (duAnLoading) return;
+        if (duAnOptions.length > 0) return;
+        setDuAnLoading(true);
+        try {
+            const options = await getDuAnList();
+            setDuAnOptions(options);
+        } catch (e) {
+            console.error("Failed to load du_an options", e);
+        } finally {
+            setDuAnLoading(false);
+        }
+    };
 
     // Load user info
     useEffect(() => {
@@ -77,17 +118,38 @@ export default function ProjectsPage() {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [projs, txs] = await Promise.all([
-                getProjects(),
-                getTransactions()
-            ]);
+            // Load projects first.
+            // If transactions query fails (e.g. auth/RLS), we still want to render projects list.
+            const projs = await getProjects();
 
-            // Calculate totals for each project
+            let txs: any[] = [];
+            try {
+                txs = await getTransactions();
+            } catch (txErr) {
+                console.error("Failed to load transactions for totals", txErr);
+            }
+
+            // Calculate totals per project efficiently:
+            // Avoid O(projects * transactions) by grouping txs by projectId once.
+            const statsByProjectId = new Map<string, { revenue: number; expense: number }>();
+            for (const tx of txs as any[]) {
+                if (tx?.status !== "APPROVED") continue;
+                const pid = tx?.projectId;
+                if (!pid) continue;
+
+                const cur = statsByProjectId.get(pid) || { revenue: 0, expense: 0 };
+                if (tx?.type === "IN") cur.revenue += Number(tx.amount || 0);
+                if (tx?.type === "OUT") cur.expense += Number(tx.amount || 0);
+                statsByProjectId.set(pid, cur);
+            }
+
             const projectsWithStats = projs.map(p => {
-                const projectTxs = txs.filter((t: any) => t.projectId === p.id && t.status === "APPROVED");
-                const revenue = projectTxs.filter((t: any) => t.type === "IN").reduce((sum: number, t: any) => sum + t.amount, 0);
-                const expense = projectTxs.filter((t: any) => t.type === "OUT").reduce((sum: number, t: any) => sum + t.amount, 0);
-                return { ...p, totalRevenue: revenue, totalExpense: expense };
+                const stats = statsByProjectId.get(p.id);
+                return {
+                    ...p,
+                    totalRevenue: stats?.revenue ?? 0,
+                    totalExpense: stats?.expense ?? 0
+                };
             });
 
             setAllProjects(projectsWithStats);
@@ -105,7 +167,12 @@ export default function ProjectsPage() {
         setStatus("ACTIVE");
         setBudget("");
         setCurrency("USD");
+        setSelectedMemberIds([]);
+        setMemberSearchTerm("");
+        setSelectedDuAnId("");
         setIsModalOpen(true);
+        void loadUsersForProjectModal();
+        void loadDuAnOptions();
     };
 
     const openEditModal = (project: Project, e: React.MouseEvent) => {
@@ -116,12 +183,27 @@ export default function ProjectsPage() {
         setStatus(project.status);
         setBudget(project.budget?.toString() || "");
         setCurrency(project.currency as any || "USD");
+        setSelectedMemberIds(project.memberIds || []);
+        setMemberSearchTerm("");
+        setSelectedDuAnId("__CURRENT__");
         setIsModalOpen(true);
+        void loadUsersForProjectModal();
+        void loadDuAnOptions();
     };
 
     useEffect(() => {
         fetchData();
     }, []);
+
+    // Align du_an dropdown with current project name when du_an options are loaded.
+    useEffect(() => {
+        if (!isModalOpen) return;
+        if (!selectedProject) return;
+        if (duAnOptions.length === 0) return;
+
+        const match = duAnOptions.find(opt => opt.tenDuAn === selectedProject.name);
+        setSelectedDuAnId(match ? match.id : "__CURRENT__");
+    }, [duAnOptions, isModalOpen, selectedProject?.id, selectedProject?.name]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -140,6 +222,7 @@ export default function ProjectsPage() {
                     status,
                     budget: budget ? parseFloat(budget) : 0,
                     currency,
+                    memberIds: selectedMemberIds,
                 });
             } else {
                 // CREATE
@@ -151,7 +234,7 @@ export default function ProjectsPage() {
                     currency,
                     totalRevenue: 0,
                     totalExpense: 0,
-                    memberIds: [],
+                    memberIds: selectedMemberIds,
                     createdAt: Date.now()
                 });
             }
@@ -383,7 +466,36 @@ export default function ProjectsPage() {
                             <form onSubmit={handleSubmit} className="space-y-4">
                                 <div>
                                     <label className="block text-sm font-medium text-[var(--muted)] mb-1">{t("name")}</label>
-                                    <input value={name} onChange={e => setName(e.target.value)} className="glass-input w-full p-2 rounded-lg" required />
+                                    <select
+                                        value={selectedDuAnId}
+                                        onChange={(e) => {
+                                            const id = e.target.value;
+                                            setSelectedDuAnId(id);
+                                            if (id === "__CURRENT__") return;
+
+                                            const opt = duAnOptions.find(o => o.id === id);
+                                            if (opt) setName(opt.tenDuAn);
+                                        }}
+                                        className="glass-input w-full p-2 rounded-lg"
+                                        required
+                                        disabled={duAnLoading}
+                                    >
+                                        <option value="" disabled>
+                                            {duAnLoading ? (t("loading") || "Loading...") : "Chọn dự án từ du_an"}
+                                        </option>
+
+                                        {duAnOptions.map(opt => (
+                                            <option key={opt.id} value={opt.id}>
+                                                {opt.tenDuAn}
+                                            </option>
+                                        ))}
+
+                                        {selectedProject &&
+                                            selectedDuAnId === "__CURRENT__" &&
+                                            !duAnOptions.some(opt => opt.tenDuAn === selectedProject.name) && (
+                                                <option value="__CURRENT__">{selectedProject.name}</option>
+                                            )}
+                                    </select>
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-[var(--muted)] mb-1">{t("description")}</label>
@@ -414,6 +526,80 @@ export default function ProjectsPage() {
                                             <option value="VND">VND</option>
                                             <option value="KHR">KHR</option>
                                         </select>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-[var(--muted)] mb-2">{t("members")}</label>
+                                    <div className="space-y-2">
+                                        <input
+                                            type="text"
+                                            value={memberSearchTerm}
+                                            onChange={(e) => setMemberSearchTerm(e.target.value)}
+                                            placeholder="Tìm theo tên/email/position..."
+                                            className="glass-input w-full p-2 rounded-lg"
+                                        />
+                                        <div className="max-h-48 overflow-y-auto border border-white/10 bg-white/5 rounded-xl p-3 space-y-2">
+                                        {usersLoading ? (
+                                            <p className="text-sm text-[var(--muted)]">{t("loading") || "Loading..."}</p>
+                                        ) : allUsers.length === 0 ? (
+                                            <p className="text-sm text-[var(--muted)]">{t("no_data") || "No users"}</p>
+                                        ) : (
+                                            (() => {
+                                                const q = memberSearchTerm.trim().toLowerCase();
+                                                const visibleUsers = q
+                                                    ? allUsers.filter((u) => {
+                                                        const name = (u.displayName || "").toLowerCase();
+                                                        const email = (u.email || "").toLowerCase();
+                                                        const pos = (u.position || "").toLowerCase();
+                                                        return name.includes(q) || email.includes(q) || pos.includes(q);
+                                                    })
+                                                    : allUsers;
+
+                                                if (visibleUsers.length === 0) {
+                                                    return (
+                                                        <p className="text-sm text-[var(--muted)]">
+                                                            Không tìm thấy thành viên phù hợp.
+                                                        </p>
+                                                    );
+                                                }
+
+                                                return visibleUsers.map((u) => {
+                                                    const checked = selectedMemberIds.includes(u.uid);
+                                                    return (
+                                                        <label
+                                                            key={u.uid}
+                                                            className="flex items-center gap-3 p-2 rounded-lg hover:bg-white/5 transition-colors cursor-pointer"
+                                                        >
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={checked}
+                                                                onChange={(e) => {
+                                                                    const nextChecked = e.target.checked;
+                                                                    setSelectedMemberIds(prev => {
+                                                                        if (nextChecked) {
+                                                                            if (prev.includes(u.uid)) return prev;
+                                                                            return [...prev, u.uid];
+                                                                        }
+                                                                        return prev.filter(id => id !== u.uid);
+                                                                    });
+                                                                }}
+                                                                className="w-4 h-4 rounded border-white/20 text-blue-400 focus:ring-blue-500/40"
+                                                            />
+                                                            <div className="flex-1 min-w-0">
+                                                                <div className="text-sm font-medium text-white truncate">
+                                                                    {u.displayName || u.email}
+                                                                </div>
+                                                                <div className="text-xs text-[var(--muted)] truncate">
+                                                                    {u.position || u.email}
+                                                                </div>
+                                                            </div>
+                                                        </label>
+                                                    );
+                                                });
+                                            })()
+                                        )}
+                                        </div>
                                     </div>
                                 </div>
 

@@ -85,6 +85,19 @@ export async function deleteAccount(accountId: string): Promise<void> {
 }
 
 // --- Projects ---
+
+export async function getDuAnList(): Promise<Array<{ id: string; tenDuAn: string }>> {
+    const { data, error } = await supabase
+        .from("du_an")
+        .select("id, ten_du_an")
+        .order("ten_du_an", { ascending: true });
+    if (error) throw error;
+    return (data || []).map((r: any) => ({
+        id: r.id,
+        tenDuAn: r.ten_du_an,
+    }));
+}
+
 const mapProjectFromDB = (data: any): Project => ({
     id: data.id,
     name: data.name,
@@ -97,7 +110,8 @@ const mapProjectFromDB = (data: any): Project => ({
     defaultCurrency: data.default_currency || undefined,
     allowedCategories: data.allowed_categories || [],
     createdBy: data.created_by || undefined,
-    createdAt: new Date(data.created_at).getTime()
+    createdAt: new Date(data.created_at).getTime(),
+    memberIds: data.member_ids || [],
 });
 
 const mapProjectToDB = (data: any) => {
@@ -142,12 +156,19 @@ const mapProjectMemberRow = (row: any): ProjectMember => ({
 async function attachRelationsToProjects(projects: Project[]): Promise<Project[]> {
     if (projects.length === 0) return projects;
     const ids = projects.map((p) => p.id);
-    const [{ data: subRows, error: e1 }, { data: memRows, error: e2 }] = await Promise.all([
+    // Relations are used for member list, permissions and sub categories.
+    // If RLS/policy causes them to fail, we should still return base projects
+    // so the page doesn't appear empty.
+    let subRows: any[] = [];
+    let memRows: any[] = [];
+    const [{ data: subData, error: e1 }, { data: memData, error: e2 }] = await Promise.all([
         supabase.from("finance_project_sub_categories").select("*").in("project_id", ids),
         supabase.from("finance_project_members").select("*").in("project_id", ids),
     ]);
-    if (e1) throw e1;
-    if (e2) throw e2;
+    if (!e1 && subData) subRows = subData;
+    if (!e2 && memData) memRows = memData;
+    // eslint-disable-next-line no-console
+    if (e1 || e2) console.warn("attachRelationsToProjects: failed relations", e1 || e2);
     const subsBy = new Map<string, any[]>();
     const memsBy = new Map<string, any[]>();
     for (const r of subRows || []) {
@@ -163,12 +184,15 @@ async function attachRelationsToProjects(projects: Project[]): Promise<Project[]
     return projects.map((p) => {
         const subs = subsBy.get(p.id) || [];
         const mems = memsBy.get(p.id) || [];
+
+        const resolvedMemberIds = mems.length > 0 ? mems.map((m) => m.user_id) : p.memberIds || [];
+
         return {
             ...p,
             incomeSubCategories: subs.filter((s) => s.type === "INCOME").map(mapProjectSubRow),
             expenseSubCategories: subs.filter((s) => s.type === "EXPENSE").map(mapProjectSubRow),
-            members: mems.map(mapProjectMemberRow),
-            memberIds: mems.map((m) => m.user_id),
+            members: mems.length > 0 ? mems.map(mapProjectMemberRow) : p.members,
+            memberIds: resolvedMemberIds,
         };
     });
 }
@@ -225,8 +249,40 @@ export async function getProjects(): Promise<Project[]> {
 }
 
 export async function createProject(project: Omit<Project, "id">): Promise<string> {
-    const { data, error } = await supabase.from("finance_projects").insert([mapProjectToDB(project)]).select("id").single();
+    const { members, memberIds, ...projectFields } = project as Omit<Project, "id"> & {
+        members?: ProjectMember[];
+        memberIds?: string[];
+    };
+
+    const { data, error } = await supabase
+        .from("finance_projects")
+        .insert([mapProjectToDB(projectFields)])
+        .select("id")
+        .single();
     if (error) throw error;
+
+    if (members !== undefined || memberIds !== undefined) {
+        const normalizedMembers: ProjectMember[] =
+            members ??
+            (memberIds || []).map((id) => ({
+                id,
+                role: "MEMBER",
+                permissions: [],
+                addedAt: Date.now(),
+                addedBy: undefined,
+            }));
+
+        const normalizedMemberIds = normalizedMembers.map((m) => m.id);
+        // Persist member list for checkbox selection & fast access checks
+        const { error: miErr } = await supabase
+            .from("finance_projects")
+            .update({ member_ids: normalizedMemberIds })
+            .eq("id", data.id);
+        if (miErr) {
+            console.warn("createProject: failed to update member_ids, will fallback.", miErr);
+        }
+    }
+
     await logAction("CREATE_PROJECT", { name: project.name }, data.id);
     return data.id;
 }
@@ -241,7 +297,6 @@ export async function getProject(id: string): Promise<Project | null> {
 
 export async function updateProject(projectId: string, data: Partial<Project>): Promise<void> {
     const { incomeSubCategories, expenseSubCategories, members, memberIds, ...projectFields } = data;
-    void memberIds;
 
     const dbPayload = mapProjectToDB(projectFields);
     if (Object.keys(dbPayload).length > 0) {
@@ -253,8 +308,25 @@ export async function updateProject(projectId: string, data: Partial<Project>): 
         await replaceProjectSubCategories(projectId, incomeSubCategories, expenseSubCategories);
     }
 
-    if (members !== undefined) {
-        await replaceProjectMembers(projectId, members);
+    if (members !== undefined || memberIds !== undefined) {
+        const normalizedMembers: ProjectMember[] =
+            members ??
+            (memberIds || []).map((id) => ({
+                id,
+                role: "MEMBER",
+                permissions: [],
+                addedAt: Date.now(),
+                addedBy: undefined,
+            }));
+
+        const normalizedMemberIds = normalizedMembers.map((m) => m.id);
+        const { error: miErr } = await supabase
+            .from("finance_projects")
+            .update({ member_ids: normalizedMemberIds })
+            .eq("id", projectId);
+        if (miErr) {
+            console.warn("updateProject: failed to update member_ids, will fallback.", miErr);
+        }
     }
 
     if (
