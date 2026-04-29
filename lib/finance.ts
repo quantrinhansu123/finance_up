@@ -105,6 +105,7 @@ const mapProjectFromDB = (data: any): Project => ({
     status: data.status,
     budget: data.budget ? Number(data.budget) : undefined,
     currency: data.currency || undefined,
+    market: undefined,
     totalRevenue: Number(data.total_revenue),
     totalExpense: Number(data.total_expense),
     defaultCurrency: data.default_currency || undefined,
@@ -113,6 +114,34 @@ const mapProjectFromDB = (data: any): Project => ({
     createdAt: new Date(data.created_at).getTime(),
     memberIds: data.member_ids || [],
 });
+
+async function attachDuAnMarketToProjects(projects: Project[]): Promise<Project[]> {
+    if (projects.length === 0) return projects;
+    const names = Array.from(new Set(projects.map((p) => p.name).filter(Boolean)));
+    if (names.length === 0) return projects;
+
+    // Best-effort: match by ten_du_an == finance_projects.name
+    // This avoids adding new FK columns just to display thi_truong.
+    const { data, error } = await supabase
+        .from("du_an")
+        .select("ten_du_an, thi_truong")
+        .in("ten_du_an", names);
+
+    if (error) {
+        console.warn("attachDuAnMarketToProjects: failed to load thi_truong", error);
+        return projects;
+    }
+
+    const marketByName = new Map<string, string | null>();
+    (data || []).forEach((r: any) => {
+        marketByName.set(r.ten_du_an, r.thi_truong ?? null);
+    });
+
+    return projects.map((p) => ({
+        ...p,
+        market: marketByName.get(p.name) ?? undefined,
+    }));
+}
 
 const mapProjectToDB = (data: any) => {
     const res: any = {};
@@ -245,7 +274,8 @@ export async function getProjects(): Promise<Project[]> {
     const { data, error } = await supabase.from("finance_projects").select("*");
     if (error) throw error;
     const base = (data || []).map(mapProjectFromDB);
-    return attachRelationsToProjects(base);
+    const withRels = await attachRelationsToProjects(base);
+    return attachDuAnMarketToProjects(withRels);
 }
 
 export async function createProject(project: Omit<Project, "id">): Promise<string> {
@@ -292,7 +322,8 @@ export async function getProject(id: string): Promise<Project | null> {
     if (error) throw error;
     if (!data) return null;
     const [withRels] = await attachRelationsToProjects([mapProjectFromDB(data)]);
-    return withRels;
+    const [withMarket] = await attachDuAnMarketToProjects([withRels]);
+    return withMarket;
 }
 
 export async function updateProject(projectId: string, data: Partial<Project>): Promise<void> {

@@ -357,6 +357,18 @@ export default function ProjectsPage() {
                         )
                     },
                     {
+                        key: "projectCode",
+                        header: "Mã dự án",
+                        render: (p) => {
+                            const currencyText = (p.currency || p.defaultCurrency || "VND") as string;
+                            return (
+                                <span className="font-medium text-white">
+                                    {p.name} - {currencyText}
+                                </span>
+                            );
+                        }
+                    },
+                    {
                         key: "members",
                         header: t("members"),
                         render: (p) => (

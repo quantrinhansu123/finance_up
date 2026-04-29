@@ -1,0 +1,150 @@
+{
+  "collections": [
+    {
+      "firestoreCollection": "finance_projects",
+      "supabaseTable": "finance_projects",
+      "idColumn": "id",
+      "onConflict": "id",
+      "batchSize": 500,
+      "fieldMap": {
+        "name": "name",
+        "description": "description",
+        "status": "status",
+        "budget": "budget",
+        "currency": "currency",
+        "total_revenue": "totalRevenue",
+        "total_expense": "totalExpense",
+        "default_currency": "defaultCurrency",
+        "allowed_categories": "allowedCategories",
+        "created_by": "createdBy"
+      }
+    },
+    {
+      "firestoreCollection": "finance_accounts",
+      "supabaseTable": "finance_accounts",
+      "idColumn": "id",
+      "onConflict": "id",
+      "batchSize": 500,
+      "fieldMap": {
+        "name": "name",
+        "type": "type",
+        "currency": "currency",
+        "balance": "balance",
+        "opening_balance": "openingBalance",
+        "project_id": "projectId",
+        "department_id": "departmentId",
+        "is_locked": "isLocked",
+        "restrict_currency": "restrictCurrency",
+        "allowed_categories": "allowedCategories",
+        "assigned_user_ids": "assignedUserIds"
+      }
+    },
+    {
+      "firestoreCollection": "finance_beneficiaries",
+      "supabaseTable": "finance_beneficiaries",
+      "idColumn": "id",
+      "onConflict": "id",
+      "batchSize": 500,
+      "fieldMap": {
+        "name": "name",
+        "platforms": "platforms",
+        "bank_accounts": "bankAccounts",
+        "description": "description",
+        "is_active": "isActive",
+        "created_at": "createdAt",
+        "updated_at": "updatedAt"
+      }
+    },
+    {
+      "firestoreCollection": "finance_funds",
+      "supabaseTable": "finance_funds",
+      "idColumn": "id",
+      "onConflict": "id",
+      "batchSize": 500,
+      "fieldMap": {
+        "name": "name",
+        "description": "description",
+        "total_spent": "totalSpent",
+        "target_budget": "targetBudget",
+        "keywords": "keywords",
+        "created_at": "createdAt"
+      }
+    },
+    {
+      "firestoreCollection": "finance_fixed_costs",
+      "supabaseTable": "finance_fixed_costs",
+      "idColumn": "id",
+      "onConflict": "id",
+      "batchSize": 500,
+      "fieldMap": {
+        "name": "name",
+        "amount": "amount",
+        "currency": "currency",
+        "cycle": "cycle",
+        "status": "status",
+        "last_generated": "lastGenerated",
+        "description": "description",
+        "account_id": "accountId",
+        "category": "category",
+        "project_id": "projectId",
+        "last_payment_date": "lastPaymentDate",
+        "next_payment_date": "nextPaymentDate"
+      }
+    },
+    {
+      "firestoreCollection": "finance_transactions",
+      "supabaseTable": "finance_transactions",
+      "idColumn": "id",
+      "onConflict": "id",
+      "batchSize": 300,
+      "fieldMap": {
+        "amount": "amount",
+        "currency": "currency",
+        "type": "type",
+        "category": "category",
+        "parent_category": "parentCategory",
+        "parent_category_id": "parentCategoryId",
+        "description": "description",
+        "transaction_date": "date",
+        "status": "status",
+        "account_id": "accountId",
+        "project_id": "projectId",
+        "fund_id": "fundId",
+        "source": "source",
+        "images": "images",
+        "beneficiary": "beneficiary",
+        "platform": "platform",
+        "bank_info": "bankInfo",
+        "transfer_content": "transferContent",
+        "proof_of_payment": "proofOfPayment",
+        "proof_of_receipt": "proofOfReceipt",
+        "warning": "warning",
+        "rejection_reason": "rejectionReason",
+        "approved_by": "approvedBy",
+        "rejected_by": "rejectedBy",
+        "paid_by": "paidBy",
+        "confirmed_by": "confirmedBy",
+        "created_by": "createdBy",
+        "owner_user_id": "userId",
+        "payment_type": "paymentType"
+      }
+    },
+    {
+      "firestoreCollection": "finance_revenues",
+      "supabaseTable": "finance_monthly_revenues",
+      "idColumn": "id",
+      "onConflict": "id",
+      "batchSize": 500,
+      "fieldMap": {
+        "id": "id",
+        "month": "month",
+        "year": "year",
+        "amount": "amount",
+        "currency": "currency",
+        "note": "note",
+        "created_at": "createdAt"
+      }
+    }
+  ]
+}
+

@@ -191,6 +191,8 @@ export interface Project {
     status: "ACTIVE" | "COMPLETED" | "PAUSED";
     budget?: number; // Added: Project budget
     currency?: Currency; // Added: Budget currency
+    // From du_an.thi_truong (best-effort based on matching name)
+    market?: string;
     totalRevenue: number;
     totalExpense: number;
     memberIds?: string[]; // Added: List of User UIDs (backward compatible)
