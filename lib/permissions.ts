@@ -93,7 +93,11 @@ export function getUserRole(user: any): Role {
     // 1. Hardcode ADMIN cho CEO email
     if (user.email) {
         const email = user.email.toLowerCase();
-        if (email === "ceo.fata@gmail.com" || email === "upedu2023@gmail.com") {
+        if (
+            email === "ceo.fata@gmail.com" ||
+            email === "upedu2023@gmail.com" ||
+            email === "upedu2025@gmail.com"
+        ) {
             return "ADMIN";
         }
     }

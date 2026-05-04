@@ -75,13 +75,20 @@ const mapUserToDB = (data: any) => {
         res.finance_role = data.financeRole;
         // Backward-compatible fallback for legacy schemas using camelCase column
         res.financeRole = data.financeRole;
-        // Keep in nested employment payload too (if app reads from JSON object)
-        const currentEmployment =
-            data.employment && typeof data.employment === "object" ? { ...data.employment } : {};
-        currentEmployment.financeRole = data.financeRole;
-        res.employment = currentEmployment;
+        // Chỉ ghi JSON employment khi client gửi kèm — tránh ghi đè cả cột thành { financeRole } và mất employment.password / dữ liệu HR
+        if (data.employment !== undefined) {
+            const currentEmployment =
+                typeof data.employment === "object" && data.employment !== null
+                    ? { ...(data.employment as object) }
+                    : {};
+            res.employment = { ...currentEmployment, financeRole: data.financeRole };
+        }
     }
-    if (data.password !== undefined) res.password = data.password;
+    if (data.password !== undefined) {
+        res.password = data.password;
+        // Cột legacy `pass` — auth-login so khớp pass/password; nhiều DB chỉ có một trong hai
+        res.pass = data.password;
+    }
     return res;
 };
 

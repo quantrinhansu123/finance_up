@@ -33,7 +33,9 @@ export default function LoginPage() {
             });
             const payload = await res.json().catch(() => ({}));
             if (!res.ok) {
-                setError(payload.error || "Đăng nhập thất bại");
+                const parts = [payload.error || "Đăng nhập thất bại"];
+                if (payload.hint && typeof payload.hint === "string") parts.push(payload.hint);
+                setError(parts.join(" "));
                 return;
             }
 

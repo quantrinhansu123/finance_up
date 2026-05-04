@@ -49,8 +49,12 @@ export async function POST(req: Request) {
             msg.includes("Failed to fetch") ||
             msg.includes("fetch failed") ||
             msg.includes("Không kết nối được Supabase từ máy chủ");
+        const hint =
+            !serviceKey && !network
+                ? "Nếu chắc email/mật khẩu đúng: thêm SUPABASE_SERVICE_ROLE_KEY (hoặc VITE_SUPABASE_SERVICE_ROLE_KEY) trong .env.local — thiếu key, truy vấn employees qua anon thường bị RLS trả về 0 dòng."
+                : undefined;
         return NextResponse.json(
-            { error: msg },
+            { error: msg, ...(hint ? { hint } : {}) },
             { status: network ? 503 : 401 }
         );
     }

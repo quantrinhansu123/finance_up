@@ -7,6 +7,7 @@ import { UserProfile, type FinanceRole } from "@/types/user";
 import { getTransactions } from "@/lib/finance";
 import { Transaction } from "@/types/finance";
 import { getUserRole } from "@/lib/permissions";
+import { patchEmployeePassword } from "@/lib/patchEmployeePassword";
 import { ArrowLeft, Edit2, Trash2, Save, X, Eye, EyeOff } from "lucide-react";
 
 const FINANCE_ROLES = [
@@ -82,11 +83,13 @@ export default function UserDetailsPage() {
                 displayName: editForm.displayName,
                 email: editForm.email,
                 boPhan: editForm.boPhan || undefined,
-                ...(editForm.password ? { password: editForm.password } : {}),
                 phoneNumber: editForm.phoneNumber,
                 position: (editForm.position || undefined) as UserProfile["position"],
                 financeRole: editForm.financeRole as FinanceRole,
             });
+            if (editForm.password.trim()) {
+                await patchEmployeePassword(user.uid, editForm.password.trim());
+            }
             setUser({
                 ...user,
                 displayName: editForm.displayName,

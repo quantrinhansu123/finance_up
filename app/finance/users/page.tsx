@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { getUsers, createUser, updateUser, deleteUser } from "@/lib/users";
 import { UserProfile, FinanceRole, Position } from "@/types/user";
-import { Plus, Edit2, Trash2, History, Save, X, User, Shield } from "lucide-react";
+import { Plus, Edit2, Trash2, History, Save, X, User, Shield, Eye, EyeOff } from "lucide-react";
 import DataTableToolbar from "@/components/finance/DataTableToolbar";
 import SearchableSelect from "@/components/finance/SearchableSelect";
 import { exportToCSV } from "@/lib/export";
@@ -12,6 +12,7 @@ import { getUserRole, Role } from "@/lib/permissions";
 import DataTable, { ActionCell } from "@/components/finance/DataTable";
 import { useTranslation } from "@/lib/i18n";
 import { formatCurrencyVN } from "@/lib/currency";
+import { patchEmployeePassword } from "@/lib/patchEmployeePassword";
 
 const FINANCE_ROLES: { value: FinanceRole; label: string }[] = [
     { value: "ADMIN", label: "Quản trị viên" },
@@ -52,12 +53,14 @@ export default function UsersPage() {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
     const [saving, setSaving] = useState(false);
+    const [showFormPassword, setShowFormPassword] = useState(false);
 
     // Form states
     const [formData, setFormData] = useState({
         displayName: "",
         email: "",
         boPhan: "",
+        password: "",
         phoneNumber: "",
         position: "" as Position | "",
         financeRole: "NONE" as FinanceRole,
@@ -129,12 +132,14 @@ export default function UsersPage() {
             displayName: "",
             email: "",
             boPhan: "",
+            password: "",
             phoneNumber: "",
             position: "",
             financeRole: "NONE",
             approved: true,
             monthlySalary: 0
         });
+        setShowFormPassword(false);
         setIsModalOpen(true);
     };
 
@@ -144,12 +149,14 @@ export default function UsersPage() {
             displayName: user.displayName || "",
             email: user.email || "",
             boPhan: user.boPhan || "",
+            password: "",
             phoneNumber: user.phoneNumber || "",
             position: user.position || "",
             financeRole: user.financeRole || "NONE",
             approved: user.approved ?? true,
             monthlySalary: user.monthlySalary || 0
         });
+        setShowFormPassword(false);
         setIsModalOpen(true);
     };
 
@@ -183,13 +190,15 @@ export default function UsersPage() {
                     approved: formData.approved,
                     monthlySalary: formData.monthlySalary,
                 });
+                if (formData.password.trim()) {
+                    await patchEmployeePassword(editingUser.uid, formData.password.trim());
+                }
             } else {
                 const newUserId = crypto.randomUUID();
                 await createUser(newUserId, {
                     displayName: formData.displayName,
                     email: emailNorm,
                     boPhan: formData.boPhan || undefined,
-                    password: "default123",
                     phoneNumber: formData.phoneNumber,
                     position: formData.position || undefined,
                     financeRole: formData.financeRole,
@@ -197,6 +206,10 @@ export default function UsersPage() {
                     monthlySalary: formData.monthlySalary,
                     role: "staff",
                 });
+                await patchEmployeePassword(
+                    newUserId,
+                    formData.password.trim() || "default123"
+                );
             }
 
             await fetchUsers();
@@ -450,7 +463,7 @@ export default function UsersPage() {
                             </div>
                         </div>
 
-                        <div className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {/* Display Name */}
                             <div>
                                 <label className="block text-sm font-medium text-white mb-2">
@@ -483,20 +496,43 @@ export default function UsersPage() {
                                 )}
                             </div>
 
-                            {/* Bộ phận */}
+                            {/* Password */}
                             <div>
                                 <label className="block text-sm font-medium text-white mb-2">
-                                    Bộ phận
+                                    Mật khẩu
+                                    {!editingUser && (
+                                        <span className="text-[var(--muted)] font-normal text-xs ml-1">
+                                            (tùy chọn — để trống: default123)
+                                        </span>
+                                    )}
                                 </label>
-                                <SearchableSelect
-                                    options={boPhanOptions}
-                                    value={formData.boPhan}
-                                    onChange={(val) => setFormData((prev) => ({ ...prev, boPhan: val }))}
-                                    placeholder="Chọn hoặc nhập Bộ phận"
-                                    searchPlaceholder="Tìm bộ phận..."
-                                    allowCustom
-                                    customOptionPrefix="Dùng bộ phận:"
-                                />
+                                <div className="relative">
+                                    <input
+                                        type={showFormPassword ? "text" : "password"}
+                                        autoComplete="new-password"
+                                        value={formData.password}
+                                        onChange={(e) => setFormData((prev) => ({ ...prev, password: e.target.value }))}
+                                        className="glass-input w-full px-4 py-2 rounded-lg pr-11"
+                                        placeholder={
+                                            editingUser
+                                                ? "Để trống nếu không đổi mật khẩu"
+                                                : "Để trống dùng mặc định default123"
+                                        }
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowFormPassword((v) => !v)}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted)] hover:text-white"
+                                        aria-label={showFormPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
+                                    >
+                                        {showFormPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                    </button>
+                                </div>
+                                {editingUser && (
+                                    <p className="text-xs text-[var(--muted)] mt-1">
+                                        Chỉ điền khi muốn đặt mật khẩu mới
+                                    </p>
+                                )}
                             </div>
 
                             {/* Phone Number */}
@@ -510,6 +546,22 @@ export default function UsersPage() {
                                     onChange={(e) => setFormData(prev => ({ ...prev, phoneNumber: e.target.value }))}
                                     className="glass-input w-full px-4 py-2 rounded-lg"
                                     placeholder="0123456789"
+                                />
+                            </div>
+
+                            {/* Bộ phận */}
+                            <div>
+                                <label className="block text-sm font-medium text-white mb-2">
+                                    Bộ phận
+                                </label>
+                                <SearchableSelect
+                                    options={boPhanOptions}
+                                    value={formData.boPhan}
+                                    onChange={(val) => setFormData((prev) => ({ ...prev, boPhan: val }))}
+                                    placeholder="Chọn hoặc nhập Bộ phận"
+                                    searchPlaceholder="Tìm bộ phận..."
+                                    allowCustom
+                                    customOptionPrefix="Dùng bộ phận:"
                                 />
                             </div>
 
@@ -578,7 +630,7 @@ export default function UsersPage() {
                             </div>
 
                             {/* Approved Status */}
-                            <div className="flex items-center gap-3 p-4 bg-white/5 rounded-lg">
+                            <div className="md:col-span-2 flex items-center gap-3 p-4 bg-white/5 rounded-lg">
                                 <input
                                     type="checkbox"
                                     id="approved"

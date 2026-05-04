@@ -1,5 +1,4 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-
 export type LoginResult =
     | {
           ok: true;
@@ -20,12 +19,48 @@ function rowToSafeClient(row: Record<string, unknown>): Record<string, unknown> 
     }
     if (row.name && !out.displayName) out.displayName = row.name;
     out.id = row.id;
+    if (row.id != null) out.uid = row.id;
     return out;
 }
 
-/** ILIKE đúng một chuỗi (tránh % _ làm wildcard). */
-function escapeIlikeExact(s: string): string {
-    return s.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
+/** Mật khẩu lưu ở cột pass/password hoặc employment.password (giống init-sso). */
+function storedPassword(row: Record<string, unknown>): string | undefined {
+    const r = row;
+    const direct = r.pass ?? r.password ?? r.Pass ?? r.Password;
+    if (direct != null && String(direct) !== "") return String(direct);
+    const emp = r.employment;
+    if (emp && typeof emp === "object" && emp !== null) {
+        const ep = (emp as Record<string, unknown>).password;
+        if (ep != null && String(ep) !== "") return String(ep);
+    }
+    return undefined;
+}
+
+function passwordsMatch(stored: string | undefined, input: string): boolean {
+    if (stored == null) return false;
+    const s = String(stored);
+    const i = String(input);
+    if (s === i) return true;
+    if (s.trim() === i.trim()) return true;
+    return false;
+}
+
+/** Tìm dòng employees theo email: eq (nhiều biến thể) rồi ilike không phân biệt hoa thường. */
+async function findEmployeesByEmail(db: SupabaseClient, rawEmail: string) {
+    const em = rawEmail.trim();
+    if (!em) return { data: [] as Record<string, unknown>[], error: null as { message?: string } | null };
+
+    const lower = em.toLowerCase();
+    const variants = Array.from(new Set([em, lower].filter(Boolean)));
+
+    const q1 = await db.from("employees").select("*").in("email", variants).limit(25);
+    if (q1.error) return { data: [] as Record<string, unknown>[], error: q1.error };
+    const fromIn = (q1.data || []) as Record<string, unknown>[];
+    if (fromIn.length > 0) return { data: fromIn, error: null };
+
+    const q2 = await db.from("employees").select("*").ilike("email", em).limit(25);
+    if (q2.error) return { data: [] as Record<string, unknown>[], error: q2.error };
+    return { data: (q2.data || []) as Record<string, unknown>[], error: null };
 }
 
 export function formatLoginDbError(e: { message?: string }): string {
@@ -56,21 +91,14 @@ export async function performLoginWithSupabase(
         return { ok: false, message: "Nhập email và mật khẩu" };
     }
 
-    const { data: rows, error: qErr } = await db
-        .from("employees")
-        .select("*")
-        .ilike("email", escapeIlikeExact(em))
-        .limit(15);
+    const { data: list, error: qErr } = await findEmployeesByEmail(db, em);
     if (qErr) return { ok: false, message: formatLoginDbError(qErr) };
 
-    const list = rows || [];
     if (list.length === 0) {
         return { ok: false, message: "Email hoặc mật khẩu không đúng" };
     }
-    const row = list.find(
-        (r) =>
-            (r as Record<string, unknown>).pass === password ||
-            (r as Record<string, unknown>).password === password
+    const row = list.find((r) =>
+        passwordsMatch(storedPassword(r as Record<string, unknown>), password)
     );
     if (!row) {
         return { ok: false, message: "Email hoặc mật khẩu không đúng" };

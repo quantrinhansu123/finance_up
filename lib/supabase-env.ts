@@ -30,5 +30,9 @@ export function readSupabaseAnonKey(): string {
 
 /** Chỉ dùng trên server (API route). Giúp đọc `employees` khi RLS chặn anon. Không đặt NEXT_PUBLIC_. */
 export function readSupabaseServiceRoleKey(): string {
-    return normalizeEnvValue(process.env.SUPABASE_SERVICE_ROLE_KEY);
+    return normalizeEnvValue(
+        process.env.SUPABASE_SERVICE_ROLE_KEY ||
+            // Một số file .env (Vite) chỉ có biến này — Next vẫn load trên server, không public như NEXT_PUBLIC_
+            process.env.VITE_SUPABASE_SERVICE_ROLE_KEY
+    );
 }
