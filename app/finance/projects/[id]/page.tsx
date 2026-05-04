@@ -1278,6 +1278,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                     username={currentUser?.displayName || currentUser?.email || "User"}
                     userId={currentUser?.uid || currentUser?.id || ""}
                     currentUser={currentUser}
+                    initialProjectId={projectId}
                 />
             )}
         </div>

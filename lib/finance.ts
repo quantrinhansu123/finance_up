@@ -86,14 +86,22 @@ export async function deleteAccount(accountId: string): Promise<void> {
 
 // --- Projects ---
 
-export async function getDuAnList(): Promise<Array<{ id: string; tenDuAn: string }>> {
+export interface DuAnListItem {
+    id: string;
+    maDuAn: string | null;
+    tenDuAn: string;
+}
+
+export async function getDuAnList(): Promise<DuAnListItem[]> {
     const { data, error } = await supabase
         .from("du_an")
-        .select("id, ten_du_an")
+        .select("id, ten_du_an, ma_du_an")
+        .order("ma_du_an", { ascending: true, nullsFirst: false })
         .order("ten_du_an", { ascending: true });
     if (error) throw error;
     return (data || []).map((r: any) => ({
         id: r.id,
+        maDuAn: r.ma_du_an ?? null,
         tenDuAn: r.ten_du_an,
     }));
 }
@@ -124,7 +132,7 @@ async function attachDuAnMarketToProjects(projects: Project[]): Promise<Project[
     // This avoids adding new FK columns just to display thi_truong.
     const { data, error } = await supabase
         .from("du_an")
-        .select("ten_du_an, thi_truong")
+        .select("ten_du_an, thi_truong, ma_du_an")
         .in("ten_du_an", names);
 
     if (error) {
@@ -132,15 +140,23 @@ async function attachDuAnMarketToProjects(projects: Project[]): Promise<Project[
         return projects;
     }
 
-    const marketByName = new Map<string, string | null>();
+    const metaByName = new Map<string, { market: string | null; code: string | null }>();
     (data || []).forEach((r: any) => {
-        marketByName.set(r.ten_du_an, r.thi_truong ?? null);
+        const code = r.ma_du_an != null && String(r.ma_du_an).trim() ? String(r.ma_du_an).trim() : null;
+        metaByName.set(r.ten_du_an, {
+            market: r.thi_truong ?? null,
+            code,
+        });
     });
 
-    return projects.map((p) => ({
-        ...p,
-        market: marketByName.get(p.name) ?? undefined,
-    }));
+    return projects.map((p) => {
+        const meta = metaByName.get(p.name);
+        return {
+            ...p,
+            market: meta?.market ?? undefined,
+            projectCode: meta?.code ?? undefined,
+        };
+    });
 }
 
 const mapProjectToDB = (data: any) => {

@@ -12,6 +12,7 @@ import { getFunds } from "@/lib/finance";
 import Link from "next/link";
 import { BarChart3, Calendar } from "lucide-react";
 import { useTranslation } from "@/lib/i18n";
+import { formatProjectMaLan } from "@/lib/project-display";
 
 const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884d8", "#82ca9d"];
 const FUND_COLORS: Record<string, string> = {
@@ -801,7 +802,7 @@ export default function DashboardPage() {
                     >
                         <option value="">{t("all_projects")}</option>
                         {accessibleProjects.map(p => (
-                            <option key={p.id} value={p.id}>{p.name}</option>
+                            <option key={p.id} value={p.id}>{formatProjectMaLan(p)}</option>
                         ))}
                     </select>
 

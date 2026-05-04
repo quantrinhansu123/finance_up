@@ -1,20 +1,27 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
-import { getProjects, createProject, updateProject, getTransactions, deleteProject, getDuAnList } from "@/lib/finance";
+import { useState, useEffect, useMemo, useRef, useLayoutEffect } from "react";
+import { getProjects, createProject, updateProject, getTransactions, deleteProject, getDuAnList, DuAnListItem } from "@/lib/finance";
 import { Project } from "@/types/finance";
 import { useRouter } from "next/navigation";
 import { getUserRole, getAccessibleProjects, hasProjectPermission, Role } from "@/lib/permissions";
-import { Users, Trash2, ChevronLeft, ChevronRight, ShieldX, Plus, Eye, Save, X, Edit2 } from "lucide-react";
+import { Users, Trash2, ChevronLeft, ChevronRight, ShieldX, Plus, Eye, Save, X, Edit2, ChevronDown } from "lucide-react";
 import CurrencyInput from "@/components/finance/CurrencyInput";
 import DataTableToolbar from "@/components/finance/DataTableToolbar";
 import { exportToCSV } from "@/lib/export";
 import DataTable, { ActionCell } from "@/components/finance/DataTable";
 import { useTranslation } from "@/lib/i18n";
+import { formatProjectMaLan } from "@/lib/project-display";
 import { getUsers } from "@/lib/users";
 import { UserProfile } from "@/types/user";
 
 const ITEMS_PER_PAGE = 10;
+
+/** Nhãn hiển thị trên dropdown: ưu tiên mã; nếu chưa có mã trong DB thì hiện tên. */
+function duAnOptionLabel(opt: DuAnListItem): string {
+    const code = (opt.maDuAn || "").trim();
+    return code || opt.tenDuAn;
+}
 
 export default function ProjectsPage() {
     const { t } = useTranslation();
@@ -45,9 +52,16 @@ export default function ProjectsPage() {
     const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
     const [usersLoading, setUsersLoading] = useState(false);
     const [memberSearchTerm, setMemberSearchTerm] = useState("");
+    const [membersPickerOpen, setMembersPickerOpen] = useState(false);
+    const membersPickerRef = useRef<HTMLDivElement>(null);
+    const [memberPanelPos, setMemberPanelPos] = useState<{
+        top: number;
+        left: number;
+        width: number;
+    } | null>(null);
 
     // du_an picker (dropdown)
-    const [duAnOptions, setDuAnOptions] = useState<Array<{ id: string; tenDuAn: string }>>([]);
+    const [duAnOptions, setDuAnOptions] = useState<DuAnListItem[]>([]);
     const [duAnLoading, setDuAnLoading] = useState(false);
     const [selectedDuAnId, setSelectedDuAnId] = useState<string>("");
 
@@ -169,6 +183,7 @@ export default function ProjectsPage() {
         setCurrency("USD");
         setSelectedMemberIds([]);
         setMemberSearchTerm("");
+        setMembersPickerOpen(false);
         setSelectedDuAnId("");
         setIsModalOpen(true);
         void loadUsersForProjectModal();
@@ -185,6 +200,7 @@ export default function ProjectsPage() {
         setCurrency(project.currency as any || "USD");
         setSelectedMemberIds(project.memberIds || []);
         setMemberSearchTerm("");
+        setMembersPickerOpen(false);
         setSelectedDuAnId("__CURRENT__");
         setIsModalOpen(true);
         void loadUsersForProjectModal();
@@ -194,6 +210,36 @@ export default function ProjectsPage() {
     useEffect(() => {
         fetchData();
     }, []);
+
+    useLayoutEffect(() => {
+        if (!membersPickerOpen || !membersPickerRef.current) {
+            setMemberPanelPos(null);
+            return;
+        }
+        const sync = () => {
+            const wrap = membersPickerRef.current;
+            if (!wrap) return;
+            const r = wrap.getBoundingClientRect();
+            setMemberPanelPos({
+                top: r.bottom + 8,
+                left: r.left,
+                width: r.width,
+            });
+        };
+        sync();
+        window.addEventListener("resize", sync);
+        return () => window.removeEventListener("resize", sync);
+    }, [membersPickerOpen]);
+
+    useEffect(() => {
+        if (!membersPickerOpen) return;
+        const onDocMouseDown = (ev: MouseEvent) => {
+            const el = membersPickerRef.current;
+            if (el && !el.contains(ev.target as Node)) setMembersPickerOpen(false);
+        };
+        document.addEventListener("mousedown", onDocMouseDown);
+        return () => document.removeEventListener("mousedown", onDocMouseDown);
+    }, [membersPickerOpen]);
 
     // Align du_an dropdown with current project name when du_an options are loaded.
     useEffect(() => {
@@ -211,6 +257,17 @@ export default function ProjectsPage() {
         if (userRole !== "ADMIN") {
             alert(t("no_permission"));
             return;
+        }
+
+        if (!selectedProject) {
+            if (!selectedDuAnId || selectedDuAnId === "__CURRENT__") {
+                alert(t("select_project_code"));
+                return;
+            }
+            if (!name.trim()) {
+                alert(t("select_project_code"));
+                return;
+            }
         }
 
         try {
@@ -359,14 +416,9 @@ export default function ProjectsPage() {
                     {
                         key: "projectCode",
                         header: "Mã dự án",
-                        render: (p) => {
-                            const currencyText = (p.currency || p.defaultCurrency || "VND") as string;
-                            return (
-                                <span className="font-medium text-white">
-                                    {p.name} - {currencyText}
-                                </span>
-                            );
-                        }
+                        render: (p) => (
+                            <span className="font-medium text-white">{formatProjectMaLan(p)}</span>
+                        ),
                     },
                     {
                         key: "members",
@@ -477,7 +529,9 @@ export default function ProjectsPage() {
                             </h2>
                             <form onSubmit={handleSubmit} className="space-y-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-[var(--muted)] mb-1">{t("name")}</label>
+                                    <label className="block text-sm font-medium text-[var(--muted)] mb-1">
+                                        {t("project_code")}
+                                    </label>
                                     <select
                                         value={selectedDuAnId}
                                         onChange={(e) => {
@@ -493,12 +547,12 @@ export default function ProjectsPage() {
                                         disabled={duAnLoading}
                                     >
                                         <option value="" disabled>
-                                            {duAnLoading ? (t("loading") || "Loading...") : "Chọn dự án từ du_an"}
+                                            {duAnLoading ? (t("loading") || "Loading...") : t("select_project_code")}
                                         </option>
 
                                         {duAnOptions.map(opt => (
                                             <option key={opt.id} value={opt.id}>
-                                                {opt.tenDuAn}
+                                                {duAnOptionLabel(opt)}
                                             </option>
                                         ))}
 
@@ -543,75 +597,107 @@ export default function ProjectsPage() {
 
                                 <div>
                                     <label className="block text-sm font-medium text-[var(--muted)] mb-2">{t("members")}</label>
-                                    <div className="space-y-2">
-                                        <input
-                                            type="text"
-                                            value={memberSearchTerm}
-                                            onChange={(e) => setMemberSearchTerm(e.target.value)}
-                                            placeholder="Tìm theo tên/email/position..."
-                                            className="glass-input w-full p-2 rounded-lg"
+                                    <div className="relative" ref={membersPickerRef}>
+                                    <button
+                                        type="button"
+                                        onClick={() => setMembersPickerOpen((o) => !o)}
+                                        className="glass-input w-full flex items-center justify-between gap-2 p-2 rounded-lg text-left min-h-[42px] hover:bg-white/[0.06] transition-colors"
+                                    >
+                                        <span className={`text-sm truncate ${selectedMemberIds.length ? "text-white" : "text-[var(--muted)]"}`}>
+                                            {selectedMemberIds.length === 0
+                                                ? t("pick_members_placeholder")
+                                                : t("members_selected_count").replace(
+                                                      "{count}",
+                                                      String(selectedMemberIds.length)
+                                                  )}
+                                        </span>
+                                        <ChevronDown
+                                            size={18}
+                                            className={`text-[var(--muted)] transition-transform shrink-0 ${membersPickerOpen ? "rotate-180" : ""}`}
                                         />
-                                        <div className="max-h-48 overflow-y-auto border border-white/10 bg-white/5 rounded-xl p-3 space-y-2">
-                                        {usersLoading ? (
-                                            <p className="text-sm text-[var(--muted)]">{t("loading") || "Loading..."}</p>
-                                        ) : allUsers.length === 0 ? (
-                                            <p className="text-sm text-[var(--muted)]">{t("no_data") || "No users"}</p>
-                                        ) : (
-                                            (() => {
-                                                const q = memberSearchTerm.trim().toLowerCase();
-                                                const visibleUsers = q
-                                                    ? allUsers.filter((u) => {
-                                                        const name = (u.displayName || "").toLowerCase();
-                                                        const email = (u.email || "").toLowerCase();
-                                                        const pos = (u.position || "").toLowerCase();
-                                                        return name.includes(q) || email.includes(q) || pos.includes(q);
-                                                    })
-                                                    : allUsers;
+                                    </button>
+                                    {membersPickerOpen && memberPanelPos && (
+                                        <div
+                                            className="fixed z-[100] rounded-xl border border-white/10 bg-[#1a1a1a] shadow-2xl overflow-hidden max-h-[min(16rem,calc(100vh-24px))]"
+                                            style={{
+                                                top: memberPanelPos.top,
+                                                left: memberPanelPos.left,
+                                                width: memberPanelPos.width,
+                                            }}
+                                        >
+                                            <div className="p-2 border-b border-white/10">
+                                                <input
+                                                    type="text"
+                                                    value={memberSearchTerm}
+                                                    onChange={(e) => setMemberSearchTerm(e.target.value)}
+                                                    placeholder="Tìm theo tên/email/chức vụ…"
+                                                    className="glass-input w-full p-2 rounded-lg text-sm"
+                                                    autoFocus
+                                                />
+                                            </div>
+                                            <div className="max-h-52 overflow-y-auto p-2 space-y-1">
+                                                {usersLoading ? (
+                                                    <p className="text-sm text-[var(--muted)] px-2 py-3">{t("loading") || "Loading..."}</p>
+                                                ) : allUsers.length === 0 ? (
+                                                    <p className="text-sm text-[var(--muted)] px-2 py-3">{t("no_data") || "No users"}</p>
+                                                ) : (
+                                                    (() => {
+                                                        const q = memberSearchTerm.trim().toLowerCase();
+                                                        const visibleUsers = q
+                                                            ? allUsers.filter((u) => {
+                                                                  const name = (u.displayName || "").toLowerCase();
+                                                                  const email = (u.email || "").toLowerCase();
+                                                                  const pos = (u.position || "").toLowerCase();
+                                                                  return name.includes(q) || email.includes(q) || pos.includes(q);
+                                                              })
+                                                            : allUsers;
 
-                                                if (visibleUsers.length === 0) {
-                                                    return (
-                                                        <p className="text-sm text-[var(--muted)]">
-                                                            Không tìm thấy thành viên phù hợp.
-                                                        </p>
-                                                    );
-                                                }
+                                                        if (visibleUsers.length === 0) {
+                                                            return (
+                                                                <p className="text-sm text-[var(--muted)] px-2 py-3">
+                                                                    Không tìm thấy thành viên phù hợp.
+                                                                </p>
+                                                            );
+                                                        }
 
-                                                return visibleUsers.map((u) => {
-                                                    const checked = selectedMemberIds.includes(u.uid);
-                                                    return (
-                                                        <label
-                                                            key={u.uid}
-                                                            className="flex items-center gap-3 p-2 rounded-lg hover:bg-white/5 transition-colors cursor-pointer"
-                                                        >
-                                                            <input
-                                                                type="checkbox"
-                                                                checked={checked}
-                                                                onChange={(e) => {
-                                                                    const nextChecked = e.target.checked;
-                                                                    setSelectedMemberIds(prev => {
-                                                                        if (nextChecked) {
-                                                                            if (prev.includes(u.uid)) return prev;
-                                                                            return [...prev, u.uid];
-                                                                        }
-                                                                        return prev.filter(id => id !== u.uid);
-                                                                    });
-                                                                }}
-                                                                className="w-4 h-4 rounded border-white/20 text-blue-400 focus:ring-blue-500/40"
-                                                            />
-                                                            <div className="flex-1 min-w-0">
-                                                                <div className="text-sm font-medium text-white truncate">
-                                                                    {u.displayName || u.email}
-                                                                </div>
-                                                                <div className="text-xs text-[var(--muted)] truncate">
-                                                                    {u.position || u.email}
-                                                                </div>
-                                                            </div>
-                                                        </label>
-                                                    );
-                                                });
-                                            })()
-                                        )}
+                                                        return visibleUsers.map((u) => {
+                                                            const checked = selectedMemberIds.includes(u.uid);
+                                                            return (
+                                                                <label
+                                                                    key={u.uid}
+                                                                    className="flex items-center gap-3 p-2 rounded-lg hover:bg-white/5 transition-colors cursor-pointer"
+                                                                >
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={checked}
+                                                                        onChange={(e) => {
+                                                                            const nextChecked = e.target.checked;
+                                                                            setSelectedMemberIds((prev) => {
+                                                                                if (nextChecked) {
+                                                                                    if (prev.includes(u.uid)) return prev;
+                                                                                    return [...prev, u.uid];
+                                                                                }
+                                                                                return prev.filter((id) => id !== u.uid);
+                                                                            });
+                                                                        }}
+                                                                        className="w-4 h-4 rounded border-white/20 text-blue-400 focus:ring-blue-500/40"
+                                                                    />
+                                                                    <div className="flex-1 min-w-0">
+                                                                        <div className="text-sm font-medium text-white truncate">
+                                                                            {u.displayName || u.email}
+                                                                        </div>
+                                                                        <div className="text-xs text-[var(--muted)] truncate">
+                                                                            {u.position || u.email}
+                                                                        </div>
+                                                                    </div>
+                                                                </label>
+                                                            );
+                                                        });
+                                                    })()
+                                                )}
+                                            </div>
                                         </div>
+                                    )}
                                     </div>
                                 </div>
 

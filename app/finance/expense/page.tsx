@@ -15,6 +15,7 @@ import TransactionDetailModal from "@/components/finance/TransactionDetailModal"
 import { WizardProgress, WizardStepPanel, WizardSummaryItem } from "@/components/finance/TransactionWizard";
 import DataTable, { AmountCell, DateCell, TextCell, StatusBadge, ActionCell } from "@/components/finance/DataTable";
 import { useTranslation } from "@/lib/i18n";
+import { projectLabelById, formatProjectListLabel, formatProjectMaLan } from "@/lib/project-display";
 
 const CURRENCY_FLAGS: Record<string, string> = {
     "VND": "🇻🇳", "USD": "🇺🇸", "KHR": "🇰🇭", "TRY": "🇹🇷", "MMK": "🇲🇲", "THB": "🇹🇭", "LAK": "🇱🇦", "MYR": "🇲🇾", "IDR": "🇮🇩", "PHP": "🇵🇭", "SGD": "🇸🇬"
@@ -223,7 +224,6 @@ export default function ExpensePage() {
     };
 
     const getAccountName = (id: string) => accounts.find(a => a.id === id)?.name || "N/A";
-    const getProjectName = (id: string) => projects.find(p => p.id === id)?.name || "N/A";
     const getFundName = (id: string) => funds.find(f => f.id === id)?.name || "N/A";
 
     if (loading) return <div className="p-8 text-[var(--muted)]">{t("loading")}</div>;
@@ -269,8 +269,7 @@ export default function ExpensePage() {
                                             </div>
                                             {projectId === p.id && <div className="w-2 h-2 rounded-full bg-red-400 animate-pulse" />}
                                         </div>
-                                        <h3 className="font-bold text-white truncate">{p.name}</h3>
-                                        <p className="text-xs text-[var(--muted)] mt-1">{p.id}</p>
+                                        <h3 className="font-bold text-white truncate">{formatProjectMaLan(p)}</h3>
                                     </button>
                                 ))}
                             </div>
@@ -393,7 +392,7 @@ export default function ExpensePage() {
                                 <div className="lg:col-span-1 border-l border-white/10 pl-8 space-y-6">
                                     <h3 className="font-bold text-white uppercase tracking-widest text-sm">{t("summary")}</h3>
                                     <div className="space-y-4">
-                                        <WizardSummaryItem label={t("project")} value={getProjectName(projectId)} icon="📁" />
+                                        <WizardSummaryItem label={t("project")} value={projectLabelById(projects, projectId)} icon="📁" />
                                         <WizardSummaryItem label={t("account")} value={getAccountName(accountId)} icon="💳" />
                                         <WizardSummaryItem label={t("category")} value={masterCategories.find(c => c.id === parentCategoryId)?.name || t("unselected")} icon="🗂️" />
                                         <WizardSummaryItem label={t("sub_category")} value={category || t("unselected")} icon="🏷️" />
@@ -449,7 +448,7 @@ export default function ExpensePage() {
                         description: t("description")
                     })}
                     filters={[
-                        { id: "projectId", label: t("all_projects"), options: [{ value: "", label: t("all_projects") }, ...projects.map(p => ({ value: p.id, label: p.name }))] },
+                        { id: "projectId", label: t("all_projects"), options: [{ value: "", label: t("all_projects") }, ...projects.map(p => ({ value: p.id, label: formatProjectListLabel(p) }))] },
                         { id: "accountId", label: t("all_accounts"), options: [{ value: "", label: t("all_accounts") }, ...accounts.map(a => ({ value: a.id, label: a.name }))] },
                         { id: "category", label: t("all_categories"), options: [{ value: "", label: t("all_categories") }, ...Array.from(new Set(transactions.map(t => t.category))).map(cat => ({ value: cat, label: cat }))] },
                         { id: "status", label: t("all_statuses"), options: [{ value: "", label: t("all_statuses") }, { value: "PENDING", label: t("pending") }, { value: "APPROVED", label: t("approved") }, { value: "REJECTED", label: t("rejected") }] }
@@ -497,7 +496,7 @@ export default function ExpensePage() {
                             key: "projectName",
                             header: t("project"),
                             render: (tx: Transaction) => (
-                                <TextCell primary={getProjectName(tx.projectId || "")} />
+                                <TextCell primary={projectLabelById(projects, tx.projectId || "")} />
                             )
                         },
                         {
@@ -530,7 +529,7 @@ export default function ExpensePage() {
                     isOpen={isDetailModalOpen}
                     onClose={() => setIsDetailModalOpen(false)}
                     transaction={selectedTransaction}
-                    projectName={getProjectName(selectedTransaction.projectId || "")}
+                    projectName={projectLabelById(projects, selectedTransaction.projectId || "")}
                     accountName={getAccountName(selectedTransaction.accountId || "")}
                 />
             )}

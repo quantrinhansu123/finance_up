@@ -7,6 +7,8 @@ import { Account, Project, Currency, TransactionType, BankInfo, TransactionStatu
 import { getAccessibleProjects, getProjectsWithPermission } from "@/lib/permissions";
 import { uploadImage } from "../../lib/upload";
 import { getCurrencyFlag } from "@/lib/currency";
+import { formatProjectListLabel } from "@/lib/project-display";
+import { useTranslation } from "@/lib/i18n";
 import CurrencyInput from "./CurrencyInput";
 
 
@@ -16,6 +18,8 @@ interface Props {
     username: string;
     userId: string;
     currentUser: any;
+    /** Khi mở từ trang dự án: chọn sẵn đúng dự án */
+    initialProjectId?: string;
 }
 
 
@@ -38,7 +42,8 @@ const FULL_CATEGORIES = [
 const CATEGORIES = FULL_CATEGORIES.flatMap(c => c.items);
 
 
-export default function CreateBudgetRequestModal({ onClose, onSuccess, username, userId, currentUser }: Props) {
+export default function CreateBudgetRequestModal({ onClose, onSuccess, username, userId, currentUser, initialProjectId }: Props) {
+    const { t } = useTranslation();
     const [loading, setLoading] = useState(false);
     const [accounts, setAccounts] = useState<Account[]>([]);
     const [projects, setProjects] = useState<Project[]>([]);
@@ -86,11 +91,14 @@ export default function CreateBudgetRequestModal({ onClose, onSuccess, username,
             const uniqueBeneficiaries = Array.from(new Set(txs.filter(t => t.beneficiary).map(t => t.beneficiary!))).slice(0, 10);
             setRecentBeneficiaries(uniqueBeneficiaries);
 
-            // Default selection logic if needed
-            if (accessibleProjects.length > 0) setProjectId(accessibleProjects[0].id);
         };
         loadData();
     }, [currentUser]);
+
+    useEffect(() => {
+        if (!initialProjectId || projects.length === 0) return;
+        if (projects.some((p) => p.id === initialProjectId)) setProjectId(initialProjectId);
+    }, [initialProjectId, projects]);
 
     // Handle Beneficiary Selection
     useEffect(() => {
@@ -228,11 +236,21 @@ export default function CreateBudgetRequestModal({ onClose, onSuccess, username,
                                 value={projectId}
                                 onChange={(e) => {
                                     setProjectId(e.target.value);
+                                    setAccountId("");
                                 }}
                                 className="glass-input w-full p-3 rounded-xl font-bold text-white focus:ring-2 focus:ring-blue-500/30 transition-all"
+                                required
                             >
-                                {projects.length === 0 && <option value="">-- Chọn Dự Án --</option>}
-                                {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                <option value="" disabled={projects.length > 0}>
+                                    {projects.length === 0
+                                        ? "Không có dự án được phép xin ngân sách"
+                                        : t("select_project_code")}
+                                </option>
+                                {projects.map((p) => (
+                                    <option key={p.id} value={p.id}>
+                                        {formatProjectListLabel(p)}
+                                    </option>
+                                ))}
                             </select>
                         </div>
                     </div>

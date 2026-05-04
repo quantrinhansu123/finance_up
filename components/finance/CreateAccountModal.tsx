@@ -6,6 +6,7 @@ import { Currency, Project } from "@/types/finance";
 import { X } from "lucide-react";
 import { useTranslation } from "@/lib/i18n";
 import { CURRENCY_METADATA } from "@/lib/currency";
+import { formatProjectMaLan } from "@/lib/project-display";
 
 interface CreateAccountModalProps {
     isOpen: boolean;
@@ -164,7 +165,7 @@ export default function CreateAccountModal({ isOpen, onClose, onSuccess }: Creat
                         >
                             <option value="">{t("general_account")}</option>
                             {projects.map(p => (
-                                <option key={p.id} value={p.id}>{p.name}</option>
+                                <option key={p.id} value={p.id}>{formatProjectMaLan(p)}</option>
                             ))}
                         </select>
                     </div>

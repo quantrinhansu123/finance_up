@@ -5,6 +5,7 @@ import { updateAccount, getProjects } from "@/lib/finance";
 import { Account, Currency, Project } from "@/types/finance";
 import { useTranslation } from "@/lib/i18n";
 import { CURRENCY_METADATA } from "@/lib/currency";
+import { formatProjectMaLan } from "@/lib/project-display";
 
 interface EditAccountModalProps {
     isOpen: boolean;
@@ -117,7 +118,7 @@ export default function EditAccountModal({ isOpen, onClose, onSuccess, account }
                         >
                             <option value="">{t("general_account")}</option>
                             {projects.map(p => (
-                                <option key={p.id} value={p.id}>{p.name}</option>
+                                <option key={p.id} value={p.id}>{formatProjectMaLan(p)}</option>
                             ))}
                         </select>
                     </div>

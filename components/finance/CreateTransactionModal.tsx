@@ -7,6 +7,7 @@ import { getCategoriesForRole, Role, getAccessibleProjects, getAccessibleAccount
 import { uploadImage } from "@/lib/upload";
 import CurrencyInput from "./CurrencyInput";
 import { getCurrencyFlag } from "@/lib/currency";
+import { formatProjectMaLan } from "@/lib/project-display";
 
 interface CreateTransactionModalProps {
     isOpen: boolean;
@@ -322,7 +323,7 @@ export default function CreateTransactionModal({ isOpen, onClose, onSuccess, cur
                             <option value="">-- Chọn dự án --</option>
                             {accessibleProjects.map(p => (
                                 <option key={p.id} value={p.id}>
-                                    📁 {p.name} {p.status !== "ACTIVE" ? `(${p.status})` : ""}
+                                    📁 {formatProjectMaLan(p)}{p.status !== "ACTIVE" ? ` (${p.status})` : ""}
                                 </option>
                             ))}
                         </select>

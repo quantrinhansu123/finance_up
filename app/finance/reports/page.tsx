@@ -5,6 +5,7 @@ import { getTransactions, getAccounts, getProjects, getFixedCosts, getFunds } fr
 import { Transaction, Account, Project, Fund, FixedCost, Currency } from "@/types/finance";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 import { getUserRole, getAccessibleProjects, hasProjectPermission, Role } from "@/lib/permissions";
+import { formatProjectMaLan } from "@/lib/project-display";
 
 const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884d8", "#82ca9d"];
 const CURRENCY_COLORS: Record<string, string> = {
@@ -711,7 +712,7 @@ export default function ReportsPage() {
                                     className="glass-input w-full p-2 rounded-lg"
                                 >
                                     <option value="">Tất cả</option>
-                                    {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                    {projects.map(p => <option key={p.id} value={p.id}>{formatProjectMaLan(p)}</option>)}
                                 </select>
                             </div>
                             <div>

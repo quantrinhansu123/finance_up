@@ -193,6 +193,8 @@ export interface Project {
     currency?: Currency; // Added: Budget currency
     // From du_an.thi_truong (best-effort based on matching name)
     market?: string;
+    /** Mã dự án từ du_an.ma_du_an khi khớp ten_du_an === name */
+    projectCode?: string;
     totalRevenue: number;
     totalExpense: number;
     memberIds?: string[]; // Added: List of User UIDs (backward compatible)
