@@ -11,6 +11,7 @@ import { exportToCSV } from "@/lib/export";
 import { getUserRole, Role } from "@/lib/permissions";
 import DataTable, { ActionCell } from "@/components/finance/DataTable";
 import { useTranslation } from "@/lib/i18n";
+import { formatCurrencyVN } from "@/lib/currency";
 
 const FINANCE_ROLES: { value: FinanceRole; label: string }[] = [
     { value: "ADMIN", label: "Quản trị viên" },
@@ -90,6 +91,18 @@ export default function UsersPage() {
     }, []);
 
     // Filter users
+    const boPhanOptions = useMemo(
+        () =>
+            Array.from(
+                new Set(
+                    users
+                        .map((u) => u.boPhan || u.employment?.department || "")
+                        .filter(Boolean)
+                )
+            ).map((v) => ({ id: v, label: v, icon: "🏢" })),
+        [users]
+    );
+
     const filteredUsers = useMemo(() => {
         return users.filter(u => {
             const name = u.employment?.fullName || u.displayName || "";
@@ -146,6 +159,17 @@ export default function UsersPage() {
             return;
         }
 
+        const emailNorm = formData.email.trim().toLowerCase();
+        if (!editingUser) {
+            const emailTaken = users.some(
+                (u) => (u.email || "").trim().toLowerCase() === emailNorm
+            );
+            if (emailTaken) {
+                alert(t("duplicate_email_user"));
+                return;
+            }
+        }
+
         setSaving(true);
         try {
             if (editingUser) {
@@ -163,7 +187,7 @@ export default function UsersPage() {
                 const newUserId = crypto.randomUUID();
                 await createUser(newUserId, {
                     displayName: formData.displayName,
-                    email: formData.email,
+                    email: emailNorm,
                     boPhan: formData.boPhan || undefined,
                     password: "default123",
                     phoneNumber: formData.phoneNumber,
@@ -179,7 +203,12 @@ export default function UsersPage() {
             setIsModalOpen(false);
         } catch (error) {
             console.error("Failed to save user", error);
-            alert(t("save_failed_user"));
+            const err = error as { code?: string; message?: string };
+            const msg = (err.message || "").toLowerCase();
+            const duplicateEmail =
+                err.code === "23505" &&
+                (msg.includes("email") || msg.includes("employees_email_unique"));
+            alert(duplicateEmail ? t("duplicate_email_user") : t("save_failed_user"));
         } finally {
             setSaving(false);
         }
@@ -454,30 +483,20 @@ export default function UsersPage() {
                                 )}
                             </div>
 
-                            {/* Phone Number */}
+                            {/* Bộ phận */}
                             <div>
                                 <label className="block text-sm font-medium text-white mb-2">
                                     Bộ phận
                                 </label>
-                                <input
-                                    type="text"
-                                    list="bo-phan-options"
+                                <SearchableSelect
+                                    options={boPhanOptions}
                                     value={formData.boPhan}
-                                    onChange={(e) => setFormData(prev => ({ ...prev, boPhan: e.target.value }))}
-                                    className="glass-input w-full px-4 py-2 rounded-lg"
+                                    onChange={(val) => setFormData((prev) => ({ ...prev, boPhan: val }))}
                                     placeholder="Chọn hoặc nhập Bộ phận"
+                                    searchPlaceholder="Tìm bộ phận..."
+                                    allowCustom
+                                    customOptionPrefix="Dùng bộ phận:"
                                 />
-                                <datalist id="bo-phan-options">
-                                    {Array.from(
-                                        new Set(
-                                            users
-                                                .map((u) => u.boPhan || u.employment?.department || "")
-                                                .filter(Boolean)
-                                        )
-                                    ).map((v) => (
-                                        <option key={v} value={v} />
-                                    ))}
-                                </datalist>
                             </div>
 
                             {/* Phone Number */}
@@ -531,18 +550,30 @@ export default function UsersPage() {
                                 />
                             </div>
 
-                            {/* Monthly Salary */}
+                            {/* Monthly Salary (VND — dấu chấm phân tách hàng nghìn) */}
                             <div>
                                 <label className="block text-sm font-medium text-white mb-2">
                                     {t("monthly_salary")}
                                 </label>
                                 <input
-                                    type="number"
-                                    value={formData.monthlySalary}
-                                    onChange={(e) => setFormData(prev => ({ ...prev, monthlySalary: Number(e.target.value) }))}
+                                    type="text"
+                                    inputMode="numeric"
+                                    autoComplete="off"
+                                    value={
+                                        formData.monthlySalary === 0
+                                            ? ""
+                                            : formatCurrencyVN(Math.round(formData.monthlySalary))
+                                    }
+                                    onChange={(e) => {
+                                        const digits = e.target.value.replace(/\D/g, "");
+                                        const n =
+                                            digits === ""
+                                                ? 0
+                                                : Math.min(Number(digits), Number.MAX_SAFE_INTEGER);
+                                        setFormData((prev) => ({ ...prev, monthlySalary: n }));
+                                    }}
                                     className="glass-input w-full px-4 py-2 rounded-lg"
-                                    placeholder="0"
-                                    min="0"
+                                    placeholder="VD: 15.000.000"
                                 />
                             </div>
 

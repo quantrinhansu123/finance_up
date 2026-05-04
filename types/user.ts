@@ -40,6 +40,8 @@ export interface UserProfile {
   password: string;
   displayName: string;
   boPhan?: string;
+  /** Cột `employees.team` (NOT NULL trên một số DB) — có thể trùng hoặc khác bo_phan */
+  team?: string;
   role: UserRole;
   position?: Position; // Chức vụ
   departmentId?: string; // ID phòng ban

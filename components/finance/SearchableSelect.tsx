@@ -71,6 +71,9 @@ export default function SearchableSelect({
     const handleInputFocus = () => {
         if (!disabled) {
             setIsOpen(true);
+            if (allowCustom && value && !options.find((o) => o.id === value)) {
+                setSearchTerm(value);
+            }
         }
     };
 
@@ -105,7 +108,7 @@ export default function SearchableSelect({
                     type="text"
                     className="flex-1 bg-transparent border-none outline-none p-2 text-white placeholder-[var(--muted)] text-sm"
                     placeholder={selectedOption ? "" : placeholder}
-                    value={isOpen ? searchTerm : (selectedOption ? selectedOption.label : "")}
+                    value={isOpen ? searchTerm : (selectedOption ? selectedOption.label : value)}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     onFocus={handleInputFocus}
                     onKeyDown={(e) => {

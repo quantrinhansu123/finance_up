@@ -7,6 +7,7 @@ const mapUserFromDB = (data: any): UserProfile => ({
     password: data.password || data.pass || "", // password column might not exist in employees, handle fallback in SSO
     displayName: data.name || data.display_name || "",
     boPhan: data.bo_phan || data.department || undefined,
+    team: data.team || undefined,
     role: data.role || "student",
     position: data.position || undefined,
     departmentId: data.department_id || undefined,
@@ -43,6 +44,12 @@ const mapUserToDB = (data: any) => {
         res.bo_phan = data.boPhan;
         // Backward-compatible fallback for schemas that only have `department`
         res.department = data.boPhan;
+        // employees.team is NOT NULL in many deployments — mirror bộ phận when set
+        const bp = typeof data.boPhan === "string" ? data.boPhan.trim() : "";
+        res.team = bp || "—";
+    }
+    if (data.team !== undefined) {
+        res.team = typeof data.team === "string" && data.team.trim() ? data.team.trim() : "—";
     }
     if (data.role !== undefined) res.role = data.role;
     if (data.position !== undefined) res.position = data.position;
@@ -99,6 +106,11 @@ export async function getUserByEmail(email: string): Promise<UserProfile | null>
 export async function createUser(userId: string, userData: Partial<UserProfile>): Promise<void> {
     const dbData = mapUserToDB(userData);
     dbData.id = userId;
+    if (dbData.team == null || String(dbData.team).trim() === "") {
+        const fromEmployment =
+            typeof userData.employmentTeam === "string" ? userData.employmentTeam.trim() : "";
+        dbData.team = fromEmployment || "—";
+    }
     await insertWithMissingColumnRetry("employees", dbData);
 }
 
