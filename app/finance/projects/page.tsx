@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useRef, useLayoutEffect } from "react";
-import { getProjects, createProject, updateProject, getTransactions, deleteProject, getDuAnList, DuAnListItem } from "@/lib/finance";
+import { getProjects, createProject, updateProject, getTransactions, deleteProject } from "@/lib/finance";
 import { Project } from "@/types/finance";
 import { useRouter } from "next/navigation";
 import { getUserRole, getAccessibleProjects, hasProjectPermission, Role } from "@/lib/permissions";
@@ -16,12 +16,6 @@ import { getUsers } from "@/lib/users";
 import { UserProfile } from "@/types/user";
 
 const ITEMS_PER_PAGE = 10;
-
-/** Nhãn hiển thị trên dropdown: ưu tiên mã; nếu chưa có mã trong DB thì hiện tên. */
-function duAnOptionLabel(opt: DuAnListItem): string {
-    const code = (opt.maDuAn || "").trim();
-    return code || opt.tenDuAn;
-}
 
 export default function ProjectsPage() {
     const { t } = useTranslation();
@@ -60,11 +54,6 @@ export default function ProjectsPage() {
         width: number;
     } | null>(null);
 
-    // du_an picker (dropdown)
-    const [duAnOptions, setDuAnOptions] = useState<DuAnListItem[]>([]);
-    const [duAnLoading, setDuAnLoading] = useState(false);
-    const [selectedDuAnId, setSelectedDuAnId] = useState<string>("");
-
     // Filtered data
     const filteredProjects = useMemo(() => {
         return projects.filter(p => {
@@ -90,20 +79,6 @@ export default function ProjectsPage() {
             console.error("Failed to load users for project modal", e);
         } finally {
             setUsersLoading(false);
-        }
-    };
-
-    const loadDuAnOptions = async () => {
-        if (duAnLoading) return;
-        if (duAnOptions.length > 0) return;
-        setDuAnLoading(true);
-        try {
-            const options = await getDuAnList();
-            setDuAnOptions(options);
-        } catch (e) {
-            console.error("Failed to load du_an options", e);
-        } finally {
-            setDuAnLoading(false);
         }
     };
 
@@ -184,10 +159,8 @@ export default function ProjectsPage() {
         setSelectedMemberIds([]);
         setMemberSearchTerm("");
         setMembersPickerOpen(false);
-        setSelectedDuAnId("");
         setIsModalOpen(true);
         void loadUsersForProjectModal();
-        void loadDuAnOptions();
     };
 
     const openEditModal = (project: Project, e: React.MouseEvent) => {
@@ -201,10 +174,8 @@ export default function ProjectsPage() {
         setSelectedMemberIds(project.memberIds || []);
         setMemberSearchTerm("");
         setMembersPickerOpen(false);
-        setSelectedDuAnId("__CURRENT__");
         setIsModalOpen(true);
         void loadUsersForProjectModal();
-        void loadDuAnOptions();
     };
 
     useEffect(() => {
@@ -241,16 +212,6 @@ export default function ProjectsPage() {
         return () => document.removeEventListener("mousedown", onDocMouseDown);
     }, [membersPickerOpen]);
 
-    // Align du_an dropdown with current project name when du_an options are loaded.
-    useEffect(() => {
-        if (!isModalOpen) return;
-        if (!selectedProject) return;
-        if (duAnOptions.length === 0) return;
-
-        const match = duAnOptions.find(opt => opt.tenDuAn === selectedProject.name);
-        setSelectedDuAnId(match ? match.id : "__CURRENT__");
-    }, [duAnOptions, isModalOpen, selectedProject?.id, selectedProject?.name]);
-
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
@@ -259,15 +220,9 @@ export default function ProjectsPage() {
             return;
         }
 
-        if (!selectedProject) {
-            if (!selectedDuAnId || selectedDuAnId === "__CURRENT__") {
-                alert(t("select_project_code"));
-                return;
-            }
-            if (!name.trim()) {
-                alert(t("select_project_code"));
-                return;
-            }
+        if (!name.trim()) {
+            alert(t("name_required") || "Vui lòng nhập tên dự án");
+            return;
         }
 
         try {
@@ -529,39 +484,15 @@ export default function ProjectsPage() {
                             </h2>
                             <form onSubmit={handleSubmit} className="space-y-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-[var(--muted)] mb-1">
-                                        {t("project_code")}
-                                    </label>
-                                    <select
-                                        value={selectedDuAnId}
-                                        onChange={(e) => {
-                                            const id = e.target.value;
-                                            setSelectedDuAnId(id);
-                                            if (id === "__CURRENT__") return;
-
-                                            const opt = duAnOptions.find(o => o.id === id);
-                                            if (opt) setName(opt.tenDuAn);
-                                        }}
+                                    <label className="block text-sm font-medium text-[var(--muted)] mb-1">{t("name")}</label>
+                                    <input
+                                        type="text"
+                                        value={name}
+                                        onChange={(e) => setName(e.target.value)}
                                         className="glass-input w-full p-2 rounded-lg"
+                                        placeholder={t("name")}
                                         required
-                                        disabled={duAnLoading}
-                                    >
-                                        <option value="" disabled>
-                                            {duAnLoading ? (t("loading") || "Loading...") : t("select_project_code")}
-                                        </option>
-
-                                        {duAnOptions.map(opt => (
-                                            <option key={opt.id} value={opt.id}>
-                                                {duAnOptionLabel(opt)}
-                                            </option>
-                                        ))}
-
-                                        {selectedProject &&
-                                            selectedDuAnId === "__CURRENT__" &&
-                                            !duAnOptions.some(opt => opt.tenDuAn === selectedProject.name) && (
-                                                <option value="__CURRENT__">{selectedProject.name}</option>
-                                            )}
-                                    </select>
+                                    />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-[var(--muted)] mb-1">{t("description")}</label>
