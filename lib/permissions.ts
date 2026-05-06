@@ -174,9 +174,9 @@ export function getAccessibleAccounts(user: any, allAccounts: any[], accessibleP
         return allAccounts;
     }
 
-    // User chỉ xem account của project mình tham gia
+    // User xem account của project mình tham gia + account chung (không gán project)
     return allAccounts.filter(a =>
-        a.projectId && accessibleProjectIds.includes(a.projectId)
+        !a.projectId || accessibleProjectIds.includes(a.projectId)
     );
 }
 

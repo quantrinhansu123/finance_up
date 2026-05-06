@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { createTransaction, getAccounts, updateAccountBalance, getProjects, updateProject, getTransactions } from "@/lib/finance";
+import { createTransaction, getAccounts, updateAccountBalance, getProjects, updateProject, getTransactions, updateTransaction, deleteTransaction } from "@/lib/finance";
 import { getMasterCategories, getMasterSubCategories } from "@/lib/master-categories";
 import { Account, Project, Transaction, MasterCategory, MasterSubCategory } from "@/types/finance";
 import { uploadImage } from "@/lib/upload";
@@ -14,7 +14,7 @@ import { exportToCSV } from "@/lib/export";
 import TransactionDetailModal from "@/components/finance/TransactionDetailModal";
 import { WizardProgress, WizardStepPanel, WizardSummaryItem } from "@/components/finance/TransactionWizard";
 import DataTable, { AmountCell, DateCell, TextCell, ActionCell } from "@/components/finance/DataTable";
-import { Eye, ChevronRight, X } from "lucide-react";
+import { Eye, Edit2, Trash2, ChevronRight, X } from "lucide-react";
 import { useTranslation } from "@/lib/i18n";
 import { projectLabelById, formatProjectListLabel, formatProjectMaLan } from "@/lib/project-display";
 
@@ -65,6 +65,11 @@ export default function IncomePage() {
     // Modal state
     const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
     const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+    const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+    const [editAmount, setEditAmount] = useState("");
+    const [editSource, setEditSource] = useState("");
+    const [editDescription, setEditDescription] = useState("");
+    const [editSaving, setEditSaving] = useState(false);
 
     useEffect(() => {
         const u = localStorage.getItem("user") || sessionStorage.getItem("user");
@@ -82,10 +87,9 @@ export default function IncomePage() {
 
     const accessibleAccounts = useMemo(() => {
         let filtered = getAccessibleAccounts(currentUser, accounts, accessibleProjects.map(p => p.id));
-        const userId = currentUser?.uid || currentUser?.id;
-        if (projectId) filtered = filtered.filter(acc => acc.projectId === projectId);
         if (userRole === "ADMIN") return filtered;
-        if (userId) filtered = filtered.filter(acc => !acc.assignedUserIds || acc.assignedUserIds.length === 0 || acc.assignedUserIds.includes(userId));
+        // Show both project-specific accounts and shared accounts (no projectId)
+        if (projectId) filtered = filtered.filter(acc => acc.projectId === projectId || !acc.projectId);
         return filtered;
     }, [currentUser, accounts, accessibleProjects, projectId, userRole]);
 
@@ -210,6 +214,72 @@ export default function IncomePage() {
     };
 
     const getAccountName = (id: string) => accounts.find(a => a.id === id)?.name || "N/A";
+
+    const openEditModal = (tx: Transaction) => {
+        setEditingTransaction(tx);
+        setEditAmount(String(tx.amount || ""));
+        setEditSource(tx.source || tx.category || "");
+        setEditDescription(tx.description || "");
+    };
+
+    const closeEditModal = () => {
+        setEditingTransaction(null);
+        setEditAmount("");
+        setEditSource("");
+        setEditDescription("");
+    };
+
+    const handleSaveEdit = async () => {
+        if (!editingTransaction) return;
+        const newAmount = parseFloat(editAmount);
+        if (!Number.isFinite(newAmount) || newAmount <= 0) {
+            alert("Số tiền không hợp lệ");
+            return;
+        }
+
+        setEditSaving(true);
+        try {
+            const oldAmount = Number(editingTransaction.amount || 0);
+            const delta = newAmount - oldAmount;
+            const account = accounts.find(a => a.id === editingTransaction.accountId);
+
+            await updateTransaction(editingTransaction.id, {
+                amount: newAmount,
+                source: editSource.trim() || editingTransaction.source || editingTransaction.category,
+                category: editSource.trim() || editingTransaction.category,
+                description: editDescription.trim(),
+            });
+
+            // Keep account balance consistent when an approved income amount changes.
+            if (editingTransaction.status === "APPROVED" && account && Math.abs(delta) > 0) {
+                await updateAccountBalance(account.id, account.balance + delta);
+            }
+
+            await fetchData();
+            closeEditModal();
+        } catch (e) {
+            console.error(e);
+            alert("Lỗi khi cập nhật giao dịch");
+        } finally {
+            setEditSaving(false);
+        }
+    };
+
+    const handleDeleteTransaction = async (tx: Transaction) => {
+        if (!confirm("Bạn có chắc muốn xóa giao dịch này?")) return;
+        try {
+            const account = accounts.find(a => a.id === tx.accountId);
+            // Reverse approved income from account balance before deleting.
+            if (tx.status === "APPROVED" && account) {
+                await updateAccountBalance(account.id, account.balance - Number(tx.amount || 0));
+            }
+            await deleteTransaction(tx.id);
+            await fetchData();
+        } catch (e) {
+            console.error(e);
+            alert("Lỗi khi xóa giao dịch");
+        }
+    };
 
     if (loading) return <div className="p-8 text-[var(--muted)]">{t("loading")}</div>;
 
@@ -519,6 +589,18 @@ export default function IncomePage() {
                                     >
                                         <Eye size={18} />
                                     </button>
+                                    <button
+                                        onClick={() => openEditModal(tx)}
+                                        className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-[var(--muted)] hover:text-amber-300 transition-all transform active:scale-90"
+                                    >
+                                        <Edit2 size={16} />
+                                    </button>
+                                    <button
+                                        onClick={() => handleDeleteTransaction(tx)}
+                                        className="p-2 rounded-lg bg-white/5 hover:bg-red-500/20 text-[var(--muted)] hover:text-red-400 transition-all transform active:scale-90"
+                                    >
+                                        <Trash2 size={16} />
+                                    </button>
                                 </ActionCell>
                             )
                         }
@@ -535,6 +617,36 @@ export default function IncomePage() {
                     projectName={projectLabelById(projects, selectedTransaction.projectId || "")}
                     accountName={getAccountName(selectedTransaction.accountId || "")}
                 />
+            )}
+
+            {editingTransaction && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+                    <div className="glass-card w-full max-w-md rounded-2xl border border-white/20 p-6">
+                        <h3 className="text-xl font-bold text-white mb-4">Sửa giao dịch thu</h3>
+                        <div className="space-y-3">
+                            <div>
+                                <label className="block text-sm text-[var(--muted)] mb-1">{t("amount")}</label>
+                                <CurrencyInput value={editAmount} onChange={setEditAmount} currency={editingTransaction.currency || "USD"} />
+                            </div>
+                            <div>
+                                <label className="block text-sm text-[var(--muted)] mb-1">{t("source")}</label>
+                                <input value={editSource} onChange={(e) => setEditSource(e.target.value)} className="glass-input w-full p-2 rounded-lg" />
+                            </div>
+                            <div>
+                                <label className="block text-sm text-[var(--muted)] mb-1">{t("description")}</label>
+                                <textarea value={editDescription} onChange={(e) => setEditDescription(e.target.value)} className="glass-input w-full p-2 rounded-lg" rows={3} />
+                            </div>
+                            <div className="flex gap-3 pt-2">
+                                <button type="button" onClick={closeEditModal} className="flex-1 px-4 py-2 rounded-lg border border-white/10 text-[var(--muted)] hover:text-white">
+                                    {t("cancel")}
+                                </button>
+                                <button type="button" onClick={handleSaveEdit} disabled={editSaving} className="flex-1 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold disabled:opacity-50">
+                                    {editSaving ? t("processing") : t("save")}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );

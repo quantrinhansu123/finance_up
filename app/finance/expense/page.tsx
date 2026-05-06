@@ -82,9 +82,9 @@ export default function ExpensePage() {
 
     const accessibleAccounts = useMemo(() => {
         let filtered = getAccessibleAccounts(currentUser, accounts, accessibleProjects.map(p => p.id));
+        if (userRole === "ADMIN") return filtered;
         const userId = currentUser?.uid || currentUser?.id;
         if (projectId) filtered = filtered.filter(acc => acc.projectId === projectId);
-        if (userRole === "ADMIN") return filtered;
         if (userId) filtered = filtered.filter(acc => !acc.assignedUserIds || acc.assignedUserIds.length === 0 || acc.assignedUserIds.includes(userId));
         return filtered;
     }, [currentUser, accounts, accessibleProjects, projectId, userRole]);

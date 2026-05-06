@@ -331,6 +331,8 @@ export const translations = {
         // Income/Expense pages
         "create_income_transaction": "Tạo khoản thu",
         "manage_income": "Quản lý khoản thu",
+        "income_expense_categories": "Danh mục thu chi",
+        "income_expense_categories_desc": "Bảng tra cứu danh mục thu và danh mục chi",
         "payment_type": "Loại thanh toán",
         "full_payment": "Thanh toán toàn bộ (100%)",
         "partial_payment": "Thanh toán 1 phần",
@@ -847,6 +849,8 @@ export const translations = {
         // Income/Expense pages
         "create_income_transaction": "Create Income",
         "manage_income": "Manage Income",
+        "income_expense_categories": "Income & Expense Categories",
+        "income_expense_categories_desc": "Reference table for income and expense categories",
         "payment_type": "Payment Type",
         "full_payment": "Full Payment (100%)",
         "partial_payment": "Partial Payment",
