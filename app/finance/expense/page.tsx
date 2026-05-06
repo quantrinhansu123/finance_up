@@ -183,6 +183,15 @@ export default function ExpensePage() {
         setProjectId(""); setAccountId(""); setAmount(""); setDescription(""); setFiles([]);
         setCategory(""); setParentCategoryId(""); setWizardStep(1);
     };
+    const handlePasteImages = (e: React.ClipboardEvent) => {
+        const pastedImages = Array.from(e.clipboardData.items)
+            .filter((item) => item.type.startsWith("image/"))
+            .map((item) => item.getAsFile())
+            .filter((f): f is File => !!f);
+        if (pastedImages.length === 0) return;
+        e.preventDefault();
+        setFiles((prev) => [...prev, ...pastedImages].slice(0, 2));
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -249,7 +258,7 @@ export default function ExpensePage() {
                 <div className="glass-card p-6 rounded-2xl border border-white/10 shadow-2xl overflow-hidden relative">
                     <WizardProgress steps={WIZARD_STEPS} currentStep={wizardStep} />
 
-                    <form onSubmit={handleSubmit} className="mt-8 space-y-6">
+                    <form onSubmit={handleSubmit} onPaste={handlePasteImages} className="mt-8 space-y-6">
                         {/* Step 1: Project */}
                         <WizardStepPanel
                             isActive={wizardStep === 1}

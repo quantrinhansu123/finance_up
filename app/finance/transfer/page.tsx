@@ -226,6 +226,15 @@ export default function TransferPage() {
             setSubmitting(false);
         }
     };
+    const handlePasteImages = (e: React.ClipboardEvent) => {
+        const pastedImages = Array.from(e.clipboardData.items)
+            .filter((item) => item.type.startsWith("image/"))
+            .map((item) => item.getAsFile())
+            .filter((f): f is File => !!f);
+        if (pastedImages.length === 0) return;
+        e.preventDefault();
+        setFiles((prev) => [...prev, ...pastedImages].slice(0, 2));
+    };
 
     if (loading) return <div className="p-8 text-[var(--muted)]">Loading...</div>;
 
@@ -267,7 +276,7 @@ export default function TransferPage() {
                     <ArrowRightLeft size={100} />
                 </div>
 
-                <form onSubmit={handleSubmit} className="space-y-6 relative z-10">
+                <form onSubmit={handleSubmit} onPaste={handlePasteImages} className="space-y-6 relative z-10">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {/* Source */}
                         <div className="p-4 rounded-xl bg-red-500/5 border border-red-500/20">

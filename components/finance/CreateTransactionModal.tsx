@@ -279,6 +279,15 @@ export default function CreateTransactionModal({ isOpen, onClose, onSuccess, cur
     // Check if can proceed to next step
     const canSelectAccount = !!projectId;
     const canEnterDetails = !!accountId;
+    const handlePasteImages = (e: React.ClipboardEvent) => {
+        const pastedImages = Array.from(e.clipboardData.items)
+            .filter((item) => item.type.startsWith("image/"))
+            .map((item) => item.getAsFile())
+            .filter((f): f is File => !!f);
+        if (pastedImages.length === 0) return;
+        e.preventDefault();
+        setFiles((prev) => [...prev, ...pastedImages]);
+    };
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
@@ -304,7 +313,7 @@ export default function CreateTransactionModal({ isOpen, onClose, onSuccess, cur
                     </button>
                 </div>
 
-                <form onSubmit={handleSubmit} className="space-y-4">
+                <form onSubmit={handleSubmit} onPaste={handlePasteImages} className="space-y-4">
 
                     {/* ========== STEP 1: CHỌN DỰ ÁN ========== */}
                     <div className={`p-4 rounded-xl border-2 transition-all ${projectId ? 'bg-green-500/10 border-green-500/30' : 'bg-blue-500/10 border-blue-500/30'}`}>

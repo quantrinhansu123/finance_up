@@ -284,6 +284,10 @@ export default function ProjectsPage() {
 
     // Check if user has any accessible projects
     const hasAccessibleProjects = projects.length > 0;
+    const formatMoneyByProject = (project: Project, amount: number) => {
+        const cur = project.defaultCurrency || project.currency || "USD";
+        return `${Number(amount || 0).toLocaleString("vi-VN")} ${cur}`;
+    };
 
     return (
         <div className="space-y-8">
@@ -391,7 +395,7 @@ export default function ProjectsPage() {
                         align: "right",
                         render: (p) => (
                             <span className="font-medium text-green-400">
-                                ${p.totalRevenue.toLocaleString("vi-VN")}
+                                {formatMoneyByProject(p, p.totalRevenue)}
                             </span>
                         )
                     },
@@ -401,7 +405,7 @@ export default function ProjectsPage() {
                         align: "right",
                         render: (p) => (
                             <span className="font-medium text-red-400">
-                                ${p.totalExpense.toLocaleString("vi-VN")}
+                                {formatMoneyByProject(p, p.totalExpense)}
                             </span>
                         )
                     },
@@ -426,7 +430,7 @@ export default function ProjectsPage() {
                         align: "right",
                         render: (p) => (
                             <span className="font-bold text-white">
-                                ${(p.totalRevenue - p.totalExpense).toLocaleString("vi-VN")}
+                                {formatMoneyByProject(p, (p.totalRevenue - p.totalExpense))}
                             </span>
                         )
                     },
