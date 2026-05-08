@@ -133,12 +133,19 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
             if (projectRow) {
                 setProject(projectRow);
                 setSelectedMemberIds(projectRow.memberIds || []);
-                setProjectMembers(projectRow.members || []);
+                // Some deployments only persist `member_ids` on finance_projects and
+                // do not have rows in finance_project_members yet.
+                // Ensure members tab still renders correct personnel list.
+                const fallbackMembers =
+                    (projectRow.memberIds || []).map((id) =>
+                        createProjectMember(id, id === projectRow.createdBy ? "OWNER" : "MEMBER", projectRow.createdBy)
+                    );
+                setProjectMembers(projectRow.members && projectRow.members.length > 0 ? projectRow.members : fallbackMembers);
             }
             setAllUsers(usersList);
 
-            // Filter transactions for this project
-            const projectTxs = txs.filter(t => t.projectId === projectId && t.status === "APPROVED");
+            // Filter transactions for this project (all statuses)
+            const projectTxs = txs.filter(t => t.projectId === projectId);
             setTransactions(projectTxs);
 
             // Filter accounts assigned to this project
@@ -376,7 +383,11 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     const getProjectMembersWithInfo = () => {
         return projectMembers.map(member => {
             const user = allUsers.find(u => u.uid === member.id);
-            return { ...member, user };
+            const effectivePermissions =
+                member.permissions && member.permissions.length > 0
+                    ? member.permissions
+                    : PROJECT_ROLE_PERMISSIONS[member.role] || [];
+            return { ...member, permissions: effectivePermissions, user };
         }).filter(m => m.user);
     };
 

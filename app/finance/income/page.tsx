@@ -17,6 +17,8 @@ import DataTable, { AmountCell, DateCell, TextCell, ActionCell } from "@/compone
 import { Eye, Edit2, Trash2, ChevronRight, X } from "lucide-react";
 import { useTranslation } from "@/lib/i18n";
 import { projectLabelById, formatProjectListLabel, formatProjectMaLan } from "@/lib/project-display";
+import { getUsers } from "@/lib/users";
+import { UserProfile } from "@/types/user";
 
 const CURRENCY_FLAGS: Record<string, string> = {
     "VND": "🇻🇳", "USD": "🇺🇸", "KHR": "🇰🇭", "TRY": "🇹🇷", "MMK": "🇲🇲", "THB": "🇹🇭", "LAK": "🇱🇦", "MYR": "🇲🇾", "IDR": "🇮🇩", "PHP": "🇵🇭", "SGD": "🇸🇬"
@@ -34,6 +36,7 @@ export default function IncomePage() {
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [accounts, setAccounts] = useState<Account[]>([]);
     const [projects, setProjects] = useState<Project[]>([]);
+    const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const [currentUser, setCurrentUser] = useState<any>(null);
@@ -121,16 +124,18 @@ export default function IncomePage() {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [accs, projs, cats, subs] = await Promise.all([
+            const [accs, projs, cats, subs, users] = await Promise.all([
                 getAccounts(),
                 getProjects(),
                 getMasterCategories(),
                 getMasterSubCategories(),
+                getUsers(),
             ]);
             setAccounts(accs);
             setProjects(projs);
             setMasterCategories(cats.filter((c) => c.isActive && c.type === "INCOME"));
             setGlobalSubCategories(subs.filter((c) => c.isActive));
+            setAllUsers(users);
 
             await fetchTransactions();
         } catch (e) { console.error(e); } finally { setLoading(false); }
@@ -223,6 +228,15 @@ export default function IncomePage() {
     };
 
     const getAccountName = (id: string) => accounts.find(a => a.id === id)?.name || "N/A";
+    const userNameById = useMemo(() => {
+        const m = new Map<string, string>();
+        for (const u of allUsers) m.set(u.uid, u.displayName || u.email || u.uid);
+        return m;
+    }, [allUsers]);
+    const resolveUserName = (idOrName?: string) => {
+        if (!idOrName) return "-";
+        return userNameById.get(idOrName) || idOrName;
+    };
 
     const openEditModal = (tx: Transaction) => {
         setEditingTransaction(tx);
@@ -585,6 +599,20 @@ export default function IncomePage() {
                             key: "projectName",
                             header: t("project"),
                             render: (tx: Transaction) => <TextCell primary={projectLabelById(projects, tx.projectId || "")} />
+                        },
+                        {
+                            key: "creator",
+                            header: t("creator") || "Người nhập",
+                            render: (tx: Transaction) => (
+                                <span className="text-xs text-white/70">{resolveUserName(tx.createdBy)}</span>
+                            )
+                        },
+                        {
+                            key: "approver",
+                            header: t("approver") || "Người duyệt",
+                            render: (tx: Transaction) => (
+                                <span className="text-xs text-white/70">{resolveUserName(tx.approvedBy)}</span>
+                            )
                         },
                         {
                             key: "actions",

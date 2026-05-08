@@ -5,9 +5,12 @@ import { Layers, Plus, X } from "lucide-react";
 import { useTranslation } from "@/lib/i18n";
 import { MasterCategory, MasterSubCategory } from "@/types/finance";
 import { getMasterCategories, getMasterSubCategories, insertMasterCategory, insertMasterSubCategory } from "@/lib/master-categories";
+import { getUserRole } from "@/lib/permissions";
+import { useRouter } from "next/navigation";
 
 export default function IncomeExpenseCategoriesPage() {
     const { t } = useTranslation();
+    const router = useRouter();
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [categoryTab, setCategoryTab] = useState<"INCOME" | "EXPENSE">("INCOME");
@@ -49,7 +52,15 @@ export default function IncomeExpenseCategoriesPage() {
 
     useEffect(() => {
         const storedUser = localStorage.getItem("user") || sessionStorage.getItem("user");
-        if (storedUser) setCurrentUser(JSON.parse(storedUser));
+        if (storedUser) {
+            const u = JSON.parse(storedUser);
+            setCurrentUser(u);
+            if (getUserRole(u) !== "ADMIN") {
+                router.push("/finance");
+            }
+        } else {
+            router.push("/login");
+        }
     }, []);
 
     const tableRows = useMemo(() => {
