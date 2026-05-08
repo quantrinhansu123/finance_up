@@ -37,6 +37,7 @@ export default function ExpensePage() {
     const [projects, setProjects] = useState<Project[]>([]);
     const [funds, setFunds] = useState<Fund[]>([]);
     const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
+    const [viewableProjectIds, setViewableProjectIds] = useState<string[]>([]);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const [currentUser, setCurrentUser] = useState<any>(null);
@@ -117,6 +118,15 @@ export default function ExpensePage() {
         return unique;
     }, [parentCategoryId, globalSubCategories, selectedProject]);
 
+    const computeViewableProjectIds = (projs: Project[]): string[] => {
+        const userId = currentUser?.uid || currentUser?.id;
+        if (!userId) return [];
+        if (userRole === "ADMIN") return projs.map((p) => p.id);
+        return getAccessibleProjects(currentUser, projs)
+            .filter((p) => hasProjectPermission(userId, p, "view_transactions", currentUser))
+            .map((p) => p.id);
+    };
+
     const fetchData = async () => {
         setLoading(true);
         try {
@@ -134,17 +144,26 @@ export default function ExpensePage() {
             setMasterCategories(cats.filter((c) => c.isActive && c.type === "EXPENSE"));
             setGlobalSubCategories(subs.filter((c) => c.isActive));
             setAllUsers(users);
+            const ids = computeViewableProjectIds(projs);
+            setViewableProjectIds(ids);
 
-            await fetchTransactions();
+            await fetchTransactions(ids);
         } catch (e) { console.error(e); } finally { setLoading(false); }
     };
 
-    const fetchTransactions = async () => {
+    const fetchTransactions = async (idsOverride?: string[]) => {
         if (!currentUser) return;
         try {
             const all = await getTransactions();
             let txs = all.filter((t) => t.type === "OUT");
-            if (userRole !== "ADMIN") { const userId = currentUser.uid || currentUser.id; txs = txs.filter(t => t.userId === userId); }
+            if (userRole !== "ADMIN") {
+                const userId = currentUser.uid || currentUser.id;
+                const ids = idsOverride ?? viewableProjectIds;
+                txs = txs.filter(t =>
+                    (t.projectId && ids.includes(t.projectId)) ||
+                    t.userId === userId
+                );
+            }
             if (activeFilters.startDate) txs = txs.filter(t => t.date.split("T")[0] >= activeFilters.startDate);
             if (activeFilters.endDate) txs = txs.filter(t => t.date.split("T")[0] <= activeFilters.endDate);
             if (activeFilters.date) txs = txs.filter(t => t.date.startsWith(activeFilters.date));
@@ -162,7 +181,7 @@ export default function ExpensePage() {
         } catch (e) { console.error(e); }
     };
 
-    useEffect(() => { if (!loading) fetchTransactions(); }, [activeFilters, searchTerm]);
+    useEffect(() => { if (!loading) fetchTransactions(); }, [activeFilters, searchTerm, viewableProjectIds.join("|")]);
     useEffect(() => { if (projectId && selectedAccount?.projectId && selectedAccount.projectId !== projectId) setAccountId(""); }, [projectId]);
 
     // Khi đổi parent category, reset category
