@@ -87,9 +87,9 @@ export default function IncomePage() {
 
     const accessibleAccounts = useMemo(() => {
         let filtered = getAccessibleAccounts(currentUser, accounts, accessibleProjects.map(p => p.id));
-        if (userRole === "ADMIN") return filtered;
-        // Show both project-specific accounts and shared accounts (no projectId)
-        if (projectId) filtered = filtered.filter(acc => acc.projectId === projectId || !acc.projectId);
+        // Only show accounts assigned to the selected project (no shared accounts here)
+        if (projectId) filtered = filtered.filter(acc => acc.projectId === projectId);
+        else filtered = [];
         return filtered;
     }, [currentUser, accounts, accessibleProjects, projectId, userRole]);
 

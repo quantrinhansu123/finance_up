@@ -149,10 +149,12 @@ export function getAccessibleProjects(user: any, allProjects: any[]): any[] {
 
     // User chỉ xem project mình tham gia (trong members hoặc memberIds)
     const userId = user?.uid || user?.id;
+    const userProjectIds: string[] = Array.isArray(user?.projectIds) ? user.projectIds : [];
     return allProjects.filter(p =>
         p.members?.some((m: any) => m.id === userId) ||
         p.memberIds?.includes(userId) ||
-        p.createdBy === userId
+        p.createdBy === userId ||
+        (p.id && userProjectIds.includes(p.id))
     );
 }
 
