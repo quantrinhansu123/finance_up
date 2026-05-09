@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { createTransaction, getAccounts, updateAccountBalance, getProjects, updateProject, getTransactions, updateTransaction, deleteTransaction } from "@/lib/finance";
 import { getMasterCategories, getMasterSubCategories } from "@/lib/master-categories";
 import { Account, Project, Transaction, MasterCategory, MasterSubCategory } from "@/types/finance";
@@ -14,7 +14,7 @@ import { exportToCSV } from "@/lib/export";
 import TransactionDetailModal from "@/components/finance/TransactionDetailModal";
 import { WizardProgress, WizardStepPanel, WizardSummaryItem } from "@/components/finance/TransactionWizard";
 import DataTable, { AmountCell, DateCell, TextCell, ActionCell } from "@/components/finance/DataTable";
-import { Eye, Edit2, Trash2, ChevronRight, X } from "lucide-react";
+import { Eye, Edit2, Trash2, Paperclip, ChevronRight, X } from "lucide-react";
 import { useTranslation } from "@/lib/i18n";
 import { projectLabelById, formatProjectListLabel, formatProjectMaLan } from "@/lib/project-display";
 import { getUsers } from "@/lib/users";
@@ -23,6 +23,7 @@ import { UserProfile } from "@/types/user";
 const CURRENCY_FLAGS: Record<string, string> = {
     "VND": "🇻🇳", "USD": "🇺🇸", "KHR": "🇰🇭", "TRY": "🇹🇷", "MMK": "🇲🇲", "THB": "🇹🇭", "LAK": "🇱🇦", "MYR": "🇲🇾", "IDR": "🇮🇩", "PHP": "🇵🇭", "SGD": "🇸🇬"
 };
+const MAX_BILL_IMAGES = 10;
 
 export default function IncomePage() {
     const { t } = useTranslation();
@@ -40,9 +41,15 @@ export default function IncomePage() {
     const [viewableProjectIds, setViewableProjectIds] = useState<string[]>([]);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
-    const [currentUser, setCurrentUser] = useState<any>(null);
+    const [currentUser, setCurrentUser] = useState<{
+        uid?: string;
+        id?: string;
+        role?: string;
+        projectIds?: string[];
+    } | null>(null);
     const [userRole, setUserRole] = useState<Role>("USER");
     const [showForm, setShowForm] = useState(false);
+    const billSectionRef = useRef<HTMLDivElement>(null);
 
     // Wizard step control
     const [wizardStep, setWizardStep] = useState(1);
@@ -74,6 +81,9 @@ export default function IncomePage() {
     const [editSource, setEditSource] = useState("");
     const [editDescription, setEditDescription] = useState("");
     const [editSaving, setEditSaving] = useState(false);
+    const [billTx, setBillTx] = useState<Transaction | null>(null);
+    const [billFiles, setBillFiles] = useState<File[]>([]);
+    const [billUploading, setBillUploading] = useState(false);
 
     useEffect(() => {
         const u = localStorage.getItem("user") || sessionStorage.getItem("user");
@@ -211,7 +221,7 @@ export default function IncomePage() {
             .filter((f): f is File => !!f);
         if (pastedImages.length === 0) return;
         e.preventDefault();
-        setFiles((prev) => [...prev, ...pastedImages].slice(0, 2));
+        setFiles((prev) => [...prev, ...pastedImages].slice(0, MAX_BILL_IMAGES));
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -223,7 +233,11 @@ export default function IncomePage() {
             const numAmount = parseFloat(amount);
             const currency = selectedAccount?.currency || "USD";
             const imageUrls: string[] = [];
-            if (files.length > 0) { for (const file of files.slice(0, 2)) { imageUrls.push(await uploadImage(file)); } }
+            if (files.length > 0) {
+                for (const file of files.slice(0, MAX_BILL_IMAGES)) {
+                    imageUrls.push(await uploadImage(file));
+                }
+            }
 
             const parentCat = masterCategories.find(c => c.id === parentCategoryId);
             const parentCategoryName = parentCat?.name || "";
@@ -244,6 +258,59 @@ export default function IncomePage() {
             setShowForm(false);
             alert(t("create_income_success"));
         } catch (e) { console.error(e); alert(t("create_income_error")); } finally { setSubmitting(false); }
+    };
+
+    const openBillUploader = () => {
+        if (!showForm) resetForm();
+        setShowForm(true);
+        // Wait for form render, then scroll to bill section
+        setTimeout(() => {
+            billSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }, 50);
+    };
+
+    const openBillForTx = (tx: Transaction) => {
+        setBillTx(tx);
+        setBillFiles([]);
+    };
+
+    const closeBillModal = () => {
+        setBillTx(null);
+        setBillFiles([]);
+        setBillUploading(false);
+    };
+
+    const handleBillPaste = (e: React.ClipboardEvent) => {
+        const pastedImages = Array.from(e.clipboardData.items)
+            .filter((item) => item.type.startsWith("image/"))
+            .map((item) => item.getAsFile())
+            .filter((f): f is File => !!f);
+        if (pastedImages.length === 0) return;
+        e.preventDefault();
+        setBillFiles((prev) => [...prev, ...pastedImages].slice(0, MAX_BILL_IMAGES));
+    };
+
+    const handleUploadBillForTx = async () => {
+        if (!billTx) return;
+        if (billUploading) return;
+        if (billFiles.length === 0) return;
+
+        setBillUploading(true);
+        try {
+            const uploaded = await Promise.all(
+                billFiles.slice(0, MAX_BILL_IMAGES).map((f) => uploadImage(f))
+            );
+            const current = Array.isArray(billTx.images) ? billTx.images : [];
+            const merged = Array.from(new Set([...current, ...uploaded]));
+            await updateTransaction(billTx.id, { images: merged });
+            await fetchData();
+            closeBillModal();
+        } catch (e) {
+            console.error(e);
+            alert("Lỗi khi tải bill lên");
+        } finally {
+            setBillUploading(false);
+        }
     };
 
     const getAccountName = (id: string) => accounts.find(a => a.id === id)?.name || "N/A";
@@ -333,12 +400,21 @@ export default function IncomePage() {
                     <Wallet className="w-6 h-6 text-white" />
                 </div>
                 <div><h1 className="text-2xl font-bold text-white">{t("income")}</h1><p className="text-sm text-white/50">{t("manage_income")}</p></div>
-                <button
-                    onClick={() => { setShowForm(!showForm); if (!showForm) resetForm(); }}
-                    className={`ml-auto px-4 py-2 rounded-xl font-bold transition-all flex items-center gap-2 ${showForm ? "bg-white/10 text-white hover:bg-white/20" : "bg-green-600 text-white hover:bg-green-500 shadow-lg shadow-green-500/25"}`}
-                >
-                    {showForm ? t("close") : "＋ " + t("create_income_transaction")}
-                </button>
+                <div className="ml-auto flex items-center gap-3">
+                    <button
+                        onClick={openBillUploader}
+                        className="px-4 py-2 rounded-xl font-bold transition-all flex items-center gap-2 bg-white/10 text-white hover:bg-white/20"
+                        title="Mở form và tải bill"
+                    >
+                        📎 Tải bill
+                    </button>
+                    <button
+                        onClick={() => { setShowForm(!showForm); if (!showForm) resetForm(); }}
+                        className={`px-4 py-2 rounded-xl font-bold transition-all flex items-center gap-2 ${showForm ? "bg-white/10 text-white hover:bg-white/20" : "bg-green-600 text-white hover:bg-green-500 shadow-lg shadow-green-500/25"}`}
+                    >
+                        {showForm ? t("close") : "＋ " + t("create_income_transaction")}
+                    </button>
+                </div>
             </div>
 
             {/* Wizard Form */}
@@ -492,8 +568,24 @@ export default function IncomePage() {
                                         </div>
                                     </div>
 
-                                    <div className="space-y-4">
-                                        <label className="block text-sm font-bold text-[var(--muted)] uppercase tracking-wider">{t("attached_images")}</label>
+                                    <div className="space-y-4" ref={billSectionRef}>
+                                        <label className="block text-sm font-bold text-[var(--muted)] uppercase tracking-wider">
+                                            Tải bill ({files.length}/{MAX_BILL_IMAGES})
+                                        </label>
+                                        <label className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 cursor-pointer w-fit transition-colors">
+                                            <Upload size={18} className="text-green-400" />
+                                            <span className="text-sm font-semibold text-white">Tải bill (nhiều ảnh)</span>
+                                            <input
+                                                type="file"
+                                                accept="image/*"
+                                                multiple
+                                                className="hidden"
+                                                onChange={(e) => {
+                                                    if (!e.target.files) return;
+                                                    setFiles((prev) => [...prev, ...Array.from(e.target.files)].slice(0, MAX_BILL_IMAGES));
+                                                }}
+                                            />
+                                        </label>
                                         <div className="flex flex-wrap gap-4">
                                             {files.map((file, i) => (
                                                 <div key={i} className="relative w-24 h-24 rounded-xl overflow-hidden group border border-white/10 shadow-lg hover:border-red-500/50 transition-colors">
@@ -501,11 +593,20 @@ export default function IncomePage() {
                                                     <button type="button" onClick={() => setFiles(files.filter((_, idx) => idx !== i))} className="absolute top-1 right-1 p-1 bg-red-500 rounded-lg text-white opacity-0 group-hover:opacity-100 transition-opacity"><X size={12} /></button>
                                                 </div>
                                             ))}
-                                            {files.length < 2 && (
+                                            {files.length < MAX_BILL_IMAGES && (
                                                 <label className="w-24 h-24 rounded-xl border-2 border-dashed border-white/10 hover:border-green-500/50 hover:bg-green-500/5 flex flex-col items-center justify-center cursor-pointer transition-all group">
                                                     <Upload size={24} className="text-[var(--muted)] group-hover:text-green-400 transition-colors" />
-                                                    <span className="text-[10px] text-[var(--muted)] mt-2">{t("upload")}</span>
-                                                    <input type="file" accept="image/*" className="hidden" onChange={(e) => { if (e.target.files) setFiles([...files, ...Array.from(e.target.files)].slice(0, 2)); }} />
+                                                    <span className="text-[10px] text-[var(--muted)] mt-2">Tải bill / Ctrl+V</span>
+                                                    <input
+                                                        type="file"
+                                                        accept="image/*"
+                                                        multiple
+                                                        className="hidden"
+                                                        onChange={(e) => {
+                                                            if (!e.target.files) return;
+                                                            setFiles((prev) => [...prev, ...Array.from(e.target.files)].slice(0, MAX_BILL_IMAGES));
+                                                        }}
+                                                    />
                                                 </label>
                                             )}
                                         </div>
@@ -646,6 +747,13 @@ export default function IncomePage() {
                                         <Eye size={18} />
                                     </button>
                                     <button
+                                        onClick={() => openBillForTx(tx)}
+                                        className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-[var(--muted)] hover:text-green-300 transition-all transform active:scale-90"
+                                        title={`Tải bill (${(tx.images?.length || 0)})`}
+                                    >
+                                        <Paperclip size={16} />
+                                    </button>
+                                    <button
                                         onClick={() => openEditModal(tx)}
                                         className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-[var(--muted)] hover:text-amber-300 transition-all transform active:scale-90"
                                     >
@@ -700,6 +808,77 @@ export default function IncomePage() {
                                     {editSaving ? t("processing") : t("save")}
                                 </button>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {billTx && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onPaste={handleBillPaste}>
+                    <div className="glass-card w-full max-w-lg rounded-2xl border border-white/20 p-6">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-xl font-bold text-white">Tải bill cho giao dịch</h3>
+                            <button onClick={closeBillModal} className="text-[var(--muted)] hover:text-white">
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        <div className="text-xs text-[var(--muted)] mb-4">
+                            Bạn có thể chọn nhiều ảnh hoặc dán ảnh bằng Ctrl+V. Tối đa {MAX_BILL_IMAGES} ảnh.
+                        </div>
+
+                        <div className="flex items-center gap-3 mb-4">
+                            <label className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 cursor-pointer transition-colors">
+                                <Paperclip size={18} className="text-green-400" />
+                                <span className="text-sm font-semibold text-white">Chọn ảnh bill</span>
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    multiple
+                                    className="hidden"
+                                    onChange={(e) => {
+                                        if (!e.target.files) return;
+                                        setBillFiles((prev) => [...prev, ...Array.from(e.target.files)].slice(0, MAX_BILL_IMAGES));
+                                    }}
+                                />
+                            </label>
+                            <span className="text-xs text-white/60">{billFiles.length}/{MAX_BILL_IMAGES}</span>
+                        </div>
+
+                        {billFiles.length > 0 && (
+                            <div className="flex flex-wrap gap-3 mb-5">
+                                {billFiles.map((file, i) => (
+                                    <div key={i} className="relative w-24 h-24 rounded-xl overflow-hidden border border-white/10">
+                                        <img src={URL.createObjectURL(file)} className="w-full h-full object-cover" alt="bill-preview" />
+                                        <button
+                                            type="button"
+                                            onClick={() => setBillFiles((prev) => prev.filter((_, idx) => idx !== i))}
+                                            className="absolute top-1 right-1 p-1 bg-red-500 rounded-lg text-white"
+                                            title="Xóa"
+                                        >
+                                            <X size={12} />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        <div className="flex gap-3">
+                            <button
+                                type="button"
+                                onClick={closeBillModal}
+                                className="flex-1 px-4 py-2 rounded-lg border border-white/10 text-[var(--muted)] hover:text-white"
+                            >
+                                {t("cancel")}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleUploadBillForTx}
+                                disabled={billUploading || billFiles.length === 0}
+                                className="flex-1 px-4 py-2 rounded-lg bg-green-600 hover:bg-green-500 text-white font-semibold disabled:opacity-50"
+                            >
+                                {billUploading ? t("processing") : "Tải lên"}
+                            </button>
                         </div>
                     </div>
                 </div>
