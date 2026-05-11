@@ -113,12 +113,10 @@ export default function ExpensePage() {
 
     const accessibleAccounts = useMemo(() => {
         let filtered = getAccessibleAccounts(currentUser, accounts, accessibleProjects.map(p => p.id));
-        if (userRole === "ADMIN") return filtered;
-        const userId = currentUser?.uid || currentUser?.id;
         if (projectId) filtered = filtered.filter(acc => acc.projectId === projectId);
-        if (userId) filtered = filtered.filter(acc => !acc.assignedUserIds || acc.assignedUserIds.length === 0 || acc.assignedUserIds.includes(userId));
+        else filtered = [];
         return filtered;
-    }, [currentUser, accounts, accessibleProjects, projectId, userRole]);
+    }, [currentUser, accounts, accessibleProjects, projectId]);
 
     const selectedAccount = useMemo(() => accounts.find(a => a.id === accountId), [accounts, accountId]);
     const selectedProject = useMemo(() => projects.find(p => p.id === projectId), [projects, projectId]);
@@ -199,7 +197,11 @@ export default function ExpensePage() {
             if (activeFilters.category) txs = txs.filter(t => t.category === activeFilters.category);
             if (searchTerm) {
                 const term = searchTerm.toLowerCase();
-                txs = txs.filter(t => (t.category?.toLowerCase().includes(term)) || (t.description?.toLowerCase().includes(term)));
+                txs = txs.filter(t =>
+                    (t.source?.toLowerCase().includes(term)) ||
+                    (t.category?.toLowerCase().includes(term)) ||
+                    (t.description?.toLowerCase().includes(term))
+                );
             }
             txs.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
             setTransactions(txs);

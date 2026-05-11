@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useRef } from "react";
-import { createTransaction, getAccounts, updateAccountBalance, getProjects, updateProject, getTransactions, updateTransaction, deleteTransaction } from "@/lib/finance";
+import { createTransaction, getAccounts, updateAccountBalance, getProjects, getTransactions, updateTransaction, deleteTransaction } from "@/lib/finance";
 import { getMasterCategories, getMasterSubCategories } from "@/lib/master-categories";
 import { Account, Project, Transaction, MasterCategory, MasterSubCategory } from "@/types/finance";
 import { uploadImage } from "@/lib/upload";
@@ -91,6 +91,14 @@ export default function IncomePage() {
     }, []);
 
     useEffect(() => { if (currentUser !== null) fetchData(); }, [currentUser]);
+
+    useEffect(() => {
+        setSelectedTransaction((prev) => {
+            if (!prev) return prev;
+            const next = transactions.find((x) => x.id === prev.id);
+            return next ?? prev;
+        });
+    }, [transactions]);
 
     const accessibleProjects = useMemo(() => {
         const userId = currentUser?.uid || currentUser?.id;
