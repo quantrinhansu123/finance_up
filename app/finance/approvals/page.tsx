@@ -224,8 +224,9 @@ export default function ApprovalsPage() {
             await updateTransactionStatus(tx.id, "APPROVED");
 
             // 2. Update transaction with approver info
+            const approverId = currentUser.uid || currentUser.id;
             await updateTransaction(tx.id, {
-                approvedBy: currentUser.name || currentUser.displayName || "Admin",
+                ...(approverId ? { approvedBy: approverId } : {}),
                 ...(tx.type === "OUT" ? { warning: true } : {}),
             });
 
@@ -277,8 +278,9 @@ export default function ApprovalsPage() {
             await updateTransactionStatus(rejectingTx.id, "REJECTED");
 
             // 2. Update transaction with rejection info
+            const rejecterId = currentUser.uid || currentUser.id;
             await updateTransaction(rejectingTx.id, {
-                rejectedBy: currentUser.name || currentUser.displayName || "Admin",
+                ...(rejecterId ? { rejectedBy: rejecterId } : {}),
                 rejectionReason: rejectionReason.trim(),
             });
 

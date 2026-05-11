@@ -236,6 +236,7 @@ export default function CreateTransactionModal({ isOpen, onClose, onSuccess, cur
             }
 
             // Create Transaction
+            const uid = currentUser?.uid || currentUser?.id || "";
             await createTransaction({
                 type,
                 amount: numAmount,
@@ -245,13 +246,14 @@ export default function CreateTransactionModal({ isOpen, onClose, onSuccess, cur
                 description,
                 date: new Date().toISOString(),
                 status,
-                createdBy: currentUser?.id || currentUser?.uid || "unknown",
-                userId: currentUser?.id || currentUser?.uid || "unknown",
+                createdBy: uid || "unknown",
+                userId: uid || "unknown",
                 projectId: projectId || undefined,
                 fundId: fundId || undefined,
                 source: type === "IN" ? source : undefined,
                 images: imageUrls,
                 warning: type === "OUT" && status === "PENDING",
+                ...(status === "APPROVED" && uid ? { approvedBy: uid } : {}),
                 createdAt: Date.now(),
                 updatedAt: Date.now(),
             });

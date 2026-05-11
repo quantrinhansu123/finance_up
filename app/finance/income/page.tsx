@@ -243,13 +243,15 @@ export default function IncomePage() {
             const parentCategoryName = parentCat?.name || "";
             const finalSource = source || parentCategoryName || t("unselected");
 
+            const uid = currentUser?.uid || currentUser?.id;
             await createTransaction({
                 type: "IN", amount: numAmount, currency, category: finalSource,
                 parentCategory: parentCategoryName, parentCategoryId,
                 source: finalSource, accountId, projectId: projectId || undefined, description, date: new Date().toISOString(),
-                status: "APPROVED", createdBy: currentUser?.id || currentUser?.uid,
-                userId: currentUser?.id || currentUser?.uid, images: imageUrls,
+                status: "APPROVED", createdBy: uid || "",
+                userId: uid || "", images: imageUrls,
                 paymentType,
+                approvedBy: uid,
                 createdAt: Date.now(), updatedAt: Date.now(),
             });
             await updateAccountBalance(accountId, selectedAccount!.balance + numAmount);
@@ -316,12 +318,22 @@ export default function IncomePage() {
     const getAccountName = (id: string) => accounts.find(a => a.id === id)?.name || "N/A";
     const userNameById = useMemo(() => {
         const m = new Map<string, string>();
-        for (const u of allUsers) m.set(u.uid, u.displayName || u.email || u.uid);
+        for (const u of allUsers) {
+            const label = u.displayName || u.email || u.uid;
+            m.set(u.uid, label);
+            if (u.email) m.set(u.email, label);
+        }
         return m;
     }, [allUsers]);
     const resolveUserName = (idOrName?: string) => {
         if (!idOrName) return "-";
         return userNameById.get(idOrName) || idOrName;
+    };
+
+    const resolveApproverDisplay = (tx: Transaction) => {
+        if (tx.approvedBy) return resolveUserName(tx.approvedBy);
+        if (tx.status === "APPROVED") return t("approver_not_recorded");
+        return "—";
     };
 
     const canModifyIncomeTransaction = (tx: Transaction) => tx.status !== "APPROVED";
@@ -744,7 +756,7 @@ export default function IncomePage() {
                             key: "approver",
                             header: t("approver") || "Người duyệt",
                             render: (tx: Transaction) => (
-                                <span className="text-xs text-white/70 whitespace-nowrap">{resolveUserName(tx.approvedBy)}</span>
+                                <span className="text-xs text-white/70 whitespace-nowrap">{resolveApproverDisplay(tx)}</span>
                             )
                         },
                         {

@@ -156,9 +156,6 @@ export default function TransactionsPage() {
         });
     }, [transactions]);
 
-    const settleDisplayName = () =>
-        currentUser?.displayName || currentUser?.name || currentUser?.email || "User";
-
     const canSettleExpenseTx = (tx: Transaction) => {
         if (!needsExpenseSpendConfirmation(tx)) return false;
         if (userRole === "ADMIN") return true;
@@ -173,7 +170,8 @@ export default function TransactionsPage() {
         setConfirmSpentBusy(true);
         try {
             await updateTransactionStatus(tx.id, "COMPLETED");
-            await updateTransaction(tx.id, { confirmedBy: settleDisplayName() });
+            const confirmerId = currentUser?.uid || currentUser?.id;
+            await updateTransaction(tx.id, { ...(confirmerId ? { confirmedBy: confirmerId } : {}) });
             await fetchTransactions();
             setIsModalOpen(false);
             alert(t("confirm_paid_expense_success"));

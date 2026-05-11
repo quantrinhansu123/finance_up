@@ -54,9 +54,10 @@ export default function BudgetRequestDetailModal({ transaction, onClose, onUpdat
         setLoading(true);
         try {
             await updateTransactionStatus(transaction.id, "APPROVED");
+            const approverId = currentUser.uid || currentUser.id;
             await updateTransaction(transaction.id, {
                 amount: Number(editedAmount),
-                approvedBy: currentUser.displayName || currentUser.email,
+                ...(approverId ? { approvedBy: approverId } : {}),
             });
             onUpdate();
         } catch (e) {
@@ -76,8 +77,9 @@ export default function BudgetRequestDetailModal({ transaction, onClose, onUpdat
         setLoading(true);
         try {
             await updateTransactionStatus(transaction.id, "REJECTED");
+            const rejecterId = currentUser.uid || currentUser.id;
             await updateTransaction(transaction.id, {
-                rejectedBy: currentUser.displayName || currentUser.email,
+                ...(rejecterId ? { rejectedBy: rejecterId } : {}),
                 rejectionReason: rejectionReason,
             });
             onUpdate();
@@ -160,8 +162,9 @@ export default function BudgetRequestDetailModal({ transaction, onClose, onUpdat
                 }
 
                 await updateTransactionStatus(transaction.id, "COMPLETED");
+                const confirmerId = currentUser.uid || currentUser.id;
                 await updateTransaction(transaction.id, {
-                    confirmedBy: currentUser.displayName || currentUser.email,
+                    ...(confirmerId ? { confirmedBy: confirmerId } : {}),
                     proofOfReceipt: urls,
                 });
             }

@@ -266,13 +266,15 @@ export default function ExpensePage() {
 
             const pendingFlow = requiresApproval();
             const status = pendingFlow ? "PENDING" : "APPROVED";
+            const uid = currentUser?.uid || currentUser?.id;
             await createTransaction({
                 type: "OUT", amount: numAmount, currency, category: finalCategory,
                 parentCategory: parentCategoryName, parentCategoryId,
                 accountId, projectId: projectId || undefined, description, date: new Date().toISOString(),
-                status, createdBy: currentUser?.id || currentUser?.uid,
-                userId: currentUser?.id || currentUser?.uid, images: imageUrls,
+                status, createdBy: uid || "",
+                userId: uid || "", images: imageUrls,
                 warning: pendingFlow,
+                ...(status === "APPROVED" && uid ? { approvedBy: uid } : {}),
                 createdAt: Date.now(), updatedAt: Date.now(),
             });
 
@@ -339,9 +341,6 @@ export default function ExpensePage() {
         }
     };
 
-    const settleDisplayName = () =>
-        currentUser?.displayName || currentUser?.name || currentUser?.email || "User";
-
     const canSettleExpenseTx = (tx: Transaction) => {
         if (!needsExpenseSpendConfirmation(tx)) return false;
         if (userRole === "ADMIN") return true;
@@ -360,7 +359,8 @@ export default function ExpensePage() {
         setConfirmSpentBusy(true);
         try {
             await updateTransactionStatus(tx.id, "COMPLETED");
-            await updateTransaction(tx.id, { confirmedBy: settleDisplayName() });
+            const confirmerId = currentUser?.uid || currentUser?.id;
+            await updateTransaction(tx.id, { ...(confirmerId ? { confirmedBy: confirmerId } : {}) });
             await fetchData();
             closeBillModal();
             if (selectedTransaction?.id === tx.id) setIsDetailModalOpen(false);
@@ -476,12 +476,22 @@ export default function ExpensePage() {
     const getAccountName = (id: string) => accounts.find(a => a.id === id)?.name || "N/A";
     const userNameById = useMemo(() => {
         const m = new Map<string, string>();
-        for (const u of allUsers) m.set(u.uid, u.displayName || u.email || u.uid);
+        for (const u of allUsers) {
+            const label = u.displayName || u.email || u.uid;
+            m.set(u.uid, label);
+            if (u.email) m.set(u.email, label);
+        }
         return m;
     }, [allUsers]);
     const resolveUserName = (idOrName?: string) => {
         if (!idOrName) return "-";
         return userNameById.get(idOrName) || idOrName;
+    };
+
+    const resolveApproverDisplay = (tx: Transaction) => {
+        if (tx.approvedBy) return resolveUserName(tx.approvedBy);
+        if (tx.status === "APPROVED") return t("approver_not_recorded");
+        return "—";
     };
 
     if (loading) return <div className="p-8 text-[var(--muted)]">{t("loading")}</div>;
@@ -803,7 +813,7 @@ export default function ExpensePage() {
                             key: "approver",
                             header: t("approver") || "Người duyệt",
                             render: (tx: Transaction) => (
-                                <span className="text-xs text-white/70 whitespace-nowrap">{resolveUserName(tx.approvedBy)}</span>
+                                <span className="text-xs text-white/70 whitespace-nowrap">{resolveApproverDisplay(tx)}</span>
                             )
                         },
                         {

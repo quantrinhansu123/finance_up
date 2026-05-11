@@ -35,6 +35,7 @@ export default function TransactionDetailModal({
     const { t } = useTranslation();
     const [creatorInfo, setCreatorInfo] = useState<UserProfile | null>(null);
     const [approverInfo, setApproverInfo] = useState<UserProfile | null>(null);
+    const [confirmerInfo, setConfirmerInfo] = useState<UserProfile | null>(null);
     const [loadingUsers, setLoadingUsers] = useState(false);
 
     useEffect(() => {
@@ -43,16 +44,25 @@ export default function TransactionDetailModal({
         const loadUserInfo = async () => {
             setLoadingUsers(true);
             try {
+                setCreatorInfo(null);
+                setApproverInfo(null);
+                setConfirmerInfo(null);
+
                 // Load creator info
                 if (transaction.userId) {
                     const creator = await getUserById(transaction.userId);
                     setCreatorInfo(creator);
                 }
 
-                // Load approver info
+                // Load approver info (approved_by is profile UUID)
                 if (transaction.approvedBy) {
                     const approver = await getUserById(transaction.approvedBy);
                     setApproverInfo(approver);
+                }
+
+                if (transaction.confirmedBy) {
+                    const confirmer = await getUserById(transaction.confirmedBy);
+                    setConfirmerInfo(confirmer);
                 }
             } catch (error) {
                 console.error("Failed to load user info", error);
@@ -263,11 +273,19 @@ export default function TransactionDetailModal({
                                 <CheckCircle size={14} />
                                 {t("completed")}
                             </div>
-                            <div className="text-sm text-white/90">{transaction.confirmedBy}</div>
+                            {loadingUsers ? (
+                                <div className="text-sm text-[var(--muted)]">{t("loading")}</div>
+                            ) : confirmerInfo ? (
+                                <div className="text-sm text-white font-medium">
+                                    {confirmerInfo.displayName || confirmerInfo.email}
+                                </div>
+                            ) : (
+                                <div className="text-sm text-white/90">{transaction.confirmedBy}</div>
+                            )}
                         </div>
                     )}
 
-                    {transaction.status === "APPROVED" && transaction.approvedBy && (
+                    {transaction.approvedBy && transaction.status !== "PENDING" && transaction.status !== "REJECTED" && (
                         <div className="p-4 bg-green-500/5 rounded-xl border border-green-500/20">
                             <div className="flex items-center gap-2 text-sm text-green-400 mb-3">
                                 <CheckCircle size={14} />
