@@ -121,6 +121,7 @@ export default function IncomePage() {
     const canCreateIncome = useMemo(() => {
         if (!selectedProject || !currentUser) return false;
         const userId = currentUser?.uid || currentUser?.id;
+        if (!userId) return false;
         return hasProjectPermission(userId, selectedProject, "create_income", currentUser);
     }, [selectedProject, currentUser]);
 
@@ -389,11 +390,6 @@ export default function IncomePage() {
                 description: editDescription.trim(),
             });
 
-            // Keep account balance consistent when an approved income amount changes.
-            if (editingTransaction.status === "APPROVED" && account && Math.abs(delta) > 0) {
-                await updateAccountBalance(account.id, account.balance + delta);
-            }
-
             await fetchData();
             closeEditModal();
         } catch (e) {
@@ -615,8 +611,9 @@ export default function IncomePage() {
                                                 multiple
                                                 className="hidden"
                                                 onChange={(e) => {
-                                                    if (!e.target.files) return;
-                                                    setFiles((prev) => [...prev, ...Array.from(e.target.files)].slice(0, MAX_BILL_IMAGES));
+                                                    const next = e.currentTarget.files;
+                                                    if (!next) return;
+                                                    setFiles((prev) => [...prev, ...Array.from(next)].slice(0, MAX_BILL_IMAGES));
                                                 }}
                                             />
                                         </label>
@@ -637,8 +634,9 @@ export default function IncomePage() {
                                                         multiple
                                                         className="hidden"
                                                         onChange={(e) => {
-                                                            if (!e.target.files) return;
-                                                            setFiles((prev) => [...prev, ...Array.from(e.target.files)].slice(0, MAX_BILL_IMAGES));
+                                                            const next = e.currentTarget.files;
+                                                            if (!next) return;
+                                                            setFiles((prev) => [...prev, ...Array.from(next)].slice(0, MAX_BILL_IMAGES));
                                                         }}
                                                     />
                                                 </label>
@@ -874,8 +872,9 @@ export default function IncomePage() {
                                     multiple
                                     className="hidden"
                                     onChange={(e) => {
-                                        if (!e.target.files) return;
-                                        setBillFiles((prev) => [...prev, ...Array.from(e.target.files)].slice(0, MAX_BILL_IMAGES));
+                                        const next = e.currentTarget.files;
+                                        if (!next) return;
+                                        setBillFiles((prev) => [...prev, ...Array.from(next)].slice(0, MAX_BILL_IMAGES));
                                     }}
                                 />
                             </label>

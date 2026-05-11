@@ -124,6 +124,7 @@ export default function ExpensePage() {
     const canCreateExpense = useMemo(() => {
         if (!selectedProject || !currentUser) return false;
         const userId = currentUser?.uid || currentUser?.id;
+        if (!userId) return false;
         return hasProjectPermission(userId, selectedProject, "create_expense", currentUser);
     }, [selectedProject, currentUser]);
 
@@ -428,7 +429,7 @@ export default function ExpensePage() {
             const delta = newAmount - oldAmount;
             const account = accounts.find(a => a.id === editingTransaction.accountId);
 
-            if ((editingTransaction.status === "APPROVED" || editingTransaction.status === "COMPLETED") && account && newAmount > account.balance + oldAmount) {
+            if (editingTransaction.status === "COMPLETED" && account && newAmount > account.balance + oldAmount) {
                 alert(t("insufficient_balance"));
                 setEditSaving(false);
                 return;
@@ -442,7 +443,7 @@ export default function ExpensePage() {
                 description: editDescription.trim(),
             });
 
-            if ((editingTransaction.status === "APPROVED" || editingTransaction.status === "COMPLETED") && account && Math.abs(delta) > 0) {
+            if (editingTransaction.status === "COMPLETED" && account && Math.abs(delta) > 0) {
                 await updateAccountBalance(account.id, account.balance - delta);
             }
 
@@ -661,8 +662,9 @@ export default function ExpensePage() {
                                                 multiple
                                                 className="hidden"
                                                 onChange={(e) => {
-                                                    if (!e.target.files) return;
-                                                    setFiles((prev) => [...prev, ...Array.from(e.target.files)].slice(0, MAX_BILL_IMAGES));
+                                                    const next = e.currentTarget.files;
+                                                    if (!next) return;
+                                                    setFiles((prev) => [...prev, ...Array.from(next)].slice(0, MAX_BILL_IMAGES));
                                                 }}
                                             />
                                         </label>
@@ -683,8 +685,9 @@ export default function ExpensePage() {
                                                         multiple
                                                         className="hidden"
                                                         onChange={(e) => {
-                                                            if (!e.target.files) return;
-                                                            setFiles((prev) => [...prev, ...Array.from(e.target.files)].slice(0, MAX_BILL_IMAGES));
+                                                            const next = e.currentTarget.files;
+                                                            if (!next) return;
+                                                            setFiles((prev) => [...prev, ...Array.from(next)].slice(0, MAX_BILL_IMAGES));
                                                         }}
                                                     />
                                                 </label>
@@ -958,8 +961,9 @@ export default function ExpensePage() {
                                     multiple
                                     className="hidden"
                                     onChange={(e) => {
-                                        if (!e.target.files) return;
-                                        setBillFiles((prev) => [...prev, ...Array.from(e.target.files)].slice(0, MAX_BILL_IMAGES));
+                                        const next = e.currentTarget.files;
+                                        if (!next) return;
+                                        setBillFiles((prev) => [...prev, ...Array.from(next)].slice(0, MAX_BILL_IMAGES));
                                     }}
                                 />
                             </label>
