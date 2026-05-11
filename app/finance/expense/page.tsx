@@ -350,15 +350,9 @@ export default function ExpensePage() {
         return tx.userId === uid || tx.createdBy === uid;
     };
 
-    const canEditExpenseTransaction = (tx: Transaction) => {
-        if (needsExpenseSpendConfirmation(tx) && userRole !== "ADMIN") return false;
-        return true;
-    };
+    const canEditExpenseTransaction = (tx: Transaction) => tx.status !== "APPROVED";
 
-    const canDeleteExpenseTransaction = (tx: Transaction) => {
-        if (needsExpenseSpendConfirmation(tx) && userRole !== "ADMIN") return false;
-        return true;
-    };
+    const canDeleteExpenseTransaction = (tx: Transaction) => tx.status !== "APPROVED";
 
     const handleConfirmSpent = async (tx: Transaction) => {
         if (!canSettleExpenseTx(tx)) return;
@@ -398,7 +392,7 @@ export default function ExpensePage() {
 
     const openEditModal = (tx: Transaction) => {
         if (!canEditExpenseTransaction(tx)) {
-            alert(t("expense_settle_locked_hint"));
+            alert(t("cannot_modify_approved_transaction"));
             return;
         }
         setEditingTransaction(tx);
@@ -416,8 +410,8 @@ export default function ExpensePage() {
 
     const handleSaveEdit = async () => {
         if (!editingTransaction) return;
-        if (needsExpenseSpendConfirmation(editingTransaction) && userRole !== "ADMIN") {
-            alert(t("expense_settle_locked_hint"));
+        if (editingTransaction.status === "APPROVED") {
+            alert(t("cannot_modify_approved_transaction"));
             return;
         }
         const newAmount = parseFloat(editAmount);
@@ -462,7 +456,7 @@ export default function ExpensePage() {
 
     const handleDeleteTransaction = async (tx: Transaction) => {
         if (!canDeleteExpenseTransaction(tx)) {
-            alert(t("expense_settle_locked_hint"));
+            alert(t("cannot_modify_approved_transaction"));
             return;
         }
         if (!confirm("Bạn có chắc muốn xóa giao dịch này?")) return;

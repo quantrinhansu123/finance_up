@@ -324,7 +324,13 @@ export default function IncomePage() {
         return userNameById.get(idOrName) || idOrName;
     };
 
+    const canModifyIncomeTransaction = (tx: Transaction) => tx.status !== "APPROVED";
+
     const openEditModal = (tx: Transaction) => {
+        if (!canModifyIncomeTransaction(tx)) {
+            alert(t("cannot_modify_approved_transaction"));
+            return;
+        }
         setEditingTransaction(tx);
         setEditAmount(String(tx.amount || ""));
         setEditSource(tx.source || tx.category || "");
@@ -340,6 +346,10 @@ export default function IncomePage() {
 
     const handleSaveEdit = async () => {
         if (!editingTransaction) return;
+        if (editingTransaction.status === "APPROVED") {
+            alert(t("cannot_modify_approved_transaction"));
+            return;
+        }
         const newAmount = parseFloat(editAmount);
         if (!Number.isFinite(newAmount) || newAmount <= 0) {
             alert("Số tiền không hợp lệ");
@@ -375,6 +385,10 @@ export default function IncomePage() {
     };
 
     const handleDeleteTransaction = async (tx: Transaction) => {
+        if (!canModifyIncomeTransaction(tx)) {
+            alert(t("cannot_modify_approved_transaction"));
+            return;
+        }
         if (!confirm("Bạn có chắc muốn xóa giao dịch này?")) return;
         try {
             const account = accounts.find(a => a.id === tx.accountId);
@@ -752,18 +766,22 @@ export default function IncomePage() {
                                     >
                                         <Paperclip size={16} />
                                     </button>
-                                    <button
-                                        onClick={() => openEditModal(tx)}
-                                        className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-[var(--muted)] hover:text-amber-300 transition-all transform active:scale-90"
-                                    >
-                                        <Edit2 size={16} />
-                                    </button>
-                                    <button
-                                        onClick={() => handleDeleteTransaction(tx)}
-                                        className="p-2 rounded-lg bg-white/5 hover:bg-red-500/20 text-[var(--muted)] hover:text-red-400 transition-all transform active:scale-90"
-                                    >
-                                        <Trash2 size={16} />
-                                    </button>
+                                    {canModifyIncomeTransaction(tx) && (
+                                        <button
+                                            onClick={() => openEditModal(tx)}
+                                            className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-[var(--muted)] hover:text-amber-300 transition-all transform active:scale-90"
+                                        >
+                                            <Edit2 size={16} />
+                                        </button>
+                                    )}
+                                    {canModifyIncomeTransaction(tx) && (
+                                        <button
+                                            onClick={() => handleDeleteTransaction(tx)}
+                                            className="p-2 rounded-lg bg-white/5 hover:bg-red-500/20 text-[var(--muted)] hover:text-red-400 transition-all transform active:scale-90"
+                                        >
+                                            <Trash2 size={16} />
+                                        </button>
+                                    )}
                                 </ActionCell>
                             )
                         }
