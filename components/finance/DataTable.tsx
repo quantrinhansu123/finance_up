@@ -26,6 +26,8 @@ interface DataTableProps<T> {
     maxWidth?: string; // e.g., "max-w-4xl", "max-w-2xl"
     layout?: "table" | "grid" | "auto"; // auto is table on desktop, card on mobile
     isLoading?: boolean;
+    /** Một dòng trên ô, bảng rộng theo nội dung; cuộn ngang trong khối glass-card */
+    nowrapRows?: boolean;
 }
 
 const colorSchemes = {
@@ -46,6 +48,7 @@ export default function DataTable<T extends { id?: string }>({
     showIndex = true,
     colorScheme = "default",
     isLoading = false,
+    nowrapRows = false,
 }: DataTableProps<T>) {
     const { t, language } = useTranslation();
     const [currentPage, setCurrentPage] = useState(1);
@@ -106,20 +109,22 @@ export default function DataTable<T extends { id?: string }>({
 
             {/* Desktop Table View */}
             {(layout === "table" || layout === "auto") && (
-                <div className={`${layout === "auto" ? "hidden md:block" : ""} overflow-x-auto relative`}>
+                <div className={`${layout === "auto" ? "hidden md:block" : ""} overflow-x-auto relative w-full`}>
                     <div className="absolute inset-0 bg-grid-white opacity-[0.02] pointer-events-none" />
 
-                    <table className={`w-full text-left text-[14px] border-collapse ${columns.length < 5 ? "max-w-5xl mx-auto" : ""}`}>
+                    <table
+                        className={`text-left text-[14px] border-collapse ${nowrapRows ? "w-max min-w-full table-auto" : "w-full"} ${!nowrapRows && columns.length < 5 ? "max-w-5xl mx-auto" : ""}`}
+                    >
                         <thead className="bg-white/[0.03] backdrop-blur-md text-white/40 text-[11px] uppercase font-bold tracking-[0.1em] border-b border-white/5 relative z-10">
                             <tr className="group/th-row">
-                                {showIndex && <th className="p-4 w-12 text-center">#</th>}
+                                {showIndex && <th className={`p-4 w-12 text-center ${nowrapRows ? "whitespace-nowrap" : ""}`}>#</th>}
                                 {columns.map((col) => (
                                     <th
                                         key={col.key}
-                                        className={`p-0 ${col.width || ""} ${col.sortable !== false ? "cursor-pointer hover:bg-white/[0.02] transition-colors" : ""}`}
+                                        className={`p-0 ${col.width || ""} ${nowrapRows ? "whitespace-nowrap" : ""} ${col.sortable !== false ? "cursor-pointer hover:bg-white/[0.02] transition-colors" : ""}`}
                                         onClick={() => col.sortable !== false && handleSort(col.key)}
                                     >
-                                        <div className={`flex items-center gap-2 py-4 px-4 ${col.align === "center" ? "justify-center" : col.align === "right" ? "justify-end" : ""}`}>
+                                        <div className={`flex items-center gap-2 py-4 px-4 ${nowrapRows ? "whitespace-nowrap" : ""} ${col.align === "center" ? "justify-center" : col.align === "right" ? "justify-end" : ""}`}>
                                             <span className="relative">
                                                 {col.header}
                                                 {sortConfig.key === col.key && (
@@ -174,14 +179,14 @@ export default function DataTable<T extends { id?: string }>({
                                             onClick={() => onRowClick?.(item)}
                                         >
                                             {showIndex && (
-                                                <td className="p-4 text-white/20 text-xs font-mono group-hover/row:text-blue-400 transition-colors text-center border-l-2 border-transparent group-hover/row:border-blue-500/50">
+                                                <td className={`p-4 text-white/20 text-xs font-mono group-hover/row:text-blue-400 transition-colors text-center border-l-2 border-transparent group-hover/row:border-blue-500/50 ${nowrapRows ? "whitespace-nowrap" : ""}`}>
                                                     {((currentPage - 1) * itemsPerPage + index + 1).toString().padStart(2, '0')}
                                                 </td>
                                             )}
                                             {columns.map((col) => (
                                                 <td
                                                     key={col.key}
-                                                    className={`p-4 text-white/70 group-hover/row:text-white transition-colors ${getAlignClass(col.align)} ${col.className || ""}`}
+                                                    className={`p-4 text-white/70 group-hover/row:text-white transition-colors ${getAlignClass(col.align)} ${nowrapRows ? "whitespace-nowrap align-middle" : ""} ${col.className || ""}`}
                                                 >
                                                     {col.render
                                                         ? col.render(item, (currentPage - 1) * itemsPerPage + index)
@@ -303,23 +308,27 @@ export default function DataTable<T extends { id?: string }>({
 // Helper components for common cell types
 export function AmountCell({ amount, type, currency }: { amount: number; type: "IN" | "OUT"; currency: string }) {
     return (
-        <span className={`font-semibold ${type === "IN" ? "text-green-400" : "text-red-400"}`}>
+        <span className={`inline-block font-semibold whitespace-nowrap tabular-nums ${type === "IN" ? "text-green-400" : "text-red-400"}`}>
             {type === "IN" ? "+" : "-"}{amount.toLocaleString("vi-VN")} {currency}
         </span>
     );
 }
 
-export function StatusBadge({ status }: { status: "APPROVED" | "PENDING" | "REJECTED" | string }) {
+export function StatusBadge({ status }: { status: "APPROVED" | "PENDING" | "REJECTED" | "COMPLETED" | "PAID" | string }) {
     const { t } = useTranslation();
     const styles = {
         APPROVED: "bg-green-500/20 text-green-400 border border-green-500/20",
         PENDING: "bg-yellow-500/20 text-yellow-400 border border-yellow-500/20",
         REJECTED: "bg-red-500/20 text-red-400 border border-red-500/20",
+        COMPLETED: "bg-emerald-500/20 text-emerald-300 border border-emerald-500/20",
+        PAID: "bg-purple-500/20 text-purple-300 border border-purple-500/20",
     };
     const labels = {
         APPROVED: t("approved"),
         PENDING: t("pending"),
         REJECTED: t("rejected"),
+        COMPLETED: t("completed"),
+        PAID: t("paid_status"),
     };
     return (
         <span className={`px-2 py-1 rounded-lg text-[10px] uppercase font-bold tracking-wider ${styles[status as keyof typeof styles] || "bg-white/10 text-white/50 border border-white/10"}`}>
@@ -331,17 +340,19 @@ export function StatusBadge({ status }: { status: "APPROVED" | "PENDING" | "REJE
 export function DateCell({ date }: { date: string }) {
     const { language } = useTranslation();
     return (
-        <span className="text-white/60 font-mono text-xs">
+        <span className="inline-block text-white/60 font-mono text-xs whitespace-nowrap">
             {new Date(date).toLocaleDateString(language === "vi" ? "vi-VN" : "en-US")}
         </span>
     );
 }
 
-export function TextCell({ primary, secondary }: { primary: string; secondary?: string }) {
+export function TextCell({ primary, secondary, nowrap }: { primary: string; secondary?: string; nowrap?: boolean }) {
     return (
-        <div className="flex flex-col gap-0.5">
-            <div className="text-white font-semibold leading-tight">{primary}</div>
-            {secondary && <div className="text-[11px] text-white/30 truncate max-w-[180px] font-medium">{secondary}</div>}
+        <div className={`flex flex-col gap-0.5 ${nowrap ? "min-w-0" : ""}`}>
+            <div className={`text-white font-semibold leading-tight ${nowrap ? "whitespace-nowrap" : ""}`}>{primary}</div>
+            {secondary && (
+                <div className={`text-[11px] text-white/30 font-medium ${nowrap ? "whitespace-nowrap" : "truncate max-w-[180px]"}`}>{secondary}</div>
+            )}
         </div>
     );
 }
@@ -369,9 +380,9 @@ export function ImageCell({ images }: { images?: string[] }) {
     );
 }
 
-export function ActionCell({ children }: { children: ReactNode }) {
+export function ActionCell({ children, nowrap }: { children: ReactNode; nowrap?: boolean }) {
     return (
-        <div className="flex items-center justify-center gap-2" onClick={(e) => e.stopPropagation()}>
+        <div className={`flex items-center justify-center gap-2 ${nowrap ? "flex-nowrap shrink-0" : ""}`} onClick={(e) => e.stopPropagation()}>
             {children}
         </div>
     );

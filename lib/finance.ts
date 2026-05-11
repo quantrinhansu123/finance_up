@@ -467,6 +467,11 @@ export async function getTransactions(): Promise<Transaction[]> {
     return (data || []).map(mapTxFromDB);
 }
 
+/** Chi OUT đã được duyệt từ luồng chờ (warning) — chờ người tạo xác nhận đã chi thực tế → COMPLETED */
+export function needsExpenseSpendConfirmation(tx: Pick<Transaction, "type" | "status" | "warning">): boolean {
+    return tx.type === "OUT" && tx.status === "APPROVED" && !!tx.warning;
+}
+
 export async function createTransaction(tx: Omit<Transaction, "id">): Promise<string> {
     const { data, error } = await supabase.from("finance_transactions").insert([mapTxToDB(tx)]).select("id").single();
     if (error) throw error;

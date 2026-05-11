@@ -674,6 +674,7 @@ export default function IncomePage() {
 
                 <DataTable
                     data={transactions}
+                    nowrapRows
                     columns={[
                         {
                             key: "date",
@@ -684,17 +685,15 @@ export default function IncomePage() {
                             key: "source",
                             header: t("source"),
                             render: (tx: Transaction) => (
-                                <div className="space-y-0.5">
-                                    <p className="font-bold text-white">{tx.source || tx.category}</p>
-                                    <div className="flex items-center gap-2">
-                                        <p className="text-[10px] text-[var(--muted)] uppercase tracking-tight">{tx.parentCategory || "N/A"}</p>
-                                        {tx.paymentType && (
-                                            <span className={`text-[8px] font-bold px-1 rounded uppercase ${tx.paymentType === "FULL" ? "bg-green-500/20 text-green-400" : "bg-orange-500/20 text-orange-400"}`}>
-                                                {tx.paymentType === "FULL" ? "FULL" : "PART"}
-                                            </span>
-                                        )}
-                                    </div>
-                                </div>
+                                <span className="inline-flex items-center gap-2 whitespace-nowrap">
+                                    <span className="font-bold text-white">{tx.source || tx.category}</span>
+                                    <span className="text-[10px] text-[var(--muted)] uppercase tracking-tight">· {tx.parentCategory || "N/A"}</span>
+                                    {tx.paymentType && (
+                                        <span className={`text-[8px] font-bold px-1 rounded uppercase shrink-0 ${tx.paymentType === "FULL" ? "bg-green-500/20 text-green-400" : "bg-orange-500/20 text-orange-400"}`}>
+                                            {tx.paymentType === "FULL" ? "FULL" : "PART"}
+                                        </span>
+                                    )}
+                                </span>
                             )
                         },
                         {
@@ -711,27 +710,27 @@ export default function IncomePage() {
                             render: (tx: Transaction) => (
                                 <div className="flex items-center gap-2">
                                     <span className="text-base">{CURRENCY_FLAGS[tx.currency] || "💰"}</span>
-                                    <TextCell primary={getAccountName(tx.accountId || "")} />
+                                    <TextCell primary={getAccountName(tx.accountId || "")} nowrap />
                                 </div>
                             )
                         },
                         {
                             key: "projectName",
                             header: t("project"),
-                            render: (tx: Transaction) => <TextCell primary={projectLabelById(projects, tx.projectId || "")} />
+                            render: (tx: Transaction) => <TextCell primary={projectLabelById(projects, tx.projectId || "")} nowrap />
                         },
                         {
                             key: "creator",
                             header: t("creator") || "Người nhập",
                             render: (tx: Transaction) => (
-                                <span className="text-xs text-white/70">{resolveUserName(tx.createdBy)}</span>
+                                <span className="text-xs text-white/70 whitespace-nowrap">{resolveUserName(tx.createdBy)}</span>
                             )
                         },
                         {
                             key: "approver",
                             header: t("approver") || "Người duyệt",
                             render: (tx: Transaction) => (
-                                <span className="text-xs text-white/70">{resolveUserName(tx.approvedBy)}</span>
+                                <span className="text-xs text-white/70 whitespace-nowrap">{resolveUserName(tx.approvedBy)}</span>
                             )
                         },
                         {
@@ -739,7 +738,7 @@ export default function IncomePage() {
                             header: t("actions"),
                             align: "right",
                             render: (tx: Transaction) => (
-                                <ActionCell>
+                                <ActionCell nowrap>
                                     <button
                                         onClick={() => { setSelectedTransaction(tx); setIsDetailModalOpen(true); }}
                                         className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-[var(--muted)] hover:text-white transition-all transform active:scale-90"

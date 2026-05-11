@@ -487,8 +487,8 @@ function FinanceLayoutContent({
                         <div className="absolute bottom-[25%] left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-purple-500/10 to-transparent pointer-events-none" />
 
                         {/* Content */}
-                        <main className="flex-1 overflow-y-auto p-4 pt-16 lg:pt-4 lg:p-6 relative z-10 scrollbar-thin">
-                            <div className="max-w-7xl mx-auto">
+                        <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 pt-16 lg:pt-4 lg:p-6 relative z-10 scrollbar-thin">
+                            <div className="w-full max-w-none">
                                 {children}
                             </div>
                         </main>

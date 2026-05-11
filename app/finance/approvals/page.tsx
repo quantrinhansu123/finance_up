@@ -226,6 +226,7 @@ export default function ApprovalsPage() {
             // 2. Update transaction with approver info
             await updateTransaction(tx.id, {
                 approvedBy: currentUser.name || currentUser.displayName || "Admin",
+                ...(tx.type === "OUT" ? { warning: true } : {}),
             });
 
             // 3. Log Activity

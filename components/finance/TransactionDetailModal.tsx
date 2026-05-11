@@ -1,11 +1,18 @@
 "use client";
 
 import { Transaction } from "@/types/finance";
-import { X, User, CheckCircle, Calendar, Wallet, FileText, Image as ImageIcon, Download } from "lucide-react";
+import { X, User, CheckCircle, Calendar, Wallet, FileText, Image as ImageIcon, Download, Upload } from "lucide-react";
 import { useEffect, useState } from "react";
 import { getUserById } from "@/lib/users";
 import { UserProfile } from "@/types/user";
 import { useTranslation } from "@/lib/i18n";
+
+export interface ExpenseSettleActions {
+    onUploadBills: (files: File[]) => Promise<void>;
+    onConfirmPaid: () => Promise<void>;
+    uploadBusy: boolean;
+    confirmBusy: boolean;
+}
 
 interface TransactionDetailModalProps {
     transaction: Transaction | null;
@@ -13,6 +20,8 @@ interface TransactionDetailModalProps {
     onClose: () => void;
     accountName?: string;
     projectName?: string;
+    /** Khi bật: khu vực chỉ tải bill + nút xác nhận đã chi (khoản chi đã duyệt chờ hoàn tất) */
+    expenseSettle?: ExpenseSettleActions | null;
 }
 
 export default function TransactionDetailModal({
@@ -20,9 +29,10 @@ export default function TransactionDetailModal({
     isOpen,
     onClose,
     accountName,
-    projectName
+    projectName,
+    expenseSettle,
 }: TransactionDetailModalProps) {
-    const { t, language } = useTranslation();
+    const { t } = useTranslation();
     const [creatorInfo, setCreatorInfo] = useState<UserProfile | null>(null);
     const [approverInfo, setApproverInfo] = useState<UserProfile | null>(null);
     const [loadingUsers, setLoadingUsers] = useState(false);
@@ -65,6 +75,8 @@ export default function TransactionDetailModal({
             case "APPROVED": return "bg-green-500/20 text-green-400 border-green-500/30";
             case "PENDING": return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30";
             case "REJECTED": return "bg-red-500/20 text-red-400 border-red-500/30";
+            case "COMPLETED": return "bg-emerald-500/20 text-emerald-300 border-emerald-500/30";
+            case "PAID": return "bg-purple-500/20 text-purple-300 border-purple-500/30";
             default: return "bg-white/10 text-[var(--muted)] border-white/10";
         }
     };
@@ -74,6 +86,8 @@ export default function TransactionDetailModal({
             case "APPROVED": return t("approved");
             case "PENDING": return t("pending");
             case "REJECTED": return t("rejected");
+            case "COMPLETED": return t("completed");
+            case "PAID": return t("paid_status");
             default: return status;
         }
     };
@@ -243,6 +257,16 @@ export default function TransactionDetailModal({
                     </div>
 
                     {/* Approver */}
+                    {transaction.status === "COMPLETED" && transaction.confirmedBy && (
+                        <div className="p-4 bg-emerald-500/5 rounded-xl border border-emerald-500/20">
+                            <div className="flex items-center gap-2 text-sm text-emerald-400 mb-2">
+                                <CheckCircle size={14} />
+                                {t("completed")}
+                            </div>
+                            <div className="text-sm text-white/90">{transaction.confirmedBy}</div>
+                        </div>
+                    )}
+
                     {transaction.status === "APPROVED" && transaction.approvedBy && (
                         <div className="p-4 bg-green-500/5 rounded-xl border border-green-500/20">
                             <div className="flex items-center gap-2 text-sm text-green-400 mb-3">
@@ -299,6 +323,45 @@ export default function TransactionDetailModal({
                                 </a>
                             ))}
                         </div>
+                    </div>
+                )}
+
+                {expenseSettle && (
+                    <div className="mb-6 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 space-y-4">
+                        <div className="flex items-start gap-2">
+                            <CheckCircle size={18} className="text-amber-400 shrink-0 mt-0.5" />
+                            <p className="text-sm text-amber-100/95 leading-relaxed">{t("expense_settle_locked_hint")}</p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-3">
+                            <label className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 cursor-pointer transition-colors">
+                                <Upload size={18} className="text-amber-400" />
+                                <span className="text-sm font-semibold text-white">{t("attached_images")}</span>
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    multiple
+                                    className="hidden"
+                                    disabled={expenseSettle.uploadBusy}
+                                    onChange={async (e) => {
+                                        const files = e.target.files ? Array.from(e.target.files) : [];
+                                        e.target.value = "";
+                                        if (files.length === 0) return;
+                                        await expenseSettle.onUploadBills(files);
+                                    }}
+                                />
+                            </label>
+                            {expenseSettle.uploadBusy && (
+                                <span className="text-xs text-white/60">{t("processing")}</span>
+                            )}
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => expenseSettle.onConfirmPaid()}
+                            disabled={expenseSettle.confirmBusy || expenseSettle.uploadBusy}
+                            className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 text-white font-bold shadow-lg shadow-amber-900/30 hover:opacity-95 transition-opacity disabled:opacity-40"
+                        >
+                            {expenseSettle.confirmBusy ? t("processing") : t("confirm_paid_expense")}
+                        </button>
                     </div>
                 )}
 

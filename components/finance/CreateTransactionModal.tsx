@@ -251,6 +251,7 @@ export default function CreateTransactionModal({ isOpen, onClose, onSuccess, cur
                 fundId: fundId || undefined,
                 source: type === "IN" ? source : undefined,
                 images: imageUrls,
+                warning: type === "OUT" && status === "PENDING",
                 createdAt: Date.now(),
                 updatedAt: Date.now(),
             });

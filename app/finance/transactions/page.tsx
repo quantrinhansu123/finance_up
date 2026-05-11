@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import { getTransactions } from "@/lib/finance";
-import { Transaction } from "@/types/finance";
+import { getTransactions, needsExpenseSpendConfirmation, updateTransaction, updateTransactionStatus } from "@/lib/finance";
+import { Transaction, Account, Project } from "@/types/finance";
 import { getUserRole, getAccessibleProjects, hasProjectPermission, Role } from "@/lib/permissions";
 import Link from "next/link";
 import DataTableToolbar from "@/components/finance/DataTableToolbar";
@@ -11,18 +11,28 @@ import DataTable, { AmountCell, DateCell, TextCell, StatusBadge, ImageCell } fro
 import { useTranslation } from "@/lib/i18n";
 
 import { Eye } from "lucide-react";
+import { uploadImage } from "@/lib/upload";
 import TransactionDetailModal from "@/components/finance/TransactionDetailModal";
 
 export default function TransactionsPage() {
     const { t } = useTranslation();
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [loading, setLoading] = useState(true);
-    const [currentUser, setCurrentUser] = useState<any>(null);
+    const [currentUser, setCurrentUser] = useState<{
+        uid?: string;
+        id?: string;
+        role?: string;
+        displayName?: string;
+        email?: string;
+        name?: string;
+    } | null>(null);
     const [userRole, setUserRole] = useState<Role>("USER");
 
     // Modal State
     const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [settleUploadBusy, setSettleUploadBusy] = useState(false);
+    const [confirmSpentBusy, setConfirmSpentBusy] = useState(false);
 
     const [activeFilters, setActiveFilters] = useState<Record<string, string>>({
         startDate: "",
@@ -36,8 +46,8 @@ export default function TransactionsPage() {
     const [searchTerm, setSearchTerm] = useState("");
 
     // Filter Options Data
-    const [projects, setProjects] = useState<any[]>([]);
-    const [accounts, setAccounts] = useState<any[]>([]);
+    const [projects, setProjects] = useState<Project[]>([]);
+    const [accounts, setAccounts] = useState<Account[]>([]);
 
     useEffect(() => {
         const storedUser = localStorage.getItem("user") || sessionStorage.getItem("user");
@@ -138,9 +148,63 @@ export default function TransactionsPage() {
         }
     }, [currentUser, accessibleProjectIds, activeFilters, searchTerm]);
 
+    useEffect(() => {
+        setSelectedTransaction((prev) => {
+            if (!prev) return prev;
+            const next = transactions.find((x) => x.id === prev.id);
+            return next ?? prev;
+        });
+    }, [transactions]);
+
+    const settleDisplayName = () =>
+        currentUser?.displayName || currentUser?.name || currentUser?.email || "User";
+
+    const canSettleExpenseTx = (tx: Transaction) => {
+        if (!needsExpenseSpendConfirmation(tx)) return false;
+        if (userRole === "ADMIN") return true;
+        const uid = currentUser?.uid || currentUser?.id;
+        if (!uid) return false;
+        return tx.userId === uid || tx.createdBy === uid;
+    };
+
+    const handleConfirmSpentTx = async (tx: Transaction) => {
+        if (!canSettleExpenseTx(tx)) return;
+        if (!confirm(t("confirm_paid_expense_prompt"))) return;
+        setConfirmSpentBusy(true);
+        try {
+            await updateTransactionStatus(tx.id, "COMPLETED");
+            await updateTransaction(tx.id, { confirmedBy: settleDisplayName() });
+            await fetchTransactions();
+            setIsModalOpen(false);
+            alert(t("confirm_paid_expense_success"));
+        } catch (e) {
+            console.error(e);
+            alert("Lỗi khi cập nhật trạng thái");
+        } finally {
+            setConfirmSpentBusy(false);
+        }
+    };
+
+    const handleSettleUploadFromDetail = async (files: File[]) => {
+        if (!selectedTransaction) return;
+        setSettleUploadBusy(true);
+        try {
+            const uploaded = await Promise.all(files.slice(0, 10).map((f) => uploadImage(f)));
+            const current = Array.isArray(selectedTransaction.images) ? selectedTransaction.images : [];
+            const merged = Array.from(new Set([...current, ...uploaded]));
+            await updateTransaction(selectedTransaction.id, { images: merged });
+            await fetchTransactions();
+        } catch (e) {
+            console.error(e);
+            alert("Lỗi khi tải bill lên");
+        } finally {
+            setSettleUploadBusy(false);
+        }
+    };
+
     // Stats
-    const totalIn = transactions.filter(t => t.type === "IN" && t.status === "APPROVED").reduce((sum, t) => sum + t.amount, 0);
-    const totalOut = transactions.filter(t => t.type === "OUT" && t.status === "APPROVED").reduce((sum, t) => sum + t.amount, 0);
+    const totalIn = transactions.filter(t => t.type === "IN" && (t.status === "APPROVED" || t.status === "COMPLETED")).reduce((sum, t) => sum + t.amount, 0);
+    const totalOut = transactions.filter(t => t.type === "OUT" && (t.status === "APPROVED" || t.status === "COMPLETED")).reduce((sum, t) => sum + t.amount, 0);
     const pendingCount = transactions.filter(t => t.status === "PENDING").length;
 
     const getAccountName = (id: string) => accounts.find(a => a.id === id)?.name || id.slice(0, 8) + "...";
@@ -237,6 +301,7 @@ export default function TransactionsPage() {
                             options: [
                                 { value: "APPROVED", label: `✓ ${t("approved")}` },
                                 { value: "PENDING", label: `⏳ ${t("pending")}` },
+                                { value: "COMPLETED", label: `✓ ${t("completed")}` },
                                 { value: "REJECTED", label: `✗ ${t("rejected_label")}` }
                             ]
                         },
@@ -341,6 +406,18 @@ export default function TransactionsPage() {
                 transaction={selectedTransaction}
                 accountName={selectedTransaction ? getAccountName(selectedTransaction.accountId || "") : undefined}
                 projectName={selectedTransaction?.projectId ? getProjectName(selectedTransaction.projectId) : undefined}
+                expenseSettle={
+                    selectedTransaction &&
+                    needsExpenseSpendConfirmation(selectedTransaction) &&
+                    canSettleExpenseTx(selectedTransaction)
+                        ? {
+                            onUploadBills: handleSettleUploadFromDetail,
+                            onConfirmPaid: () => handleConfirmSpentTx(selectedTransaction),
+                            uploadBusy: settleUploadBusy,
+                            confirmBusy: confirmSpentBusy,
+                        }
+                        : undefined
+                }
             />
         </div>
     );
