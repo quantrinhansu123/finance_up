@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Layers, Plus, X } from "lucide-react";
+import { Layers, Plus, X, Edit2, Trash2 } from "lucide-react";
 import { useTranslation } from "@/lib/i18n";
 import { MasterCategory, MasterSubCategory } from "@/types/finance";
-import { getMasterCategories, getMasterSubCategories, insertMasterCategory, insertMasterSubCategory } from "@/lib/master-categories";
+import { getMasterCategories, getMasterSubCategories, insertMasterCategory, insertMasterSubCategory, updateMasterSubCategory, deleteMasterSubCategory } from "@/lib/master-categories";
 import { getUserRole } from "@/lib/permissions";
 import { useRouter } from "next/navigation";
 
@@ -16,8 +16,9 @@ export default function IncomeExpenseCategoriesPage() {
     const [categoryTab, setCategoryTab] = useState<"INCOME" | "EXPENSE">("INCOME");
     const [masterCategories, setMasterCategories] = useState<MasterCategory[]>([]);
     const [subCategories, setSubCategories] = useState<MasterSubCategory[]>([]);
-    const [currentUser, setCurrentUser] = useState<any>(null);
+    const [currentUser, setCurrentUser] = useState<{ uid?: string; id?: string } | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [editingSub, setEditingSub] = useState<MasterSubCategory | null>(null);
     const [parentCategoryName, setParentCategoryName] = useState("");
     const [isCreatingParent, setIsCreatingParent] = useState(false);
     const [subCategoryName, setSubCategoryName] = useState("");
@@ -65,23 +66,19 @@ export default function IncomeExpenseCategoriesPage() {
 
     const tableRows = useMemo(() => {
         const parentById = new Map(masterCategories.map((c) => [c.id, c]));
-        const rows = subCategories
+        return subCategories
             .filter((sub) => sub.type === categoryTab)
             .map((sub) => {
                 const parent = parentById.get(sub.parentCategoryId);
                 return {
+                    id: sub.id,
+                    parentId: sub.parentCategoryId,
                     parentName: parent?.name || sub.parentCategoryName || "N/A",
                     subName: sub.name,
-                    createdBy: categoryTab === "EXPENSE" ? (sub.description || "-") : (sub.createdBy || "-"),
+                    extraCol: categoryTab === "EXPENSE" ? (sub.description || "-") : (sub.createdBy || "-"),
+                    raw: sub,
                 };
             });
-        const seen = new Set<string>();
-        return rows.filter((r) => {
-            const key = `${r.parentName}__${r.subName}__${r.createdBy}`;
-            if (seen.has(key)) return false;
-            seen.add(key);
-            return true;
-        });
     }, [masterCategories, subCategories, categoryTab]);
     const payerOptions = useMemo(() => {
         return Array.from(
@@ -95,12 +92,38 @@ export default function IncomeExpenseCategoriesPage() {
     }, [subCategories]);
 
     const handleOpenCreate = () => {
+        setEditingSub(null);
         setParentCategoryName("");
         setIsCreatingParent(false);
         setSubCategoryName("");
         setPayerName("");
         setIsCreatingPayer(false);
         setIsModalOpen(true);
+    };
+
+    const handleOpenEdit = (sub: MasterSubCategory) => {
+        const parent = masterCategories.find((c) => c.id === sub.parentCategoryId);
+        setEditingSub(sub);
+        setParentCategoryName(parent?.name || sub.parentCategoryName || "");
+        setIsCreatingParent(false);
+        setSubCategoryName(sub.name);
+        setPayerName(sub.type === "EXPENSE" ? (sub.description || "").trim() : "");
+        setIsCreatingPayer(false);
+        setIsModalOpen(true);
+    };
+
+    const handleDeleteRow = async (sub: MasterSubCategory) => {
+        if (!confirm(`Xóa danh mục chi tiết "${sub.name}"?`)) return;
+        setSaving(true);
+        try {
+            await deleteMasterSubCategory(sub.id);
+            await fetchData();
+        } catch (err) {
+            console.error(err);
+            alert("Không xóa được (có thể đang được sử dụng).");
+        } finally {
+            setSaving(false);
+        }
     };
 
     const handleCreate = async () => {
@@ -112,7 +135,6 @@ export default function IncomeExpenseCategoriesPage() {
             const normalizedParentName = parentCategoryName.trim();
             const normalizedSubName = subCategoryName.trim();
             const normalizedPayerName = payerName.trim();
-            // Avoid FK error when current user id is not present in profiles table.
             const createdBy = undefined;
 
             let parent = masterCategories.find(
@@ -137,21 +159,30 @@ export default function IncomeExpenseCategoriesPage() {
                 };
             }
 
-            await insertMasterSubCategory({
-                name: normalizedSubName,
-                parentCategoryId: parent.id,
-                parentCategoryName: parent.name,
-                type: categoryTab,
-                // For expense, temporarily store "Người TT" in description.
-                description: categoryTab === "EXPENSE" ? normalizedPayerName : "",
-                createdBy,
-            });
+            if (editingSub) {
+                await updateMasterSubCategory(editingSub.id, {
+                    name: normalizedSubName,
+                    description: categoryTab === "EXPENSE" ? normalizedPayerName : "",
+                    parentCategoryId: parent.id,
+                    parentCategoryName: parent.name,
+                });
+            } else {
+                await insertMasterSubCategory({
+                    name: normalizedSubName,
+                    parentCategoryId: parent.id,
+                    parentCategoryName: parent.name,
+                    type: categoryTab,
+                    description: categoryTab === "EXPENSE" ? normalizedPayerName : "",
+                    createdBy,
+                });
+            }
 
             setIsModalOpen(false);
+            setEditingSub(null);
             await fetchData();
         } catch (err) {
-            console.error("Failed to create category", err);
-            alert("Lỗi khi thêm mới danh mục");
+            console.error("Failed to save category", err);
+            alert(editingSub ? "Lỗi khi cập nhật danh mục" : "Lỗi khi thêm mới danh mục");
         } finally {
             setSaving(false);
         }
@@ -208,21 +239,42 @@ export default function IncomeExpenseCategoriesPage() {
                                 {categoryTab === "EXPENSE" && (
                                     <th className="px-4 py-3 text-[var(--muted)] font-semibold">Người TT</th>
                                 )}
+                                <th className="px-4 py-3 text-[var(--muted)] font-semibold text-right w-28">{t("actions")}</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {!loading && tableRows.map((row, idx) => (
-                                <tr key={`${row.parentName}-${row.subName}-${idx}`} className="border-t border-white/5">
+                            {!loading && tableRows.map((row) => (
+                                <tr key={row.id} className="border-t border-white/5">
                                     <td className="px-4 py-3 text-white font-medium">{row.parentName}</td>
                                     <td className="px-4 py-3 text-white/90">{row.subName}</td>
                                     {categoryTab === "EXPENSE" && (
-                                        <td className="px-4 py-3 text-white/80">{row.createdBy}</td>
+                                        <td className="px-4 py-3 text-white/80">{row.extraCol}</td>
                                     )}
+                                    <td className="px-4 py-3 text-right">
+                                        <div className="inline-flex items-center gap-1">
+                                            <button
+                                                type="button"
+                                                onClick={() => handleOpenEdit(row.raw)}
+                                                className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-[var(--muted)] hover:text-amber-300 transition-colors"
+                                                title={t("edit")}
+                                            >
+                                                <Edit2 size={16} />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleDeleteRow(row.raw)}
+                                                className="p-2 rounded-lg bg-white/5 hover:bg-red-500/20 text-[var(--muted)] hover:text-red-400 transition-colors"
+                                                title={t("delete")}
+                                            >
+                                                <Trash2 size={16} />
+                                            </button>
+                                        </div>
+                                    </td>
                                 </tr>
                             ))}
                             {(loading || tableRows.length === 0) && (
                                 <tr>
-                                    <td className="px-4 py-4 text-[var(--muted)] text-center" colSpan={categoryTab === "EXPENSE" ? 3 : 2}>
+                                    <td className="px-4 py-4 text-[var(--muted)] text-center" colSpan={categoryTab === "EXPENSE" ? 4 : 3}>
                                         {loading ? t("loading") : "Chưa có dữ liệu danh mục."}
                                     </td>
                                 </tr>
@@ -236,8 +288,14 @@ export default function IncomeExpenseCategoriesPage() {
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
                     <div className="glass-card w-full max-w-md rounded-2xl border border-white/20 p-6">
                         <div className="flex items-center justify-between mb-5">
-                            <h3 className="text-xl font-bold text-white">Thêm mới danh mục</h3>
-                            <button onClick={() => setIsModalOpen(false)} className="text-[var(--muted)] hover:text-white">
+                            <h3 className="text-xl font-bold text-white">{editingSub ? t("edit") + " danh mục" : "Thêm mới danh mục"}</h3>
+                            <button
+                                onClick={() => {
+                                    setIsModalOpen(false);
+                                    setEditingSub(null);
+                                }}
+                                className="text-[var(--muted)] hover:text-white"
+                            >
                                 <X size={20} />
                             </button>
                         </div>
@@ -257,7 +315,7 @@ export default function IncomeExpenseCategoriesPage() {
                                         setIsCreatingParent(false);
                                         setParentCategoryName(val);
                                     }}
-                                    className="glass-input w-full p-2 rounded-lg"
+                                    className="glass-input w-full p-2 rounded-lg disabled:opacity-50"
                                 >
                                     <option value="" disabled>-- Chọn danh mục --</option>
                                     {masterCategories
@@ -266,9 +324,9 @@ export default function IncomeExpenseCategoriesPage() {
                                         .map((c) => (
                                             <option key={c.id} value={c.name}>{c.name}</option>
                                         ))}
-                                    <option value="__NEW__">+ Thêm danh mục mới</option>
+                                    {!editingSub && <option value="__NEW__">+ Thêm danh mục mới</option>}
                                 </select>
-                                {isCreatingParent && (
+                                {isCreatingParent && !editingSub && (
                                     <input
                                         value={parentCategoryName}
                                         onChange={(e) => setParentCategoryName(e.target.value)}
@@ -322,7 +380,10 @@ export default function IncomeExpenseCategoriesPage() {
                             <div className="flex gap-3 pt-2">
                                 <button
                                     type="button"
-                                    onClick={() => setIsModalOpen(false)}
+                                    onClick={() => {
+                                        setIsModalOpen(false);
+                                        setEditingSub(null);
+                                    }}
                                     className="flex-1 px-4 py-2 rounded-lg border border-white/10 text-[var(--muted)] hover:text-white"
                                 >
                                     {t("cancel")}

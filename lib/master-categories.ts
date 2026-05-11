@@ -74,12 +74,20 @@ export async function deleteMasterCategory(id: string): Promise<void> {
 
 export async function updateMasterSubCategory(
     id: string,
-    patch: { name?: string; description?: string; isActive?: boolean }
+    patch: {
+        name?: string;
+        description?: string;
+        isActive?: boolean;
+        parentCategoryId?: string;
+        parentCategoryName?: string;
+    }
 ): Promise<void> {
     const row: Record<string, unknown> = {};
     if (patch.name !== undefined) row.name = patch.name;
     if (patch.description !== undefined) row.description = patch.description;
     if (patch.isActive !== undefined) row.is_active = patch.isActive;
+    if (patch.parentCategoryId !== undefined) row.parent_category_id = patch.parentCategoryId;
+    if (patch.parentCategoryName !== undefined) row.parent_category_name = patch.parentCategoryName;
     const { error } = await supabase.from("finance_master_sub_categories").update(row).eq("id", id);
     if (error) throw error;
 }
