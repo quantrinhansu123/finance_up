@@ -11,6 +11,7 @@ import { useRouter } from "next/navigation";
 import { ShieldX } from "lucide-react";
 import DataTable, { DateCell } from "@/components/finance/DataTable";
 import { useTranslation } from "@/lib/i18n";
+import { sessionUserDisplayLabel } from "@/lib/session-user-label";
 
 type ApprovalTab = "all" | "high_value" | "pending";
 type MainApprovalTab = "transactions" | "budgets";
@@ -225,8 +226,10 @@ export default function ApprovalsPage() {
 
             // 2. Update transaction with approver info
             const approverId = currentUser.uid || currentUser.id;
+            const approverLabel = sessionUserDisplayLabel(currentUser);
             await updateTransaction(tx.id, {
                 ...(approverId ? { approvedBy: approverId } : {}),
+                ...(approverLabel ? { approverDisplayName: approverLabel } : {}),
                 ...(tx.type === "OUT" ? { warning: true } : {}),
             });
 

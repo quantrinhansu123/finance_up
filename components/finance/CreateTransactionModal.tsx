@@ -8,12 +8,21 @@ import { uploadImage } from "@/lib/upload";
 import CurrencyInput from "./CurrencyInput";
 import { getCurrencyFlag } from "@/lib/currency";
 import { formatProjectMaLan } from "@/lib/project-display";
+import { sessionUserDisplayLabel } from "@/lib/session-user-label";
 
 interface CreateTransactionModalProps {
     isOpen: boolean;
     onClose: () => void;
     onSuccess: () => void;
-    currentUser?: { id: string; name: string; role: Role; uid?: string; projectIds?: string[] };
+    currentUser?: {
+        id: string;
+        name: string;
+        role: Role;
+        uid?: string;
+        projectIds?: string[];
+        displayName?: string;
+        email?: string;
+    };
 }
 
 const INCOME_CATEGORIES = ["COD VET", "COD JNT", "Khách CK", "Khác"];
@@ -237,6 +246,7 @@ export default function CreateTransactionModal({ isOpen, onClose, onSuccess, cur
 
             // Create Transaction
             const uid = currentUser?.uid || currentUser?.id || "";
+            const approverLabel = status === "APPROVED" ? sessionUserDisplayLabel(currentUser) : "";
             await createTransaction({
                 type,
                 amount: numAmount,
@@ -254,6 +264,7 @@ export default function CreateTransactionModal({ isOpen, onClose, onSuccess, cur
                 images: imageUrls,
                 warning: type === "OUT" && status === "PENDING",
                 ...(status === "APPROVED" && uid ? { approvedBy: uid } : {}),
+                ...(status === "APPROVED" && approverLabel ? { approverDisplayName: approverLabel } : {}),
                 createdAt: Date.now(),
                 updatedAt: Date.now(),
             });

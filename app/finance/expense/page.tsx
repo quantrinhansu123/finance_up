@@ -1,12 +1,12 @@
 "use client";
 
 import { useState, useEffect, useMemo, useRef } from "react";
-import { createTransaction, getAccounts, updateAccountBalance, getProjects, getTransactions, updateTransaction, deleteTransaction, needsExpenseSpendConfirmation, updateTransactionStatus } from "@/lib/finance";
+import { createTransaction, getAccounts, updateAccountBalance, getProjects, getTransactions, updateTransaction, deleteTransaction } from "@/lib/finance";
 import { getMasterCategories, getMasterSubCategories } from "@/lib/master-categories";
-import { Account, Project, Transaction, MasterCategory, MasterSubCategory } from "@/types/finance";
+import { Account, Project, Transaction, MasterCategory, MasterSubCategory, PaidConfirmMeta } from "@/types/finance";
 import { uploadImage } from "@/lib/upload";
 import { getUserRole, getAccessibleProjects, getAccessibleAccounts, hasProjectPermission, Role } from "@/lib/permissions";
-import { FolderOpen, CreditCard, Receipt, Upload, AlertCircle, X, Eye, Edit2, Trash2, Paperclip, CheckCircle } from "lucide-react";
+import { FolderOpen, CreditCard, Receipt, Upload, AlertCircle, X, Eye, Edit2, Trash2 } from "lucide-react";
 import CurrencyInput from "@/components/finance/CurrencyInput";
 import SearchableSelect from "@/components/finance/SearchableSelect";
 import DataTableToolbar from "@/components/finance/DataTableToolbar";
@@ -16,6 +16,7 @@ import { WizardProgress, WizardStepPanel, WizardSummaryItem } from "@/components
 import DataTable, { AmountCell, DateCell, TextCell, StatusBadge, ActionCell } from "@/components/finance/DataTable";
 import { useTranslation } from "@/lib/i18n";
 import { projectLabelById, formatProjectListLabel, formatProjectMaLan } from "@/lib/project-display";
+import { sessionUserDisplayLabel } from "@/lib/session-user-label";
 import { getUsers } from "@/lib/users";
 import { UserProfile } from "@/types/user";
 
@@ -51,8 +52,6 @@ export default function ExpensePage() {
     } | null>(null);
     const [userRole, setUserRole] = useState<Role>("USER");
     const [showForm, setShowForm] = useState(false);
-    const billSectionRef = useRef<HTMLDivElement>(null);
-
     // Wizard step control
     const [wizardStep, setWizardStep] = useState(1);
 
@@ -83,11 +82,12 @@ export default function ExpensePage() {
     const [editSource, setEditSource] = useState("");
     const [editDescription, setEditDescription] = useState("");
     const [editSaving, setEditSaving] = useState(false);
-    const [billTx, setBillTx] = useState<Transaction | null>(null);
-    const [billFiles, setBillFiles] = useState<File[]>([]);
-    const [billUploading, setBillUploading] = useState(false);
     const [settleUploadBusy, setSettleUploadBusy] = useState(false);
-    const [confirmSpentBusy, setConfirmSpentBusy] = useState(false);
+    const [markSpentTx, setMarkSpentTx] = useState<Transaction | null>(null);
+    const [markSpentFiles, setMarkSpentFiles] = useState<File[]>([]);
+    const [markSpentSubmitting, setMarkSpentSubmitting] = useState(false);
+    /** Tránh gọi getTransactions lần 2 ngay sau fetchData (cùng bộ lọc / viewableProjectIds). */
+    const skipNextTransactionsFilterEffectRef = useRef(false);
 
     useEffect(() => {
         const u = localStorage.getItem("user") || sessionStorage.getItem("user");
@@ -172,6 +172,7 @@ export default function ExpensePage() {
             setViewableProjectIds(ids);
 
             await fetchTransactions(ids);
+            skipNextTransactionsFilterEffectRef.current = true;
         } catch (e) { console.error(e); } finally { setLoading(false); }
     };
 
@@ -209,7 +210,14 @@ export default function ExpensePage() {
         } catch (e) { console.error(e); }
     };
 
-    useEffect(() => { if (!loading) fetchTransactions(); }, [activeFilters, searchTerm, viewableProjectIds.join("|")]);
+    useEffect(() => {
+        if (loading || !currentUser) return;
+        if (skipNextTransactionsFilterEffectRef.current) {
+            skipNextTransactionsFilterEffectRef.current = false;
+            return;
+        }
+        void fetchTransactions();
+    }, [activeFilters, searchTerm, viewableProjectIds.join("|"), loading, currentUser, userRole]);
     useEffect(() => { if (projectId && selectedAccount?.projectId && selectedAccount.projectId !== projectId) setAccountId(""); }, [projectId]);
 
     // Khi đổi parent category, reset category
@@ -270,6 +278,7 @@ export default function ExpensePage() {
             const pendingFlow = requiresApproval();
             const status = pendingFlow ? "PENDING" : "APPROVED";
             const uid = currentUser?.uid || currentUser?.id;
+            const approverLabel = status === "APPROVED" ? sessionUserDisplayLabel(currentUser) : "";
             await createTransaction({
                 type: "OUT", amount: numAmount, currency, category: finalCategory,
                 parentCategory: parentCategoryName, parentCategoryId,
@@ -278,6 +287,7 @@ export default function ExpensePage() {
                 userId: uid || "", images: imageUrls,
                 warning: pendingFlow,
                 ...(status === "APPROVED" && uid ? { approvedBy: uid } : {}),
+                ...(status === "APPROVED" && approverLabel ? { approverDisplayName: approverLabel } : {}),
                 createdAt: Date.now(), updatedAt: Date.now(),
             });
 
@@ -292,87 +302,81 @@ export default function ExpensePage() {
         } catch (e) { console.error(e); alert(t("create_expense_error")); } finally { setSubmitting(false); }
     };
 
-    const openBillUploader = () => {
-        if (!showForm) resetForm();
-        setShowForm(true);
-        setTimeout(() => {
-            billSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-        }, 50);
+    /** Giống "Đã thu" trên thu: mọi chi đã duyệt (OUT + APPROVED) có thể xác nhận đã chi. */
+    const canMarkExpensePaid = (tx: Transaction) => tx.type === "OUT" && tx.status === "APPROVED";
+
+    /** Không sửa/xóa khi đã duyệt hoặc đã xác nhận Đã chi (COMPLETED). */
+    const canEditExpenseTransaction = (tx: Transaction) =>
+        tx.type === "OUT" && (tx.status === "APPROVED" || tx.status === "COMPLETED")
+            ? false
+            : tx.status !== "APPROVED";
+
+    const canDeleteExpenseTransaction = (tx: Transaction) =>
+        tx.type === "OUT" && (tx.status === "APPROVED" || tx.status === "COMPLETED")
+            ? false
+            : tx.status !== "APPROVED";
+
+    const openMarkSpentModal = (tx: Transaction) => {
+        if (!canMarkExpensePaid(tx)) return;
+        setMarkSpentTx(tx);
+        setMarkSpentFiles([]);
     };
 
-    const openBillForTx = (tx: Transaction) => {
-        setBillTx(tx);
-        setBillFiles([]);
+    const closeMarkSpentModal = () => {
+        setMarkSpentTx(null);
+        setMarkSpentFiles([]);
+        setMarkSpentSubmitting(false);
     };
 
-    const closeBillModal = () => {
-        setBillTx(null);
-        setBillFiles([]);
-        setBillUploading(false);
-    };
-
-    const handleBillPaste = (e: React.ClipboardEvent) => {
+    const handleMarkSpentPaste = (e: React.ClipboardEvent) => {
         const pastedImages = Array.from(e.clipboardData.items)
             .filter((item) => item.type.startsWith("image/"))
             .map((item) => item.getAsFile())
             .filter((f): f is File => !!f);
         if (pastedImages.length === 0) return;
         e.preventDefault();
-        setBillFiles((prev) => [...prev, ...pastedImages].slice(0, MAX_BILL_IMAGES));
+        setMarkSpentFiles((prev) => [...prev, ...pastedImages].slice(0, MAX_BILL_IMAGES));
     };
 
-    const handleUploadBillForTx = async () => {
-        if (!billTx) return;
-        if (billUploading) return;
-        if (billFiles.length === 0) return;
-
-        setBillUploading(true);
-        try {
-            const uploaded = await Promise.all(
-                billFiles.slice(0, MAX_BILL_IMAGES).map((f) => uploadImage(f))
-            );
-            const current = Array.isArray(billTx.images) ? billTx.images : [];
-            const merged = Array.from(new Set([...current, ...uploaded]));
-            await updateTransaction(billTx.id, { images: merged });
-            await fetchData();
-            closeBillModal();
-        } catch (e) {
-            console.error(e);
-            alert("Lỗi khi tải bill lên");
-        } finally {
-            setBillUploading(false);
+    const handleConfirmMarkSpent = async () => {
+        if (!markSpentTx) return;
+        const loginLabel =
+            [currentUser?.displayName, currentUser?.name, currentUser?.email]
+                .map((s) => (typeof s === "string" ? s.trim() : ""))
+                .find(Boolean) || "";
+        if (!loginLabel) {
+            alert("Phiên đăng nhập không có tên/email để ghi nhận. Vui lòng đăng nhập lại.");
+            return;
         }
-    };
-
-    const canSettleExpenseTx = (tx: Transaction) => {
-        if (!needsExpenseSpendConfirmation(tx)) return false;
-        if (userRole === "ADMIN") return true;
-        const uid = currentUser?.uid || currentUser?.id;
-        if (!uid) return false;
-        return tx.userId === uid || tx.createdBy === uid;
-    };
-
-    const canEditExpenseTransaction = (tx: Transaction) => tx.status !== "APPROVED";
-
-    const canDeleteExpenseTransaction = (tx: Transaction) => tx.status !== "APPROVED";
-
-    const handleConfirmSpent = async (tx: Transaction) => {
-        if (!canSettleExpenseTx(tx)) return;
+        const existing = Array.isArray(markSpentTx.images) ? markSpentTx.images.length : 0;
+        if (existing === 0 && markSpentFiles.length === 0) {
+            alert("Vui lòng tải ít nhất một ảnh chứng từ.");
+            return;
+        }
         if (!confirm(t("confirm_paid_expense_prompt"))) return;
-        setConfirmSpentBusy(true);
+
+        setMarkSpentSubmitting(true);
         try {
-            await updateTransactionStatus(tx.id, "COMPLETED");
-            const confirmerId = currentUser?.uid || currentUser?.id;
-            await updateTransaction(tx.id, { ...(confirmerId ? { confirmedBy: confirmerId } : {}) });
+            const uploaded =
+                markSpentFiles.length > 0
+                    ? await Promise.all(markSpentFiles.slice(0, MAX_BILL_IMAGES).map((f) => uploadImage(f)))
+                    : [];
+            const merged = Array.from(new Set([...(markSpentTx.images || []), ...uploaded]));
+            const meta: PaidConfirmMeta = { at: new Date().toISOString(), byName: loginLabel };
+            await updateTransaction(markSpentTx.id, {
+                status: "COMPLETED",
+                images: merged,
+                paidConfirmMeta: meta,
+            });
             await fetchData();
-            closeBillModal();
-            if (selectedTransaction?.id === tx.id) setIsDetailModalOpen(false);
+            closeMarkSpentModal();
+            if (selectedTransaction?.id === markSpentTx.id) setIsDetailModalOpen(false);
             alert(t("confirm_paid_expense_success"));
         } catch (e) {
             console.error(e);
-            alert("Lỗi khi cập nhật trạng thái");
+            alert("Lỗi khi cập nhật. Kiểm tra đã chạy migration cột paid_confirm_meta (jsonb) chưa.");
         } finally {
-            setConfirmSpentBusy(false);
+            setMarkSpentSubmitting(false);
         }
     };
 
@@ -413,7 +417,10 @@ export default function ExpensePage() {
 
     const handleSaveEdit = async () => {
         if (!editingTransaction) return;
-        if (editingTransaction.status === "APPROVED") {
+        if (
+            editingTransaction.status === "APPROVED" ||
+            (editingTransaction.type === "OUT" && editingTransaction.status === "COMPLETED")
+        ) {
             alert(t("cannot_modify_approved_transaction"));
             return;
         }
@@ -492,6 +499,8 @@ export default function ExpensePage() {
     };
 
     const resolveApproverDisplay = (tx: Transaction) => {
+        const label = tx.approverDisplayName?.trim();
+        if (label) return label;
         if (tx.approvedBy) return resolveUserName(tx.approvedBy);
         if (tx.status === "APPROVED") return t("approver_not_recorded");
         return "—";
@@ -508,13 +517,6 @@ export default function ExpensePage() {
                 </div>
                 <div><h1 className="text-2xl font-bold text-white">{t("expenses")}</h1><p className="text-sm text-white/50">{t("manage_expenses")}</p></div>
                 <div className="ml-auto flex items-center gap-3">
-                    <button
-                        onClick={openBillUploader}
-                        className="px-4 py-2 rounded-xl font-bold transition-all flex items-center gap-2 bg-white/10 text-white hover:bg-white/20"
-                        title="Mở form và tải bill"
-                    >
-                        📎 Tải bill
-                    </button>
                     <button
                         onClick={() => { setShowForm(!showForm); if (!showForm) resetForm(); }}
                         className={`px-4 py-2 rounded-xl font-bold transition-all flex items-center gap-2 ${showForm ? "bg-white/10 text-white hover:bg-white/20" : "bg-red-600 text-white hover:bg-red-500 shadow-lg shadow-red-500/25"}`}
@@ -611,6 +613,7 @@ export default function ExpensePage() {
                                             <CurrencyInput
                                                 value={amount}
                                                 onChange={setAmount}
+                                                currency={selectedAccount?.currency || "USD"}
                                                 className="glass-input text-2xl font-bold py-4 px-6 rounded-2xl w-full border-red-500/30 text-red-400 focus:scale-[1.02] transition-transform"
                                                 placeholder="0"
                                             />
@@ -649,7 +652,7 @@ export default function ExpensePage() {
                                         </div>
                                     </div>
 
-                                    <div className="space-y-4" ref={billSectionRef}>
+                                    <div className="space-y-4">
                                         <label className="block text-sm font-bold text-[var(--muted)] uppercase tracking-wider">
                                             Tải bill ({files.length}/{MAX_BILL_IMAGES})
                                         </label>
@@ -825,9 +828,13 @@ export default function ExpensePage() {
                             key: "status",
                             header: t("status"),
                             render: (tx: Transaction) => (
-                                needsExpenseSpendConfirmation(tx) ? (
+                                tx.type === "OUT" && tx.status === "APPROVED" ? (
                                     <span className="inline-block px-2 py-1 rounded-lg text-[10px] font-bold tracking-wide bg-blue-500/20 text-blue-300 border border-blue-500/25 whitespace-nowrap">
                                         {t("expense_awaiting_paid_confirm")}
+                                    </span>
+                                ) : tx.type === "OUT" && tx.status === "COMPLETED" && tx.paidConfirmMeta ? (
+                                    <span className="px-2 py-1 rounded-lg text-[10px] uppercase font-bold tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/20">
+                                        Đã chi
                                     </span>
                                 ) : (
                                     <StatusBadge status={tx.status} />
@@ -846,21 +853,15 @@ export default function ExpensePage() {
                                     >
                                         <Eye size={18} />
                                     </button>
-                                    <button
-                                        onClick={() => openBillForTx(tx)}
-                                        className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-[var(--muted)] hover:text-red-300 transition-all transform active:scale-90"
-                                        title={`Tải bill (${(tx.images?.length || 0)})`}
-                                    >
-                                        <Paperclip size={16} />
-                                    </button>
-                                    {canSettleExpenseTx(tx) && (
+                                    {canMarkExpensePaid(tx) && (
                                         <button
-                                            onClick={(e) => { e.stopPropagation(); handleConfirmSpent(tx); }}
-                                            disabled={confirmSpentBusy}
-                                            className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-[var(--muted)] hover:text-emerald-300 transition-all transform active:scale-90 disabled:opacity-40"
+                                            type="button"
+                                            onClick={(e) => { e.stopPropagation(); openMarkSpentModal(tx); }}
+                                            disabled={markSpentSubmitting}
+                                            className="px-2.5 py-2 rounded-lg bg-white/5 hover:bg-emerald-500/15 border border-white/10 text-[10px] font-bold uppercase tracking-wider text-emerald-300 transition-all transform active:scale-90 disabled:opacity-40"
                                             title={t("confirm_paid_expense")}
                                         >
-                                            <CheckCircle size={16} />
+                                            Đã chi
                                         </button>
                                     )}
                                     {canEditExpenseTransaction(tx) && (
@@ -895,12 +896,14 @@ export default function ExpensePage() {
                     projectName={projectLabelById(projects, selectedTransaction.projectId || "")}
                     accountName={getAccountName(selectedTransaction.accountId || "")}
                     expenseSettle={
-                        needsExpenseSpendConfirmation(selectedTransaction) && canSettleExpenseTx(selectedTransaction)
+                        canMarkExpensePaid(selectedTransaction)
                             ? {
                                 onUploadBills: handleSettleUploadFromDetail,
-                                onConfirmPaid: () => handleConfirmSpent(selectedTransaction),
+                                onConfirmPaid: async () => {
+                                    if (selectedTransaction) openMarkSpentModal(selectedTransaction);
+                                },
                                 uploadBusy: settleUploadBusy,
-                                confirmBusy: confirmSpentBusy,
+                                confirmBusy: markSpentSubmitting,
                             }
                             : undefined
                     }
@@ -937,24 +940,34 @@ export default function ExpensePage() {
                 </div>
             )}
 
-            {billTx && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onPaste={handleBillPaste}>
+            {markSpentTx && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onPaste={handleMarkSpentPaste}>
                     <div className="glass-card w-full max-w-lg rounded-2xl border border-white/20 p-6">
                         <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-xl font-bold text-white">Tải bill cho giao dịch</h3>
-                            <button onClick={closeBillModal} className="text-[var(--muted)] hover:text-white">
+                            <h3 className="text-xl font-bold text-white">Xác nhận Đã chi</h3>
+                            <button type="button" onClick={closeMarkSpentModal} className="text-[var(--muted)] hover:text-white">
                                 <X size={20} />
                             </button>
                         </div>
-
-                        <div className="text-xs text-[var(--muted)] mb-4">
-                            Bạn có thể chọn nhiều ảnh hoặc dán ảnh bằng Ctrl+V. Tối đa {MAX_BILL_IMAGES} ảnh.
-                        </div>
-
+                        <p className="text-xs text-[var(--muted)] mb-4">
+                            Tải ảnh chứng từ (bắt buộc nếu giao dịch chưa có ảnh). Có thể chọn nhiều ảnh hoặc dán Ctrl+V. Tối đa {MAX_BILL_IMAGES} ảnh.
+                        </p>
+                        {markSpentTx.images && markSpentTx.images.length > 0 && (
+                            <div className="mb-4">
+                                <p className="text-[10px] font-bold text-white/50 uppercase mb-2">Ảnh hiện có ({markSpentTx.images.length})</p>
+                                <div className="flex flex-wrap gap-2">
+                                    {markSpentTx.images.map((url, i) => (
+                                        <a key={i} href={url} target="_blank" rel="noreferrer" className="block w-16 h-16 rounded-lg overflow-hidden border border-white/10">
+                                            <img src={url} alt="" className="w-full h-full object-cover" />
+                                        </a>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                         <div className="flex items-center gap-3 mb-4">
                             <label className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 cursor-pointer transition-colors">
-                                <Paperclip size={18} className="text-red-400" />
-                                <span className="text-sm font-semibold text-white">Chọn ảnh bill</span>
+                                <Upload size={18} className="text-emerald-400" />
+                                <span className="text-sm font-semibold text-white">Thêm ảnh</span>
                                 <input
                                     type="file"
                                     accept="image/*"
@@ -963,21 +976,20 @@ export default function ExpensePage() {
                                     onChange={(e) => {
                                         const next = e.currentTarget.files;
                                         if (!next) return;
-                                        setBillFiles((prev) => [...prev, ...Array.from(next)].slice(0, MAX_BILL_IMAGES));
+                                        setMarkSpentFiles((prev) => [...prev, ...Array.from(next)].slice(0, MAX_BILL_IMAGES));
                                     }}
                                 />
                             </label>
-                            <span className="text-xs text-white/60">{billFiles.length}/{MAX_BILL_IMAGES}</span>
+                            <span className="text-xs text-white/60">Mới: {markSpentFiles.length}/{MAX_BILL_IMAGES}</span>
                         </div>
-
-                        {billFiles.length > 0 && (
+                        {markSpentFiles.length > 0 && (
                             <div className="flex flex-wrap gap-3 mb-5">
-                                {billFiles.map((file, i) => (
+                                {markSpentFiles.map((file, i) => (
                                     <div key={i} className="relative w-24 h-24 rounded-xl overflow-hidden border border-white/10">
-                                        <img src={URL.createObjectURL(file)} className="w-full h-full object-cover" alt="bill-preview" />
+                                        <img src={URL.createObjectURL(file)} className="w-full h-full object-cover" alt="preview" />
                                         <button
                                             type="button"
-                                            onClick={() => setBillFiles((prev) => prev.filter((_, idx) => idx !== i))}
+                                            onClick={() => setMarkSpentFiles((prev) => prev.filter((_, idx) => idx !== i))}
                                             className="absolute top-1 right-1 p-1 bg-red-500 rounded-lg text-white"
                                             title="Xóa"
                                         >
@@ -987,41 +999,30 @@ export default function ExpensePage() {
                                 ))}
                             </div>
                         )}
-
                         <div className="flex gap-3">
                             <button
                                 type="button"
-                                onClick={closeBillModal}
+                                onClick={closeMarkSpentModal}
                                 className="flex-1 px-4 py-2 rounded-lg border border-white/10 text-[var(--muted)] hover:text-white"
                             >
                                 {t("cancel")}
                             </button>
                             <button
                                 type="button"
-                                onClick={handleUploadBillForTx}
-                                disabled={billUploading || billFiles.length === 0}
-                                className="flex-1 px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white font-semibold disabled:opacity-50"
+                                onClick={handleConfirmMarkSpent}
+                                disabled={
+                                    markSpentSubmitting ||
+                                    ((markSpentTx.images?.length || 0) === 0 && markSpentFiles.length === 0)
+                                }
+                                className="flex-1 px-4 py-2 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-semibold disabled:opacity-50"
                             >
-                                {billUploading ? t("processing") : "Tải lên"}
+                                {markSpentSubmitting ? t("processing") : t("confirm_paid_expense")}
                             </button>
                         </div>
-
-                        {billTx && needsExpenseSpendConfirmation(billTx) && canSettleExpenseTx(billTx) && (
-                            <div className="border-t border-white/10 pt-4 mt-4 space-y-3">
-                                <p className="text-xs text-amber-200/90 leading-relaxed">{t("expense_settle_locked_hint")}</p>
-                                <button
-                                    type="button"
-                                    onClick={() => handleConfirmSpent(billTx)}
-                                    disabled={confirmSpentBusy}
-                                    className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 text-white font-bold disabled:opacity-40"
-                                >
-                                    {confirmSpentBusy ? t("processing") : t("confirm_paid_expense")}
-                                </button>
-                            </div>
-                        )}
                     </div>
                 </div>
             )}
+
         </div>
     );
 }

@@ -57,6 +57,12 @@ export interface Beneficiary {
     updatedAt: number;
 }
 
+/** Lưu trong `finance_transactions.paid_confirm_meta` (jsonb) khi xác nhận Đã thu */
+export interface PaidConfirmMeta {
+    at: string;
+    byName: string;
+}
+
 export interface Transaction {
     id: string;
     amount: number;
@@ -90,8 +96,12 @@ export interface Transaction {
     warning?: boolean; // >5M or >100$
     rejectionReason?: string;
     approvedBy?: string;
+    /** Tên người duyệt lưu từ session (không phụ thuộc FK profiles / employees id). */
+    approverDisplayName?: string;
     rejectedBy?: string;
     paidBy?: string; // Accountant
+    /** Xác nhận Đã thu (thu nhập): ngày giờ + tên người xác nhận — cột jsonb DB */
+    paidConfirmMeta?: PaidConfirmMeta;
     confirmedBy?: string; // Requester (final confirmation)
     createdBy: string;
     userId: string; // Restored for RLS filtering

@@ -110,6 +110,40 @@ export async function getUserByEmail(email: string): Promise<UserProfile | null>
     return data ? mapUserFromDB(data) : null;
 }
 
+export async function getProfileIdByEmail(email: string): Promise<string | null> {
+    const raw = typeof email === "string" ? email.trim() : "";
+    if (!raw) return null;
+    const lower = raw.toLowerCase();
+    const { data: exact, error: e1 } = await supabase.from("profiles").select("id").eq("email", raw).maybeSingle();
+    if (e1) throw e1;
+    if (exact?.id) return exact.id;
+    if (lower !== raw) {
+        const { data: byLower, error: e2 } = await supabase.from("profiles").select("id").eq("email", lower).maybeSingle();
+        if (e2) throw e2;
+        if (byLower?.id) return byLower.id;
+    }
+    return null;
+}
+
+/** `currentUser.id` thường là `employees.id` — lấy email nhân viên rồi map sang `profiles.id` cho FK paid_by/confirmed_by */
+export async function getProfileIdFromEmployeeId(employeeId: string): Promise<string | null> {
+    const id = typeof employeeId === "string" ? employeeId.trim() : "";
+    if (!id) return null;
+    const { data, error } = await supabase.from("employees").select("email").eq("id", id).maybeSingle();
+    if (error) throw error;
+    const email = data?.email;
+    if (!email || typeof email !== "string") return null;
+    return getProfileIdByEmail(email);
+}
+
+export async function getProfileIdIfExists(profileId: string): Promise<string | null> {
+    const id = typeof profileId === "string" ? profileId.trim() : "";
+    if (!id) return null;
+    const { data, error } = await supabase.from("profiles").select("id").eq("id", id).maybeSingle();
+    if (error) throw error;
+    return data?.id || null;
+}
+
 export async function createUser(userId: string, userData: Partial<UserProfile>): Promise<void> {
     const dbData = mapUserToDB(userData);
     dbData.id = userId;

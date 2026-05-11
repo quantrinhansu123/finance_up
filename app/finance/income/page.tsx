@@ -3,20 +3,20 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { createTransaction, getAccounts, updateAccountBalance, getProjects, getTransactions, updateTransaction, deleteTransaction } from "@/lib/finance";
 import { getMasterCategories, getMasterSubCategories } from "@/lib/master-categories";
-import { Account, Project, Transaction, MasterCategory, MasterSubCategory } from "@/types/finance";
+import { Account, Project, Transaction, MasterCategory, MasterSubCategory, PaidConfirmMeta } from "@/types/finance";
 import { uploadImage } from "@/lib/upload";
 import { getUserRole, getAccessibleProjects, getAccessibleAccounts, hasProjectPermission, Role } from "@/lib/permissions";
-import { FolderOpen, CreditCard, Wallet, Upload, AlertCircle, Plus, Tag, Layers } from "lucide-react";
+import { FolderOpen, CreditCard, Wallet, Upload, AlertCircle, Plus, Tag, Layers, Eye, Edit2, Trash2, ChevronRight, X } from "lucide-react";
 import CurrencyInput from "@/components/finance/CurrencyInput";
 import SearchableSelect from "@/components/finance/SearchableSelect";
 import DataTableToolbar from "@/components/finance/DataTableToolbar";
 import { exportToCSV } from "@/lib/export";
 import TransactionDetailModal from "@/components/finance/TransactionDetailModal";
 import { WizardProgress, WizardStepPanel, WizardSummaryItem } from "@/components/finance/TransactionWizard";
-import DataTable, { AmountCell, DateCell, TextCell, ActionCell } from "@/components/finance/DataTable";
-import { Eye, Edit2, Trash2, Paperclip, ChevronRight, X } from "lucide-react";
+import DataTable, { AmountCell, DateCell, TextCell, ActionCell, StatusBadge } from "@/components/finance/DataTable";
 import { useTranslation } from "@/lib/i18n";
 import { projectLabelById, formatProjectListLabel, formatProjectMaLan } from "@/lib/project-display";
+import { sessionUserDisplayLabel } from "@/lib/session-user-label";
 import { getUsers } from "@/lib/users";
 import { UserProfile } from "@/types/user";
 
@@ -46,11 +46,12 @@ export default function IncomePage() {
         id?: string;
         role?: string;
         projectIds?: string[];
+        email?: string;
+        displayName?: string;
+        name?: string;
     } | null>(null);
     const [userRole, setUserRole] = useState<Role>("USER");
     const [showForm, setShowForm] = useState(false);
-    const billSectionRef = useRef<HTMLDivElement>(null);
-
     // Wizard step control
     const [wizardStep, setWizardStep] = useState(1);
 
@@ -81,9 +82,10 @@ export default function IncomePage() {
     const [editSource, setEditSource] = useState("");
     const [editDescription, setEditDescription] = useState("");
     const [editSaving, setEditSaving] = useState(false);
-    const [billTx, setBillTx] = useState<Transaction | null>(null);
-    const [billFiles, setBillFiles] = useState<File[]>([]);
-    const [billUploading, setBillUploading] = useState(false);
+    const [markPaidTx, setMarkPaidTx] = useState<Transaction | null>(null);
+    const [markPaidFiles, setMarkPaidFiles] = useState<File[]>([]);
+    const [markPaidSubmitting, setMarkPaidSubmitting] = useState(false);
+    const skipNextTransactionsFilterEffectRef = useRef(false);
 
     useEffect(() => {
         const u = localStorage.getItem("user") || sessionStorage.getItem("user");
@@ -169,6 +171,7 @@ export default function IncomePage() {
             setViewableProjectIds(ids);
 
             await fetchTransactions(ids);
+            skipNextTransactionsFilterEffectRef.current = true;
         } catch (e) { console.error(e); } finally { setLoading(false); }
     };
 
@@ -199,7 +202,14 @@ export default function IncomePage() {
         } catch (e) { console.error(e); }
     };
 
-    useEffect(() => { if (!loading) fetchTransactions(); }, [activeFilters, searchTerm, viewableProjectIds.join("|")]);
+    useEffect(() => {
+        if (loading || !currentUser) return;
+        if (skipNextTransactionsFilterEffectRef.current) {
+            skipNextTransactionsFilterEffectRef.current = false;
+            return;
+        }
+        void fetchTransactions();
+    }, [activeFilters, searchTerm, viewableProjectIds.join("|"), loading, currentUser, userRole]);
     useEffect(() => { if (projectId && selectedAccount?.projectId && selectedAccount.projectId !== projectId) setAccountId(""); }, [projectId]);
 
     // Khi đổi parent category, reset source
@@ -253,6 +263,7 @@ export default function IncomePage() {
             const finalSource = source || parentCategoryName || t("unselected");
 
             const uid = currentUser?.uid || currentUser?.id;
+            const approverLabel = sessionUserDisplayLabel(currentUser);
             await createTransaction({
                 type: "IN", amount: numAmount, currency, category: finalSource,
                 parentCategory: parentCategoryName, parentCategoryId,
@@ -261,6 +272,7 @@ export default function IncomePage() {
                 userId: uid || "", images: imageUrls,
                 paymentType,
                 approvedBy: uid,
+                ...(approverLabel ? { approverDisplayName: approverLabel } : {}),
                 createdAt: Date.now(), updatedAt: Date.now(),
             });
             await updateAccountBalance(accountId, selectedAccount!.balance + numAmount);
@@ -271,56 +283,65 @@ export default function IncomePage() {
         } catch (e) { console.error(e); alert(t("create_income_error")); } finally { setSubmitting(false); }
     };
 
-    const openBillUploader = () => {
-        if (!showForm) resetForm();
-        setShowForm(true);
-        // Wait for form render, then scroll to bill section
-        setTimeout(() => {
-            billSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-        }, 50);
+    const openMarkPaidModal = (tx: Transaction) => {
+        if (tx.type !== "IN" || tx.status === "PAID") return;
+        setMarkPaidTx(tx);
+        setMarkPaidFiles([]);
     };
 
-    const openBillForTx = (tx: Transaction) => {
-        setBillTx(tx);
-        setBillFiles([]);
+    const closeMarkPaidModal = () => {
+        setMarkPaidTx(null);
+        setMarkPaidFiles([]);
+        setMarkPaidSubmitting(false);
     };
 
-    const closeBillModal = () => {
-        setBillTx(null);
-        setBillFiles([]);
-        setBillUploading(false);
-    };
-
-    const handleBillPaste = (e: React.ClipboardEvent) => {
+    const handleMarkPaidPaste = (e: React.ClipboardEvent) => {
         const pastedImages = Array.from(e.clipboardData.items)
             .filter((item) => item.type.startsWith("image/"))
             .map((item) => item.getAsFile())
             .filter((f): f is File => !!f);
         if (pastedImages.length === 0) return;
         e.preventDefault();
-        setBillFiles((prev) => [...prev, ...pastedImages].slice(0, MAX_BILL_IMAGES));
+        setMarkPaidFiles((prev) => [...prev, ...pastedImages].slice(0, MAX_BILL_IMAGES));
     };
 
-    const handleUploadBillForTx = async () => {
-        if (!billTx) return;
-        if (billUploading) return;
-        if (billFiles.length === 0) return;
+    const handleConfirmMarkPaid = async () => {
+        if (!markPaidTx) return;
+        const loginLabel =
+            [currentUser?.displayName, currentUser?.name, currentUser?.email]
+                .map((s) => (typeof s === "string" ? s.trim() : ""))
+                .find(Boolean) || "";
+        if (!loginLabel) {
+            alert("Phiên đăng nhập không có tên/email để ghi nhận. Vui lòng đăng nhập lại.");
+            return;
+        }
+        const existing = Array.isArray(markPaidTx.images) ? markPaidTx.images.length : 0;
+        if (existing === 0 && markPaidFiles.length === 0) {
+            alert("Vui lòng tải ít nhất một ảnh chứng từ.");
+            return;
+        }
+        if (!confirm("Xác nhận đã thu và lưu ảnh chứng từ?")) return;
 
-        setBillUploading(true);
+        setMarkPaidSubmitting(true);
         try {
-            const uploaded = await Promise.all(
-                billFiles.slice(0, MAX_BILL_IMAGES).map((f) => uploadImage(f))
-            );
-            const current = Array.isArray(billTx.images) ? billTx.images : [];
-            const merged = Array.from(new Set([...current, ...uploaded]));
-            await updateTransaction(billTx.id, { images: merged });
+            const uploaded =
+                markPaidFiles.length > 0
+                    ? await Promise.all(markPaidFiles.slice(0, MAX_BILL_IMAGES).map((f) => uploadImage(f)))
+                    : [];
+            const merged = Array.from(new Set([...(markPaidTx.images || []), ...uploaded]));
+            const meta: PaidConfirmMeta = { at: new Date().toISOString(), byName: loginLabel };
+            await updateTransaction(markPaidTx.id, {
+                status: "PAID",
+                images: merged,
+                paidConfirmMeta: meta,
+            });
             await fetchData();
-            closeBillModal();
+            closeMarkPaidModal();
         } catch (e) {
             console.error(e);
-            alert("Lỗi khi tải bill lên");
+            alert("Lỗi khi cập nhật. Kiểm tra đã chạy migration cột paid_confirm_meta (jsonb) chưa.");
         } finally {
-            setBillUploading(false);
+            setMarkPaidSubmitting(false);
         }
     };
 
@@ -340,12 +361,16 @@ export default function IncomePage() {
     };
 
     const resolveApproverDisplay = (tx: Transaction) => {
+        const label = tx.approverDisplayName?.trim();
+        if (label) return label;
         if (tx.approvedBy) return resolveUserName(tx.approvedBy);
         if (tx.status === "APPROVED") return t("approver_not_recorded");
         return "—";
     };
 
-    const canModifyIncomeTransaction = (tx: Transaction) => tx.status !== "APPROVED";
+    /** Không sửa/xóa khi đã duyệt hoặc đã xác nhận Đã thu (PAID). */
+    const canModifyIncomeTransaction = (tx: Transaction) =>
+        tx.status !== "APPROVED" && tx.status !== "PAID";
 
     const openEditModal = (tx: Transaction) => {
         if (!canModifyIncomeTransaction(tx)) {
@@ -367,7 +392,7 @@ export default function IncomePage() {
 
     const handleSaveEdit = async () => {
         if (!editingTransaction) return;
-        if (editingTransaction.status === "APPROVED") {
+        if (editingTransaction.status === "APPROVED" || editingTransaction.status === "PAID") {
             alert(t("cannot_modify_approved_transaction"));
             return;
         }
@@ -408,8 +433,8 @@ export default function IncomePage() {
         if (!confirm("Bạn có chắc muốn xóa giao dịch này?")) return;
         try {
             const account = accounts.find(a => a.id === tx.accountId);
-            // Reverse approved income from account balance before deleting.
-            if (tx.status === "APPROVED" && account) {
+            // Reverse credited income from account balance before deleting.
+            if ((tx.status === "APPROVED" || tx.status === "PAID") && account) {
                 await updateAccountBalance(account.id, account.balance - Number(tx.amount || 0));
             }
             await deleteTransaction(tx.id);
@@ -425,22 +450,18 @@ export default function IncomePage() {
     return (
         <div className="space-y-6">
             {/* Header */}
-            <div className="flex items-center gap-3">
-                <div className="p-3 rounded-2xl bg-gradient-to-br from-green-500 to-emerald-600 shadow-lg shadow-green-500/25">
-                    <Wallet className="w-6 h-6 text-white" />
+            <div className="flex items-center gap-2 sm:gap-3">
+                <div className="p-2 sm:p-3 rounded-xl sm:rounded-2xl bg-gradient-to-br from-green-500 to-emerald-600 shadow-lg shadow-green-500/25">
+                    <Wallet className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                 </div>
-                <div><h1 className="text-2xl font-bold text-white">{t("income")}</h1><p className="text-sm text-white/50">{t("manage_income")}</p></div>
-                <div className="ml-auto flex items-center gap-3">
-                    <button
-                        onClick={openBillUploader}
-                        className="px-4 py-2 rounded-xl font-bold transition-all flex items-center gap-2 bg-white/10 text-white hover:bg-white/20"
-                        title="Mở form và tải bill"
-                    >
-                        📎 Tải bill
-                    </button>
+                <div>
+                    <h1 className="text-xl sm:text-2xl font-bold text-white leading-tight">{t("income")}</h1>
+                    <p className="text-xs sm:text-sm text-white/50">{t("manage_income")}</p>
+                </div>
+                <div className="ml-auto flex items-center gap-2 sm:gap-3">
                     <button
                         onClick={() => { setShowForm(!showForm); if (!showForm) resetForm(); }}
-                        className={`px-4 py-2 rounded-xl font-bold transition-all flex items-center gap-2 ${showForm ? "bg-white/10 text-white hover:bg-white/20" : "bg-green-600 text-white hover:bg-green-500 shadow-lg shadow-green-500/25"}`}
+                        className={`px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-1.5 sm:gap-2 ${showForm ? "bg-white/10 text-white hover:bg-white/20" : "bg-green-600 text-white hover:bg-green-500 shadow-lg shadow-green-500/25"}`}
                     >
                         {showForm ? t("close") : "＋ " + t("create_income_transaction")}
                     </button>
@@ -449,10 +470,10 @@ export default function IncomePage() {
 
             {/* Wizard Form */}
             {showForm && (
-                <div className="glass-card p-6 rounded-2xl border border-white/10 shadow-2xl overflow-hidden relative">
+                <div className="glass-card p-4 sm:p-6 rounded-2xl border border-white/10 shadow-2xl overflow-hidden relative">
                     <WizardProgress steps={WIZARD_STEPS} currentStep={wizardStep} />
 
-                    <form onSubmit={handleSubmit} onPaste={handlePasteImages} className="mt-8 space-y-6">
+                    <form onSubmit={handleSubmit} onPaste={handlePasteImages} className="mt-6 sm:mt-8 space-y-6">
                         {/* Step 1: Project */}
                         <WizardStepPanel
                             isActive={wizardStep === 1}
@@ -460,19 +481,19 @@ export default function IncomePage() {
                             description={t("select_project")}
                             icon={FolderOpen}
                         >
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                                 {accessibleProjects.map(p => (
                                     <button
                                         key={p.id} type="button" onClick={() => setProjectId(p.id)}
-                                        className={`p-4 rounded-xl border text-left transition-all group ${projectId === p.id ? "bg-green-500/20 border-green-500/50 shadow-lg shadow-green-500/10" : "bg-white/5 border-white/10 hover:border-white/25"}`}
+                                        className={`p-3 sm:p-4 rounded-xl border text-left transition-all group ${projectId === p.id ? "bg-green-500/20 border-green-500/50 shadow-lg shadow-green-500/10" : "bg-white/5 border-white/10 hover:border-white/25"}`}
                                     >
                                         <div className="flex items-center justify-between">
-                                            <div className="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                                                <FolderOpen className={projectId === p.id ? "text-green-400" : "text-[var(--muted)]"} />
+                                            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-white/10 flex items-center justify-center mb-2 sm:mb-3 group-hover:scale-110 transition-transform">
+                                                <FolderOpen className={`w-4 h-4 sm:w-5 sm:h-5 ${projectId === p.id ? "text-green-400" : "text-[var(--muted)]"}`} />
                                             </div>
                                             {projectId === p.id && <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />}
                                         </div>
-                                        <h3 className="font-bold text-white truncate">{formatProjectMaLan(p)}</h3>
+                                        <h3 className="text-sm sm:text-base font-bold text-white truncate">{formatProjectMaLan(p)}</h3>
                                     </button>
                                 ))}
                             </div>
@@ -491,23 +512,23 @@ export default function IncomePage() {
                                     <p>{t("select_project_first")}</p>
                                 </div>
                             ) : (
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                                     {accessibleAccounts.map(acc => (
                                         <button
                                             key={acc.id} type="button" onClick={() => setAccountId(acc.id)}
-                                            className={`p-4 rounded-xl border text-left transition-all group ${accountId === acc.id ? "bg-green-500/20 border-green-500/50 shadow-lg shadow-green-500/10" : "bg-white/5 border-white/10 hover:border-white/25"}`}
+                                            className={`p-3 sm:p-4 rounded-xl border text-left transition-all group ${accountId === acc.id ? "bg-green-500/20 border-green-500/50 shadow-lg shadow-green-500/10" : "bg-white/5 border-white/10 hover:border-white/25"}`}
                                         >
                                             <div className="flex items-center justify-between mb-3">
                                                 <div className="flex items-center gap-2">
-                                                    <div className="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center">
-                                                        <CreditCard className={accountId === acc.id ? "text-green-400" : "text-[var(--muted)]"} />
+                                                    <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-white/10 flex items-center justify-center">
+                                                        <CreditCard className={`w-4 h-4 sm:w-5 sm:h-5 ${accountId === acc.id ? "text-green-400" : "text-[var(--muted)]"}`} />
                                                     </div>
-                                                    <span className="text-xl">{CURRENCY_FLAGS[acc.currency] || "💰"}</span>
+                                                    <span className="text-lg sm:text-xl">{CURRENCY_FLAGS[acc.currency] || "💰"}</span>
                                                 </div>
                                                 {accountId === acc.id && <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />}
                                             </div>
-                                            <h3 className="font-bold text-white truncate">{acc.name}</h3>
-                                            <p className="text-sm font-bold text-green-400 mt-1">{new Intl.NumberFormat("vi-VN").format(acc.balance)} <span className="text-[10px] opacity-70 uppercase">{acc.currency}</span></p>
+                                            <h3 className="text-sm sm:text-base font-bold text-white truncate">{acc.name}</h3>
+                                            <p className="text-xs sm:text-sm font-bold text-green-400 mt-1">{new Intl.NumberFormat("vi-VN").format(acc.balance)} <span className="text-[10px] opacity-70 uppercase">{acc.currency}</span></p>
                                         </button>
                                     ))}
                                     {accessibleAccounts.length === 0 && (
@@ -534,6 +555,7 @@ export default function IncomePage() {
                                             <CurrencyInput
                                                 value={amount}
                                                 onChange={setAmount}
+                                                currency={selectedAccount?.currency || "USD"}
                                                 className="glass-input text-2xl font-bold py-4 px-6 rounded-2xl w-full border-green-500/30 text-green-400 focus:scale-[1.02] transition-transform"
                                                 placeholder="0"
                                             />
@@ -598,7 +620,7 @@ export default function IncomePage() {
                                         </div>
                                     </div>
 
-                                    <div className="space-y-4" ref={billSectionRef}>
+                                    <div className="space-y-4">
                                         <label className="block text-sm font-bold text-[var(--muted)] uppercase tracking-wider">
                                             Tải bill ({files.length}/{MAX_BILL_IMAGES})
                                         </label>
@@ -766,6 +788,20 @@ export default function IncomePage() {
                             )
                         },
                         {
+                            key: "status",
+                            header: t("status"),
+                            render: (tx: Transaction) => {
+                                if (tx.status === "PAID") {
+                                    return (
+                                        <span className="px-2 py-1 rounded-lg text-[10px] uppercase font-bold tracking-wider bg-purple-500/20 text-purple-300 border border-purple-500/20">
+                                            Đã thu
+                                        </span>
+                                    );
+                                }
+                                return <StatusBadge status={tx.status} />;
+                            }
+                        },
+                        {
                             key: "actions",
                             header: t("actions"),
                             align: "right",
@@ -778,11 +814,13 @@ export default function IncomePage() {
                                         <Eye size={18} />
                                     </button>
                                     <button
-                                        onClick={() => openBillForTx(tx)}
-                                        className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-[var(--muted)] hover:text-green-300 transition-all transform active:scale-90"
-                                        title={`Tải bill (${(tx.images?.length || 0)})`}
+                                        type="button"
+                                        onClick={() => openMarkPaidModal(tx)}
+                                        disabled={tx.status === "PAID"}
+                                        className="px-2.5 py-2 rounded-lg bg-white/5 hover:bg-purple-500/15 border border-white/10 text-[10px] font-bold uppercase tracking-wider text-purple-300 transition-all transform active:scale-90 disabled:opacity-40"
+                                        title="Mở form tải ảnh và xác nhận Đã thu"
                                     >
-                                        <Paperclip size={16} />
+                                        Đã thu
                                     </button>
                                     {canModifyIncomeTransaction(tx) && (
                                         <button
@@ -848,24 +886,34 @@ export default function IncomePage() {
                 </div>
             )}
 
-            {billTx && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onPaste={handleBillPaste}>
+            {markPaidTx && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onPaste={handleMarkPaidPaste}>
                     <div className="glass-card w-full max-w-lg rounded-2xl border border-white/20 p-6">
                         <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-xl font-bold text-white">Tải bill cho giao dịch</h3>
-                            <button onClick={closeBillModal} className="text-[var(--muted)] hover:text-white">
+                            <h3 className="text-xl font-bold text-white">Xác nhận Đã thu</h3>
+                            <button type="button" onClick={closeMarkPaidModal} className="text-[var(--muted)] hover:text-white">
                                 <X size={20} />
                             </button>
                         </div>
-
-                        <div className="text-xs text-[var(--muted)] mb-4">
-                            Bạn có thể chọn nhiều ảnh hoặc dán ảnh bằng Ctrl+V. Tối đa {MAX_BILL_IMAGES} ảnh.
-                        </div>
-
+                        <p className="text-xs text-[var(--muted)] mb-4">
+                            Tải ảnh chứng từ (bắt buộc nếu giao dịch chưa có ảnh). Có thể chọn nhiều ảnh hoặc dán Ctrl+V. Tối đa {MAX_BILL_IMAGES} ảnh.
+                        </p>
+                        {markPaidTx.images && markPaidTx.images.length > 0 && (
+                            <div className="mb-4">
+                                <p className="text-[10px] font-bold text-white/50 uppercase mb-2">Ảnh hiện có ({markPaidTx.images.length})</p>
+                                <div className="flex flex-wrap gap-2">
+                                    {markPaidTx.images.map((url, i) => (
+                                        <a key={i} href={url} target="_blank" rel="noreferrer" className="block w-16 h-16 rounded-lg overflow-hidden border border-white/10">
+                                            <img src={url} alt="" className="w-full h-full object-cover" />
+                                        </a>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                         <div className="flex items-center gap-3 mb-4">
                             <label className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 cursor-pointer transition-colors">
-                                <Paperclip size={18} className="text-green-400" />
-                                <span className="text-sm font-semibold text-white">Chọn ảnh bill</span>
+                                <Upload size={18} className="text-purple-400" />
+                                <span className="text-sm font-semibold text-white">Thêm ảnh</span>
                                 <input
                                     type="file"
                                     accept="image/*"
@@ -874,21 +922,20 @@ export default function IncomePage() {
                                     onChange={(e) => {
                                         const next = e.currentTarget.files;
                                         if (!next) return;
-                                        setBillFiles((prev) => [...prev, ...Array.from(next)].slice(0, MAX_BILL_IMAGES));
+                                        setMarkPaidFiles((prev) => [...prev, ...Array.from(next)].slice(0, MAX_BILL_IMAGES));
                                     }}
                                 />
                             </label>
-                            <span className="text-xs text-white/60">{billFiles.length}/{MAX_BILL_IMAGES}</span>
+                            <span className="text-xs text-white/60">Mới: {markPaidFiles.length}/{MAX_BILL_IMAGES}</span>
                         </div>
-
-                        {billFiles.length > 0 && (
+                        {markPaidFiles.length > 0 && (
                             <div className="flex flex-wrap gap-3 mb-5">
-                                {billFiles.map((file, i) => (
+                                {markPaidFiles.map((file, i) => (
                                     <div key={i} className="relative w-24 h-24 rounded-xl overflow-hidden border border-white/10">
-                                        <img src={URL.createObjectURL(file)} className="w-full h-full object-cover" alt="bill-preview" />
+                                        <img src={URL.createObjectURL(file)} className="w-full h-full object-cover" alt="preview" />
                                         <button
                                             type="button"
-                                            onClick={() => setBillFiles((prev) => prev.filter((_, idx) => idx !== i))}
+                                            onClick={() => setMarkPaidFiles((prev) => prev.filter((_, idx) => idx !== i))}
                                             className="absolute top-1 right-1 p-1 bg-red-500 rounded-lg text-white"
                                             title="Xóa"
                                         >
@@ -898,27 +945,30 @@ export default function IncomePage() {
                                 ))}
                             </div>
                         )}
-
                         <div className="flex gap-3">
                             <button
                                 type="button"
-                                onClick={closeBillModal}
+                                onClick={closeMarkPaidModal}
                                 className="flex-1 px-4 py-2 rounded-lg border border-white/10 text-[var(--muted)] hover:text-white"
                             >
                                 {t("cancel")}
                             </button>
                             <button
                                 type="button"
-                                onClick={handleUploadBillForTx}
-                                disabled={billUploading || billFiles.length === 0}
-                                className="flex-1 px-4 py-2 rounded-lg bg-green-600 hover:bg-green-500 text-white font-semibold disabled:opacity-50"
+                                onClick={handleConfirmMarkPaid}
+                                disabled={
+                                    markPaidSubmitting ||
+                                    ((markPaidTx.images?.length || 0) === 0 && markPaidFiles.length === 0)
+                                }
+                                className="flex-1 px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-semibold disabled:opacity-50"
                             >
-                                {billUploading ? t("processing") : "Tải lên"}
+                                {markPaidSubmitting ? t("processing") : "Xác nhận Đã thu"}
                             </button>
                         </div>
                     </div>
                 </div>
             )}
+
         </div>
     );
 }

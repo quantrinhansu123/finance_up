@@ -7,6 +7,7 @@ import {
     ProjectPermission,
     ProjectSubCategory,
     Transaction,
+    PaidConfirmMeta,
     FixedCost,
     MonthlyRevenue,
     Fund,
@@ -392,6 +393,23 @@ export async function deleteProject(projectId: string): Promise<void> {
 }
 
 // --- Transactions ---
+function parsePaidConfirmMeta(raw: unknown): PaidConfirmMeta | undefined {
+    if (raw == null) return undefined;
+    if (typeof raw === "string") {
+        try {
+            return parsePaidConfirmMeta(JSON.parse(raw));
+        } catch {
+            return undefined;
+        }
+    }
+    if (typeof raw !== "object") return undefined;
+    const o = raw as Record<string, unknown>;
+    const at = typeof o.at === "string" ? o.at : undefined;
+    const byName = typeof o.byName === "string" ? o.byName : undefined;
+    if (!at || !byName) return undefined;
+    return { at, byName };
+}
+
 const mapTxFromDB = (data: any): Transaction => ({
     id: data.id,
     amount: Number(data.amount),
@@ -417,8 +435,10 @@ const mapTxFromDB = (data: any): Transaction => ({
     warning: data.warning || false,
     rejectionReason: data.rejection_reason || undefined,
     approvedBy: data.approved_by || undefined,
+    approverDisplayName: data.approver_display_name?.trim() || undefined,
     rejectedBy: data.rejected_by || undefined,
     paidBy: data.paid_by || undefined,
+    paidConfirmMeta: parsePaidConfirmMeta(data.paid_confirm_meta),
     confirmedBy: data.confirmed_by || undefined,
     createdBy: data.created_by || "",
     userId: data.owner_user_id || "", 
@@ -452,8 +472,11 @@ const mapTxToDB = (data: any) => {
     if (data.warning !== undefined) res.warning = data.warning;
     if (data.rejectionReason !== undefined) res.rejection_reason = data.rejectionReason;
     if (data.approvedBy !== undefined) res.approved_by = data.approvedBy;
+    if (data.approverDisplayName !== undefined)
+        res.approver_display_name = data.approverDisplayName?.trim() || null;
     if (data.rejectedBy !== undefined) res.rejected_by = data.rejectedBy;
     if (data.paidBy !== undefined) res.paid_by = data.paidBy;
+    if (data.paidConfirmMeta !== undefined) res.paid_confirm_meta = data.paidConfirmMeta;
     if (data.confirmedBy !== undefined) res.confirmed_by = data.confirmedBy;
     if (data.createdBy !== undefined) res.created_by = data.createdBy;
     if (data.userId !== undefined) res.owner_user_id = data.userId;

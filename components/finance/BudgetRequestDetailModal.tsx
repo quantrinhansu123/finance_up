@@ -7,6 +7,7 @@ import { useTranslation } from "@/lib/i18n";
 import { updateTransactionStatus, updateTransaction, updateAccountBalance, getAccount } from "@/lib/finance";
 import { getUserRole, hasProjectPermission } from "@/lib/permissions";
 import { uploadImage } from "../../lib/upload";
+import { sessionUserDisplayLabel } from "@/lib/session-user-label";
 import CurrencyInput from "./CurrencyInput";
 
 interface Props {
@@ -55,9 +56,11 @@ export default function BudgetRequestDetailModal({ transaction, onClose, onUpdat
         try {
             await updateTransactionStatus(transaction.id, "APPROVED");
             const approverId = currentUser.uid || currentUser.id;
+            const approverLabel = sessionUserDisplayLabel(currentUser);
             await updateTransaction(transaction.id, {
                 amount: Number(editedAmount),
                 ...(approverId ? { approvedBy: approverId } : {}),
+                ...(approverLabel ? { approverDisplayName: approverLabel } : {}),
             });
             onUpdate();
         } catch (e) {

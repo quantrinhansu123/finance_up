@@ -48,22 +48,16 @@ export default function TransactionDetailModal({
                 setApproverInfo(null);
                 setConfirmerInfo(null);
 
-                // Load creator info
-                if (transaction.userId) {
-                    const creator = await getUserById(transaction.userId);
-                    setCreatorInfo(creator);
-                }
-
-                // Load approver info (approved_by is profile UUID)
-                if (transaction.approvedBy) {
-                    const approver = await getUserById(transaction.approvedBy);
-                    setApproverInfo(approver);
-                }
-
-                if (transaction.confirmedBy) {
-                    const confirmer = await getUserById(transaction.confirmedBy);
-                    setConfirmerInfo(confirmer);
-                }
+                const needApproverProfile =
+                    !!transaction.approvedBy && !transaction.approverDisplayName?.trim();
+                const [creator, approver, confirmer] = await Promise.all([
+                    transaction.userId ? getUserById(transaction.userId) : Promise.resolve(null),
+                    needApproverProfile ? getUserById(transaction.approvedBy!) : Promise.resolve(null),
+                    transaction.confirmedBy ? getUserById(transaction.confirmedBy) : Promise.resolve(null),
+                ]);
+                setCreatorInfo(creator);
+                setApproverInfo(approver);
+                setConfirmerInfo(confirmer);
             } catch (error) {
                 console.error("Failed to load user info", error);
             } finally {
@@ -266,8 +260,22 @@ export default function TransactionDetailModal({
                         </div>
                     </div>
 
-                    {/* Approver */}
-                    {transaction.status === "COMPLETED" && transaction.confirmedBy && (
+                    {/* Đã chi (chi phí): meta jsonb */}
+                    {transaction.type === "OUT" && transaction.status === "COMPLETED" && transaction.paidConfirmMeta && (
+                        <div className="p-4 bg-emerald-500/5 rounded-xl border border-emerald-500/20">
+                            <div className="flex items-center gap-2 text-sm text-emerald-400 mb-2">
+                                <CheckCircle size={14} />
+                                Đã chi
+                            </div>
+                            <div className="text-sm text-white font-medium">{transaction.paidConfirmMeta.byName}</div>
+                            <div className="text-xs text-[var(--muted)] mt-2">
+                                {new Date(transaction.paidConfirmMeta.at).toLocaleString("vi-VN")}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Completed (legacy: confirmed_by, khi không có paid_confirm_meta) */}
+                    {transaction.status === "COMPLETED" && transaction.confirmedBy && !(transaction.type === "OUT" && transaction.paidConfirmMeta) && (
                         <div className="p-4 bg-emerald-500/5 rounded-xl border border-emerald-500/20">
                             <div className="flex items-center gap-2 text-sm text-emerald-400 mb-2">
                                 <CheckCircle size={14} />
@@ -282,16 +290,28 @@ export default function TransactionDetailModal({
                             ) : (
                                 <div className="text-sm text-white/90">{transaction.confirmedBy}</div>
                             )}
+                            <div className="text-xs text-[var(--muted)] mt-2">
+                                {new Date(transaction.updatedAt || Date.now()).toLocaleString("vi-VN")}
+                            </div>
                         </div>
                     )}
 
-                    {transaction.approvedBy && transaction.status !== "PENDING" && transaction.status !== "REJECTED" && (
+                    {(transaction.approverDisplayName || transaction.approvedBy) &&
+                        transaction.status !== "PENDING" &&
+                        transaction.status !== "REJECTED" && (
                         <div className="p-4 bg-green-500/5 rounded-xl border border-green-500/20">
                             <div className="flex items-center gap-2 text-sm text-green-400 mb-3">
                                 <CheckCircle size={14} />
                                 {t("approver")}
                             </div>
-                            {loadingUsers ? (
+                            {transaction.approverDisplayName?.trim() ? (
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center text-sm font-bold">
+                                        {transaction.approverDisplayName.trim()[0].toUpperCase()}
+                                    </div>
+                                    <div className="text-white font-medium">{transaction.approverDisplayName.trim()}</div>
+                                </div>
+                            ) : loadingUsers ? (
                                 <div className="text-sm text-[var(--muted)]">{t("loading")}</div>
                             ) : approverInfo ? (
                                 <div className="flex items-center gap-3">
@@ -310,6 +330,19 @@ export default function TransactionDetailModal({
                             ) : (
                                 <div className="text-sm text-white">{transaction.approvedBy}</div>
                             )}
+                        </div>
+                    )}
+
+                    {transaction.type === "IN" && transaction.status === "PAID" && transaction.paidConfirmMeta && (
+                        <div className="p-4 bg-purple-500/5 rounded-xl border border-purple-500/20">
+                            <div className="flex items-center gap-2 text-sm text-purple-300 mb-2">
+                                <CheckCircle size={14} />
+                                Đã thu
+                            </div>
+                            <div className="text-sm text-white font-medium">{transaction.paidConfirmMeta.byName}</div>
+                            <div className="text-xs text-[var(--muted)] mt-2">
+                                {new Date(transaction.paidConfirmMeta.at).toLocaleString("vi-VN")}
+                            </div>
                         </div>
                     )}
                 </div>
