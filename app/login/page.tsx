@@ -45,14 +45,8 @@ export default function LoginPage() {
                 return;
             }
 
-            if (payload.access_token && payload.refresh_token) {
-                await supabase.auth.setSession({
-                    access_token: payload.access_token,
-                    refresh_token: payload.refresh_token,
-                });
-            } else {
-                await supabase.auth.signOut();
-            }
+            // Không dùng JWT: luôn đăng xuất Supabase Auth để request dùng anon key (RLS finance tắt — xem migration).
+            await supabase.auth.signOut();
 
             const userData = JSON.stringify(user);
             if (rememberMe) {
@@ -61,7 +55,6 @@ export default function LoginPage() {
             } else {
                 sessionStorage.setItem("user", userData);
                 sessionStorage.setItem("isLoggedIn", "true");
-                await supabase.auth.signOut();
             }
 
             router.push("/finance");

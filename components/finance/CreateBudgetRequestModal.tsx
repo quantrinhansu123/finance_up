@@ -1,14 +1,17 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { X, Save, AlertCircle, Upload, ImageIcon, Trash2 } from "lucide-react";
-import { getAccounts, getProjects, createTransaction, getBeneficiaries, BUDGET_REQUEST_CATEGORY } from "@/lib/finance";
-import { Account, Project, Currency, TransactionType, BankInfo, TransactionStatus, Beneficiary } from "@/types/finance";
-import { getAccessibleProjects, getProjectsWithPermission } from "@/lib/permissions";
+import { useState, useEffect, useMemo } from "react";
+import { X, Save, Upload, ImageIcon, Trash2 } from "lucide-react";
+import {
+    createTransaction,
+    getBeneficiaries,
+    BUDGET_REQUEST_CATEGORY,
+    BUDGET_REQUEST_CATEGORY_SEPARATOR,
+} from "@/lib/finance";
+import { getMasterCategories, getMasterSubCategories } from "@/lib/master-categories";
+import { Currency, TransactionType, BankInfo, TransactionStatus, Beneficiary, MasterCategory, MasterSubCategory } from "@/types/finance";
+import BudgetRequestCategoryPicker from "./BudgetRequestCategoryPicker";
 import { uploadImage } from "../../lib/upload";
-import { getCurrencyFlag } from "@/lib/currency";
-import { formatProjectListLabel } from "@/lib/project-display";
-import { useTranslation } from "@/lib/i18n";
 import CurrencyInput from "./CurrencyInput";
 
 
@@ -17,33 +20,20 @@ interface Props {
     onSuccess: () => void;
     username: string;
     userId: string;
-    currentUser: any;
-    /** Khi mở từ trang dự án: chọn sẵn đúng dự án */
-    initialProjectId?: string;
 }
 
 
-
-
-export default function CreateBudgetRequestModal({ onClose, onSuccess, username, userId, currentUser, initialProjectId }: Props) {
-    const { t } = useTranslation();
+export default function CreateBudgetRequestModal({ onClose, onSuccess, username, userId }: Props) {
     const [loading, setLoading] = useState(false);
-    const [accounts, setAccounts] = useState<Account[]>([]);
-    const [projects, setProjects] = useState<Project[]>([]);
-    const [recentBeneficiaries, setRecentBeneficiaries] = useState<string[]>([]);
-    const [showSuggestions, setShowSuggestions] = useState(false);
     const [allBeneficiaries, setAllBeneficiaries] = useState<Beneficiary[]>([]);
     const [selectedBeneficiaryId, setSelectedBeneficiaryId] = useState("");
     const [selectedPlatform, setSelectedPlatform] = useState("");
 
-    // Form State
-    const [projectId, setProjectId] = useState("");
-    const [accountId, setAccountId] = useState("");
     const [beneficiary, setBeneficiary] = useState("");
     const [amount, setAmount] = useState<number>(0);
     const [currency, setCurrency] = useState<Currency>("VND");
-    const [description, setDescription] = useState(""); // Purpose
-    const [transferContent, setTransferContent] = useState(""); // Content
+    const [description, setDescription] = useState("");
+    const [transferContent, setTransferContent] = useState("");
     const [bankInfo, setBankInfo] = useState<BankInfo>({
         bankName: "",
         accountNumber: "",
@@ -51,78 +41,52 @@ export default function CreateBudgetRequestModal({ onClose, onSuccess, username,
         branch: ""
     });
 
-    // NEW: Supporting documents upload
     const [uploadingDocs, setUploadingDocs] = useState(false);
     const [docFiles, setDocFiles] = useState<File[]>([]);
 
+    const [masterCategories, setMasterCategories] = useState<MasterCategory[]>([]);
+    const [globalSubCategories, setGlobalSubCategories] = useState<MasterSubCategory[]>([]);
+    const [expenseCategories, setExpenseCategories] = useState<string[]>([BUDGET_REQUEST_CATEGORY]);
+
     useEffect(() => {
         const loadData = async () => {
-            const [accs, projs, txs, beneficiaries] = await Promise.all([
-                getAccounts(),
-                getProjects(),
-                import("@/lib/finance").then(m => m.getTransactions()),
-                getBeneficiaries()
+            const [beneficiaries, cats, subs] = await Promise.all([
+                getBeneficiaries(),
+                getMasterCategories(),
+                getMasterSubCategories(),
             ]);
-            setAccounts(accs);
             setAllBeneficiaries(beneficiaries);
-            // Filter projects based on specific request_budget permission
-            const accessibleProjects = getProjectsWithPermission(currentUser, projs, "request_budget");
-            setProjects(accessibleProjects);
-
-            // Fetch recent beneficiaries from last transactions
-            const uniqueBeneficiaries = Array.from(new Set(txs.filter(t => t.beneficiary).map(t => t.beneficiary!))).slice(0, 10);
-            setRecentBeneficiaries(uniqueBeneficiaries);
-
+            setMasterCategories(cats.filter((c) => c.isActive && c.type === "EXPENSE"));
+            setGlobalSubCategories(subs.filter((c) => c.isActive));
         };
-        loadData();
-    }, [currentUser]);
+        void loadData();
+    }, []);
 
-    useEffect(() => {
-        if (!initialProjectId || projects.length === 0) return;
-        if (projects.some((p) => p.id === initialProjectId)) setProjectId(initialProjectId);
-    }, [initialProjectId, projects]);
+    const expenseCategorySuggestions = useMemo(() => {
+        const names = new Set<string>();
+        names.add(BUDGET_REQUEST_CATEGORY);
+        const expenseMasterIds = new Set(masterCategories.map((m) => m.id));
+        for (const s of globalSubCategories) {
+            if (expenseMasterIds.has(s.parentCategoryId)) names.add(s.name);
+        }
+        return Array.from(names);
+    }, [masterCategories, globalSubCategories]);
 
-    // Handle Beneficiary Selection
     useEffect(() => {
         const selected = allBeneficiaries.find(b => b.id === selectedBeneficiaryId);
         if (selected) {
             setBeneficiary(selected.name);
-            // If only one platform, auto-select it
             if (selected.platforms.length === 1) {
                 setSelectedPlatform(selected.platforms[0]);
             } else {
                 setSelectedPlatform("");
             }
-            // Use first bank account by default if exists
             if (selected.bankAccounts.length > 0) {
                 setBankInfo(selected.bankAccounts[0]);
             }
         }
     }, [selectedBeneficiaryId, allBeneficiaries]);
 
-    // Derived State
-    const filteredAccounts = accounts.filter(a => a.projectId === projectId);
-    const selectedAccount = accounts.find(a => a.id === accountId);
-
-    // Auto-set currency when project changes (default to project currency or VND)
-    // Disabled as per user request to use VND fixed for budget requests
-    useEffect(() => {
-        // const selectedProject = projects.find(p => p.id === projectId);
-        // if (selectedProject?.currency) {
-        //     setCurrency(selectedProject.currency);
-        // } else {
-        setCurrency("VND");
-        // }
-    }, [projectId, projects]);
-
-    // Auto-select account if only one exists in project
-    useEffect(() => {
-        if (filteredAccounts.length === 1 && !accountId) {
-            setAccountId(filteredAccounts[0].id);
-        }
-    }, [projectId, filteredAccounts]);
-
-    // Handle file selection for supporting docs
     const handleDocFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files) {
             const newFiles = Array.from(e.target.files);
@@ -130,12 +94,10 @@ export default function CreateBudgetRequestModal({ onClose, onSuccess, username,
         }
     };
 
-    // Remove selected file
     const removeDocFile = (index: number) => {
         setDocFiles(prev => prev.filter((_, i) => i !== index));
     };
 
-    // Upload supporting docs
     const uploadSupportingDocs = async (): Promise<string[]> => {
         if (docFiles.length === 0) return [];
         setUploadingDocs(true);
@@ -148,38 +110,36 @@ export default function CreateBudgetRequestModal({ onClose, onSuccess, username,
     };
 
     const handleSubmit = async () => {
-        if (!amount || !projectId || !beneficiary) {
+        if (!amount || !beneficiary) {
             alert("Vui lòng điền đầy đủ thông tin bắt buộc!");
             return;
         }
-        if (!accountId) {
-            alert("Vui lòng chọn tài khoản nguồn chi (quỹ dự án) — kế toán sẽ trừ quỹ trên tài khoản này khi admin duyệt.");
+        if (expenseCategories.length === 0) {
+            alert("Vui lòng chọn ít nhất một hạng mục chi phí.");
             return;
         }
 
         setLoading(true);
         try {
-            // Upload supporting documents first
             const uploadedDocs = await uploadSupportingDocs();
 
             const uid = userId || "";
+            const creatorLabel = (username && username.trim()) || uid || "—";
             const newTx = {
                 date: new Date().toISOString(),
                 amount: Number(amount),
                 currency,
                 type: "OUT" as TransactionType,
-                category: BUDGET_REQUEST_CATEGORY,
+                category: expenseCategories.map((c) => c.trim()).filter(Boolean).join(BUDGET_REQUEST_CATEGORY_SEPARATOR),
                 description: description,
                 transferContent: transferContent,
-                projectId: projectId || undefined,
-                accountId,
                 status: "PENDING" as TransactionStatus,
-                createdBy: uid || username,
-                userId: uid || username,
+                createdBy: creatorLabel,
+                userId: uid || creatorLabel,
                 beneficiary,
                 platform: selectedPlatform,
                 bankInfo,
-                images: uploadedDocs, // Supporting documents
+                images: uploadedDocs,
                 isBudgetRequest: true,
                 createdAt: Date.now(),
                 updatedAt: Date.now()
@@ -199,70 +159,27 @@ export default function CreateBudgetRequestModal({ onClose, onSuccess, username,
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
             <div className="glass-card w-full max-w-2xl rounded-2xl flex flex-col max-h-[90vh] overflow-hidden">
-                <div className="p-6 border-b border-white/10 flex justify-between items-center">
+                <div className="p-6 border-b border-white/10 flex justify-between items-center shrink-0">
                     <h2 className="text-xl font-bold text-white">Tạo Yêu Cầu Xin Ngân Sách</h2>
                     <button onClick={onClose} className="text-white/50 hover:text-white">
                         <X size={24} />
                     </button>
                 </div>
 
-                <div className="p-6 overflow-y-auto space-y-4">
+                <div className="p-6 flex-1 min-h-0 overflow-y-auto space-y-4">
                     <div className="grid grid-cols-1 gap-4">
-                        <div>
-                            <label className="block text-sm text-[var(--muted)] mb-1">Dự án áp dụng *</label>
-                            <select
-                                value={projectId}
-                                onChange={(e) => {
-                                    setProjectId(e.target.value);
-                                    setAccountId("");
-                                }}
-                                className="glass-input w-full p-3 rounded-xl font-bold text-white focus:ring-2 focus:ring-blue-500/30 transition-all"
-                                required
-                            >
-                                <option value="" disabled={projects.length > 0}>
-                                    {projects.length === 0
-                                        ? "Không có dự án được phép xin ngân sách"
-                                        : t("select_project_code")}
-                                </option>
-                                {projects.map((p) => (
-                                    <option key={p.id} value={p.id}>
-                                        {formatProjectListLabel(p)}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block text-sm text-[var(--muted)] mb-1">Tài khoản nguồn chi (quỹ dự án) *</label>
-                            <p className="text-[11px] text-white/40 mb-2">
-                                Sau khi admin duyệt, hệ thống tự tạo phiếu chi và trừ số dư trên tài khoản này. Thụ hưởng nhận tiền theo STK bên dưới.
-                            </p>
-                            <select
-                                value={accountId}
-                                onChange={(e) => setAccountId(e.target.value)}
-                                className="glass-input w-full p-3 rounded-xl font-bold text-white focus:ring-2 focus:ring-blue-500/30 transition-all"
-                                disabled={!projectId || filteredAccounts.length === 0}
-                            >
-                                <option value="">
-                                    {!projectId
-                                        ? "Chọn dự án trước"
-                                        : filteredAccounts.length === 0
-                                            ? "Dự án chưa có tài khoản quỹ"
-                                            : "— Chọn tài khoản —"}
-                                </option>
-                                {filteredAccounts.map((a) => (
-                                    <option key={a.id} value={a.id}>
-                                        {a.name} ({a.currency}) — {Number(a.balance).toLocaleString("vi-VN")}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-                        <div className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2">
-                            <span className="text-[10px] uppercase font-bold text-white/40 tracking-wider">Hạng mục chi phí</span>
-                            <p className="text-white font-semibold mt-1">{BUDGET_REQUEST_CATEGORY}</p>
+                        <div className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-3">
+                            <label className="block text-[10px] uppercase font-bold text-white/40 tracking-wider mb-2">
+                                Hạng mục chi phí *
+                            </label>
+                            <BudgetRequestCategoryPicker
+                                value={expenseCategories}
+                                onChange={setExpenseCategories}
+                                suggestions={expenseCategorySuggestions}
+                            />
                         </div>
                     </div>
 
-                    {/* Beneficiary Management Selection */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <label className="block text-sm text-[var(--muted)] mb-1">Đơn vị thụ hưởng *</label>
@@ -329,7 +246,6 @@ export default function CreateBudgetRequestModal({ onClose, onSuccess, username,
                         )}
                     </div>
 
-                    {/* Bank Info Display */}
                     <div className="bg-white/5 p-4 rounded-lg space-y-2">
                         <h3 className="text-xs uppercase tracking-wider text-[var(--muted)] font-bold">Thông tin chuyển khoản</h3>
                         <div className="grid grid-cols-2 gap-4">
@@ -366,7 +282,6 @@ export default function CreateBudgetRequestModal({ onClose, onSuccess, username,
                         </div>
                     </div>
 
-                    {/* Amount & Category */}
                     <div className="space-y-4">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
@@ -397,8 +312,6 @@ export default function CreateBudgetRequestModal({ onClose, onSuccess, username,
                         </div>
                     </div>
 
-
-                    {/* Content */}
                     <div>
                         <label className="block text-sm text-[var(--muted)] mb-1">Nội dung chuyển khoản (Memo)</label>
                         <input
@@ -419,7 +332,6 @@ export default function CreateBudgetRequestModal({ onClose, onSuccess, username,
                         />
                     </div>
 
-                    {/* NEW: Supporting Documents Upload */}
                     <div>
                         <label className="block text-sm text-[var(--muted)] mb-1">
                             Chứng từ đề xuất (Báo giá, Hợp đồng, Hóa đơn...)
@@ -443,7 +355,6 @@ export default function CreateBudgetRequestModal({ onClose, onSuccess, username,
                             </label>
                         </div>
 
-                        {/* Preview selected files */}
                         {docFiles.length > 0 && (
                             <div className="mt-3 space-y-2">
                                 <div className="text-xs text-[var(--muted)]">Đã chọn {docFiles.length} file:</div>
@@ -453,6 +364,7 @@ export default function CreateBudgetRequestModal({ onClose, onSuccess, username,
                                             <ImageIcon size={14} className="text-blue-400" />
                                             <span className="text-sm text-white truncate max-w-[150px]">{file.name}</span>
                                             <button
+                                                type="button"
                                                 onClick={() => removeDocFile(i)}
                                                 className="text-red-400 hover:text-red-300"
                                             >
@@ -466,14 +378,16 @@ export default function CreateBudgetRequestModal({ onClose, onSuccess, username,
                     </div>
                 </div>
 
-                <div className="p-6 border-t border-white/10 flex justify-end gap-3">
+                <div className="p-6 border-t border-white/10 flex justify-end gap-3 shrink-0">
                     <button
+                        type="button"
                         onClick={onClose}
                         className="px-6 py-2 rounded-lg hover:bg-white/5 text-[var(--muted)] hover:text-white transition-colors"
                     >
                         Hủy
                     </button>
                     <button
+                        type="button"
                         onClick={handleSubmit}
                         disabled={loading || uploadingDocs}
                         className="px-6 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold transition-colors flex items-center gap-2"

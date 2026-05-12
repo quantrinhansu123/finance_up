@@ -613,17 +613,6 @@ export default function ExpensePage() {
                                 <div className="lg:col-span-2 space-y-6">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                         <div className="space-y-4">
-                                            <label className="block text-sm font-bold text-[var(--muted)] uppercase tracking-wider">{t("amount")} ({selectedAccount?.currency})</label>
-                                            <CurrencyInput
-                                                value={amount}
-                                                onChange={setAmount}
-                                                currency={selectedAccount?.currency || "USD"}
-                                                className="glass-input text-2xl font-bold py-4 px-6 rounded-2xl w-full border-red-500/30 text-red-400 focus:scale-[1.02] transition-transform"
-                                                placeholder="0"
-                                            />
-                                        </div>
-
-                                        <div className="space-y-4">
                                             <label className="block text-sm font-bold text-[var(--muted)] uppercase tracking-wider">{t("category_master")}</label>
                                             <SearchableSelect
                                                 options={masterCategories.map(cat => ({ id: cat.id, label: cat.name }))}
@@ -632,9 +621,7 @@ export default function ExpensePage() {
                                                 placeholder={t("select_master_category")}
                                             />
                                         </div>
-                                    </div>
 
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                         <div className="space-y-4">
                                             <label className="block text-sm font-bold text-[var(--muted)] uppercase tracking-wider">{t("category")}</label>
                                             <SearchableSelect
@@ -643,6 +630,19 @@ export default function ExpensePage() {
                                                 onChange={setCategory}
                                                 placeholder={parentCategoryId ? t("select_sub_category_expense") : t("select_master_category")}
                                                 disabled={!parentCategoryId}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div className="space-y-4">
+                                            <label className="block text-sm font-bold text-[var(--muted)] uppercase tracking-wider">{t("amount")} ({selectedAccount?.currency})</label>
+                                            <CurrencyInput
+                                                value={amount}
+                                                onChange={setAmount}
+                                                currency={selectedAccount?.currency || "USD"}
+                                                className="glass-input text-2xl font-bold py-4 px-6 rounded-2xl w-full border-red-500/30 text-red-400 focus:scale-[1.02] transition-transform"
+                                                placeholder="0"
                                             />
                                         </div>
 

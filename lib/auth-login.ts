@@ -103,9 +103,11 @@ export async function performLoginWithSupabase(
     if (!row) {
         return { ok: false, message: "Email hoặc mật khẩu không đúng" };
     }
+
     return {
         ok: true,
         user: rowToSafeClient(row as Record<string, unknown>),
+        /** App không bắt buộc Supabase JWT; client dùng anon key + user trong storage (xem migration tắt RLS finance). */
         session: null,
     };
 }

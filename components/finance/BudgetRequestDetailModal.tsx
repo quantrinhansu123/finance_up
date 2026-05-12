@@ -1,14 +1,16 @@
 "use client";
 
 import { Transaction, TransactionStatus, Project, Account } from "@/types/finance";
+import type { UserProfile } from "@/types/user";
 import { X, CheckCircle, Clock, Upload, ArrowRightCircle, ShieldCheck, Download, ExternalLink, XCircle, Wallet } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "@/lib/i18n";
 import { updateTransactionStatus, updateTransaction, updateAccountBalance, getAccount } from "@/lib/finance";
 import { getUserRole, hasProjectPermission } from "@/lib/permissions";
 import { uploadImage } from "../../lib/upload";
 import { sessionUserDisplayLabel } from "@/lib/session-user-label";
 import CurrencyInput from "./CurrencyInput";
+import { buildVietQrImageUrl, normalizeVietQrAccountNo, resolveVietQrBankBin } from "@/lib/vietqr";
 
 interface Props {
     transaction: Transaction;
@@ -18,9 +20,10 @@ interface Props {
     currentUser: any;
     allProjects?: Project[]; // NEW: For permission checking
     allAccounts?: Account[]; // NEW: For showing source account info
+    allUsers?: UserProfile[];
 }
 
-export default function BudgetRequestDetailModal({ transaction, onClose, onUpdate, currentUser, allProjects = [], allAccounts = [] }: Props) {
+export default function BudgetRequestDetailModal({ transaction, onClose, onUpdate, currentUser, allProjects = [], allAccounts = [], allUsers = [] }: Props) {
     const { t } = useTranslation();
     const [loading, setLoading] = useState(false);
     const [uploadUrl, setUploadUrl] = useState("");
@@ -49,6 +52,47 @@ export default function BudgetRequestDetailModal({ transaction, onClose, onUpdat
         (project && hasProjectPermission(userId, project, "approve_transactions", currentUser));
 
     const isCreator = currentUser?.uid === transaction.userId || currentUser?.id === transaction.userId;
+
+    const vietQrPayUrl = useMemo(() => {
+        const postApprove: TransactionStatus[] = ["APPROVED", "PAID", "COMPLETED"];
+        if (!postApprove.includes(transaction.status)) return null;
+        if (transaction.currency !== "VND" || !transaction.bankInfo) return null;
+        const bi = transaction.bankInfo;
+        const bin = resolveVietQrBankBin(bi.bankName);
+        const acct = normalizeVietQrAccountNo(bi.accountNumber);
+        if (!bin || !acct) return null;
+        return buildVietQrImageUrl({
+            bankBin: bin,
+            accountNumber: acct,
+            amount: transaction.amount,
+            accountName: bi.accountName,
+            addInfo: transaction.transferContent || undefined,
+        });
+    }, [
+        transaction.status,
+        transaction.currency,
+        transaction.amount,
+        transaction.bankInfo,
+        transaction.transferContent,
+    ]);
+
+    const showVietQrHint =
+        ["APPROVED", "PAID", "COMPLETED"].includes(transaction.status) &&
+        transaction.currency === "VND" &&
+        !!transaction.bankInfo &&
+        !vietQrPayUrl;
+
+    const creatorDisplayName = useMemo(() => {
+        const m = new Map<string, string>();
+        for (const u of allUsers) {
+            const label = (u.displayName || "").trim() || u.email || u.uid;
+            m.set(u.uid, label);
+            if (u.email) m.set(u.email, label);
+        }
+        const raw = transaction.createdBy || transaction.userId;
+        if (!raw) return "—";
+        return m.get(raw) || raw;
+    }, [allUsers, transaction.createdBy, transaction.userId]);
 
     const handleApprove = async () => {
         if (!confirm("Bạn có chắc chắn muốn duyệt yêu cầu này?")) return;
@@ -329,6 +373,12 @@ export default function BudgetRequestDetailModal({ transaction, onClose, onUpdat
                                         </div>
                                     )}
                                     <div>
+                                        <span className="block text-xs text-[var(--muted)]">Người tạo</span>
+                                        <div className="p-2 bg-white/5 rounded text-white text-sm font-medium" title={transaction.createdBy || transaction.userId}>
+                                            {creatorDisplayName}
+                                        </div>
+                                    </div>
+                                    <div>
                                         <span className="block text-xs text-[var(--muted)]">Nội dung chuyển khoản (Memo)</span>
                                         <div className="p-2 bg-white/5 rounded text-white text-sm">{transaction.transferContent || "N/A"}</div>
                                     </div>
@@ -406,6 +456,44 @@ export default function BudgetRequestDetailModal({ transaction, onClose, onUpdat
                             </div>
                         </div>
                     </div>
+
+                    {vietQrPayUrl && (
+                        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/[0.07] p-4 flex flex-col sm:flex-row sm:items-start gap-4">
+                            <div className="shrink-0 mx-auto sm:mx-0 rounded-lg bg-white p-2 shadow-lg">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                    src={vietQrPayUrl}
+                                    alt="VietQR chuyển khoản"
+                                    width={200}
+                                    height={200}
+                                    className="size-[200px] object-contain"
+                                />
+                            </div>
+                            <div className="flex-1 space-y-2 min-w-0">
+                                <h3 className="text-sm font-bold text-emerald-300 uppercase tracking-wide">
+                                    QR thanh toán (VietQR)
+                                </h3>
+                                <p className="text-sm text-white/80">
+                                    Sau khi duyệt, mở app ngân hàng → Quét mã QR → số tiền và nội dung chuyển khoản được điền sẵn (nếu ngân hàng hỗ trợ).
+                                </p>
+                                <a
+                                    href={vietQrPayUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1.5 text-sm text-emerald-400 hover:text-emerald-300 font-medium"
+                                >
+                                    <ExternalLink size={14} />
+                                    Mở ảnh QR (tab mới)
+                                </a>
+                            </div>
+                        </div>
+                    )}
+
+                    {showVietQrHint && (
+                        <div className="rounded-xl border border-amber-500/25 bg-amber-500/10 px-4 py-3 text-sm text-amber-100/90">
+                            Không tạo được VietQR tự động: hãy ghi đúng tên ngân hàng thường dùng (ví dụ «Vietcombank», «Techcombank», «BIDV») ở thụ hưởng, hoặc chuyển khoản thủ công theo số tài khoản bên trên.
+                        </div>
+                    )}
                 </div>
 
                 <div className="p-6 border-t border-white/10 flex justify-end gap-3 bg-[#1e1e2e]">
@@ -499,7 +587,7 @@ export default function BudgetRequestDetailModal({ transaction, onClose, onUpdat
                             </h3>
                             <p className="text-sm text-[var(--muted)] mb-4">
                                 {pendingAction === "PAY"
-                                    ? "Chọn tài khoản nguồn của dự án và tải lên bill chuyển khoản để hoàn tất giao dịch."
+                                    ? "Chọn tài khoản thanh toán và tải lên bill chuyển khoản để hoàn tất giao dịch."
                                     : "Vui lòng tải lên 2 ảnh chứng minh (Ví dụ: Số dư tài khoản Ads)."}
                             </p>
 
@@ -514,12 +602,11 @@ export default function BudgetRequestDetailModal({ transaction, onClose, onUpdat
                                         >
                                             <option value="">-- Chọn tài khoản --</option>
                                             {allAccounts
-                                                .filter(a => {
-                                                    if (transaction.projectId) {
-                                                        return a.projectId === transaction.projectId;
-                                                    }
-                                                    return !a.projectId;
-                                                })
+                                                .filter(a =>
+                                                    transaction.projectId
+                                                        ? a.projectId === transaction.projectId
+                                                        : true
+                                                )
                                                 .map(a => (
                                                     <option key={a.id} value={a.id}>
                                                         {a.name} ({a.balance.toLocaleString("vi-VN")} {a.currency})

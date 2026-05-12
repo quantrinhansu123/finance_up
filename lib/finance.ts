@@ -504,8 +504,11 @@ export function outflowNeedsApproverConfirmation(amount: number, currency: strin
     return false;
 }
 
-/** Hạng mục cố định cho yêu cầu xin ngân sách / phiếu chi sau duyệt. */
+/** Hạng mục mặc định (gợi ý) cho yêu cầu xin ngân sách; có thể kèm thêm hạng mục khác. */
 export const BUDGET_REQUEST_CATEGORY = "Nạp Quỹ";
+
+/** Nối nhiều hạng mục chi phí trong một yêu cầu (một cột `category` duy nhất). */
+export const BUDGET_REQUEST_CATEGORY_SEPARATOR = " · ";
 
 /** Chi OUT đã được duyệt từ luồng chờ (warning) — chờ người tạo xác nhận đã chi thực tế → COMPLETED */
 export function needsExpenseSpendConfirmation(tx: Pick<Transaction, "type" | "status" | "warning">): boolean {
@@ -522,21 +525,13 @@ export async function hasBudgetExpenseVoucher(sourceRequestId: string): Promise<
 }
 
 /**
- * Sau khi admin duyệt yêu cầu xin ngân sách: tạo phiếu chi OUT trên tài khoản nguồn, trừ quỹ.
+ * Sau khi admin duyệt yêu cầu xin ngân sách: tạo phiếu chi OUT (liên kết yêu cầu gốc).
+ * Nếu yêu cầu không có `accountId`, vẫn tạo phiếu nhưng **không** trừ số dư — kế toán chọn tài khoản khi thanh toán.
  */
 export async function createExpenseVoucherFromBudgetRequest(
     requestTx: Transaction,
     opts: { approvedBy: string; approverDisplayName?: string }
 ): Promise<string> {
-    if (!requestTx.accountId) {
-        throw new Error("Yêu cầu thiếu tài khoản nguồn chi. Vui lòng sửa yêu cầu hoặc tạo lại.");
-    }
-    const account = await getAccount(requestTx.accountId);
-    if (!account) throw new Error("Không tìm thấy tài khoản nguồn.");
-    if (account.balance < requestTx.amount) {
-        throw new Error("Số dư tài khoản nguồn không đủ để lập phiếu chi.");
-    }
-
     const warning = outflowNeedsApproverConfirmation(requestTx.amount, requestTx.currency);
     const uid = opts.approvedBy;
     const desc = `Phiếu chi sau duyệt xin ngân sách — ${requestTx.beneficiary || "thụ hưởng"}`.trim();
@@ -545,7 +540,7 @@ export async function createExpenseVoucherFromBudgetRequest(
         type: "OUT",
         amount: requestTx.amount,
         currency: requestTx.currency,
-        category: BUDGET_REQUEST_CATEGORY,
+        category: (requestTx.category && requestTx.category.trim()) || BUDGET_REQUEST_CATEGORY,
         description: desc,
         transferContent: requestTx.transferContent,
         projectId: requestTx.projectId,
@@ -567,7 +562,15 @@ export async function createExpenseVoucherFromBudgetRequest(
         updatedAt: Date.now(),
     });
 
-    await updateAccountBalance(account.id, account.balance - requestTx.amount);
+    if (requestTx.accountId) {
+        const account = await getAccount(requestTx.accountId);
+        if (!account) throw new Error("Không tìm thấy tài khoản nguồn.");
+        if (account.balance < requestTx.amount) {
+            throw new Error("Số dư tài khoản nguồn không đủ để lập phiếu chi.");
+        }
+        await updateAccountBalance(account.id, account.balance - requestTx.amount);
+    }
+
     return newId;
 }
 

@@ -226,6 +226,46 @@ export default function TransactionDetailModal({
                     </div>
                 )}
 
+                {(transaction.beneficiary || transaction.platform || transaction.transferContent || transaction.bankInfo) && (
+                    <div className="mb-6 p-4 rounded-xl bg-blue-500/10 border border-blue-500/20 space-y-2">
+                        <div className="text-sm font-bold text-blue-300 uppercase tracking-wide mb-2">Thụ hưởng & chuyển khoản</div>
+                        {transaction.beneficiary && (
+                            <div className="flex justify-between gap-4 text-sm">
+                                <span className="text-[var(--muted)]">Đơn vị / Thụ hưởng</span>
+                                <span className="text-white font-medium text-right">{transaction.beneficiary}</span>
+                            </div>
+                        )}
+                        {transaction.platform && (
+                            <div className="flex justify-between gap-4 text-sm">
+                                <span className="text-[var(--muted)]">Nền tảng</span>
+                                <span className="text-white text-right">{transaction.platform}</span>
+                            </div>
+                        )}
+                        {transaction.transferContent && (
+                            <div className="flex justify-between gap-4 text-sm">
+                                <span className="text-[var(--muted)]">Nội dung CK</span>
+                                <span className="text-white font-mono text-right break-all">{transaction.transferContent}</span>
+                            </div>
+                        )}
+                        {transaction.bankInfo && (
+                            <div className="mt-2 pt-2 border-t border-blue-500/20 space-y-1 text-sm">
+                                <div className="flex justify-between gap-4">
+                                    <span className="text-[var(--muted)]">Ngân hàng</span>
+                                    <span className="text-white text-right">{transaction.bankInfo.bankName}</span>
+                                </div>
+                                <div className="flex justify-between gap-4">
+                                    <span className="text-[var(--muted)]">Số TK</span>
+                                    <span className="text-white font-mono">{transaction.bankInfo.accountNumber}</span>
+                                </div>
+                                <div className="flex justify-between gap-4">
+                                    <span className="text-[var(--muted)]">Chủ TK</span>
+                                    <span className="text-white text-right uppercase">{transaction.bankInfo.accountName}</span>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+
                 {/* User Info */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                     {/* Creator */}

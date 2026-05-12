@@ -144,7 +144,7 @@ export default function SearchableSelect({
 
             {isOpen && (
                 <div className="absolute z-50 w-full mt-2 bg-[#1a1a1a] border border-white/10 rounded-xl overflow-hidden shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200">
-                    <div className="max-h-60 overflow-y-auto p-1">
+                    <div className="max-h-[min(50vh,20rem)] overflow-y-auto overscroll-contain p-1">
                         {filteredOptions.length > 0 ? (
                             filteredOptions.map(option => (
                                 <div

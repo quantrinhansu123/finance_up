@@ -138,6 +138,10 @@ export function canTransferMoney(role: Role): boolean {
     return true; // Quyền chuyển tiền được kiểm tra theo dự án
 }
 
+function normalizeId(v: unknown): string {
+    return v == null ? "" : String(v).trim();
+}
+
 // Lấy danh sách project mà user được phép truy cập
 export function getAccessibleProjects(user: any, allProjects: any[]): any[] {
     const role = getUserRole(user);
@@ -147,15 +151,32 @@ export function getAccessibleProjects(user: any, allProjects: any[]): any[] {
         return allProjects;
     }
 
-    // User chỉ xem project mình tham gia (trong members hoặc memberIds)
-    const userId = user?.uid || user?.id;
-    const userProjectIds: string[] = Array.isArray(user?.projectIds) ? user.projectIds : [];
-    return allProjects.filter(p =>
-        p.members?.some((m: any) => m.id === userId) ||
-        p.memberIds?.includes(userId) ||
-        p.createdBy === userId ||
-        (p.id && userProjectIds.includes(p.id))
-    );
+    // User chỉ xem project mình tham gia — thử mọi id thường gặp (employees.id vs auth.users id trong members)
+    const idSet = new Set<string>();
+    for (const key of [
+        "uid",
+        "id",
+        "userId",
+        "user_id",
+        "authUserId",
+        "auth_user_id",
+        "employeeId",
+        "employee_id",
+    ] as const) {
+        const v = normalizeId(user?.[key]);
+        if (v) idSet.add(v);
+    }
+    const userProjectIds: string[] = Array.isArray(user?.projectIds) ? user.projectIds.map(normalizeId) : [];
+    if (idSet.size === 0 && userProjectIds.length === 0) return [];
+
+    return allProjects.filter((p) => {
+        const created = normalizeId(p.createdBy);
+        if (created && idSet.has(created)) return true;
+        if (p.id && userProjectIds.includes(normalizeId(p.id))) return true;
+        if (p.members?.some((m: any) => idSet.has(normalizeId(m.id)))) return true;
+        if ((p.memberIds || []).some((mid: unknown) => idSet.has(normalizeId(mid)))) return true;
+        return false;
+    });
 }
 
 // Lấy danh sách dự án mà user có permission cụ thể
@@ -163,7 +184,7 @@ export function getProjectsWithPermission(user: any, allProjects: Project[], per
     const role = getUserRole(user);
     if (role === "ADMIN") return allProjects;
 
-    const userId = user?.uid || user?.id;
+    const userId = normalizeId(user?.uid || user?.id || user?.userId);
     return allProjects.filter(p => hasProjectPermission(userId, p, permission, user));
 }
 
@@ -194,18 +215,19 @@ export { PROJECT_ROLE_PERMISSIONS };
 // Lấy role của user trong một project cụ thể
 export function getProjectRole(userId: string, project: Project): ProjectRole | null {
     if (!project || !userId) return null;
+    const uid = normalizeId(userId);
 
     // Kiểm tra trong members array mới
     if (project.members) {
-        const member = project.members.find(m => m.id === userId);
+        const member = project.members.find((m) => normalizeId(m.id) === uid);
         if (member) return member.role;
     }
 
     // Fallback: nếu là creator thì là OWNER
-    if (project.createdBy === userId) return "OWNER";
+    if (normalizeId(project.createdBy) === uid) return "OWNER";
 
     // Fallback: nếu có trong memberIds cũ thì là MEMBER
-    if (project.memberIds?.includes(userId)) return "MEMBER";
+    if (project.memberIds?.some((mid) => normalizeId(mid) === uid)) return "MEMBER";
 
     return null;
 }
@@ -220,12 +242,13 @@ export function hasProjectPermission(
     // System Admin luôn có full quyền - cần truyền user object đầy đủ
     if (user && getUserRole(user) === "ADMIN") return true;
 
-    const projectRole = getProjectRole(userId, project);
+    const uid = normalizeId(userId);
+    const projectRole = getProjectRole(uid, project);
     if (!projectRole) return false;
 
     // Kiểm tra custom permissions nếu có (phải có ít nhất 1 permission)
     if (project.members) {
-        const member = project.members.find(m => m.id === userId);
+        const member = project.members.find((m) => normalizeId(m.id) === uid);
         if (member?.permissions && member.permissions.length > 0) {
             return member.permissions.includes(permission);
         }

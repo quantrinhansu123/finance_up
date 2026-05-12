@@ -16,18 +16,19 @@ import {
     hasBudgetExpenseVoucher,
     createExpenseVoucherFromBudgetRequest,
 } from "@/lib/finance";
-import { Transaction, Account, Project, BudgetRequest } from "@/types/finance";
+import { Transaction, Account, Project, BudgetRequest, TransactionStatus } from "@/types/finance";
 import { logActivity } from "@/lib/logger";
 import { supabase } from "@/lib/supabase";
 import { uploadImage } from "@/lib/upload";
 import { getUserRole, hasProjectPermission } from "@/lib/permissions";
 import { useRouter } from "next/navigation";
-import { ShieldX } from "lucide-react";
+import { ShieldX, Eye } from "lucide-react";
 import DataTable, { DateCell } from "@/components/finance/DataTable";
+import TransactionDetailModal from "@/components/finance/TransactionDetailModal";
 import { useTranslation } from "@/lib/i18n";
 import { sessionUserDisplayLabel } from "@/lib/session-user-label";
 
-type ApprovalTab = "all" | "high_value" | "pending";
+type ApprovalTab = "all" | "high_value" | "processed";
 type MainApprovalTab = "transactions" | "budgets";
 
 interface ApprovalLog {
@@ -44,6 +45,9 @@ export default function ApprovalsPage() {
     const { t } = useTranslation();
     const router = useRouter();
     const [pendingTransactions, setPendingTransactions] = useState<Transaction[]>([]);
+    const [processedTransactions, setProcessedTransactions] = useState<Transaction[]>([]);
+    const [viewDetailTx, setViewDetailTx] = useState<Transaction | null>(null);
+    const [viewingBudget, setViewingBudget] = useState<BudgetRequest | null>(null);
     const [loading, setLoading] = useState(true);
     const [accounts, setAccounts] = useState<Account[]>([]);
     const [currentUser, setCurrentUser] = useState<any>(null);
@@ -54,6 +58,8 @@ export default function ApprovalsPage() {
     const [approvalProjectIds, setApprovalProjectIds] = useState<string[]>([]);
     const [allProjects, setAllProjects] = useState<Project[]>([]);
     const [budgetRequests, setBudgetRequests] = useState<BudgetRequest[]>([]);
+    /** Toàn bộ giao dịch — dùng tra cứu từ lịch sử phê duyệt */
+    const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
 
     // Rejection Modal
     const [showRejectModal, setShowRejectModal] = useState(false);
@@ -98,6 +104,23 @@ export default function ApprovalsPage() {
 
             setAccounts(accs);
             setAllProjects(allProjects);
+            setAllTransactions(txs);
+
+            const PROCESSED_STATUSES: TransactionStatus[] = ["APPROVED", "REJECTED", "PAID", "COMPLETED"];
+            const cutoffProcessed = Date.now() - 90 * 24 * 60 * 60 * 1000;
+
+            const buildProcessed = (projectIds: string[] | null) => {
+                let list = txs.filter(
+                    (t) =>
+                        PROCESSED_STATUSES.includes(t.status) &&
+                        new Date(t.date).getTime() >= cutoffProcessed
+                );
+                if (projectIds !== null) {
+                    list = list.filter((t) => t.projectId && projectIds.includes(t.projectId));
+                }
+                list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+                return list.slice(0, 100);
+            };
 
             // ADMIN có full quyền
             if (role === "ADMIN") {
@@ -105,6 +128,7 @@ export default function ApprovalsPage() {
                 setPendingTransactions(txs.filter(t => t.status === "PENDING"));
                 setApprovalProjectIds(allProjects.map(p => p.id));
                 setBudgetRequests(budgetReqs);
+                setProcessedTransactions(buildProcessed(null));
             } else {
                 // Lấy các project mà user có quyền approve_transactions
                 const projectsWithApproval = allProjects.filter(p =>
@@ -126,10 +150,12 @@ export default function ApprovalsPage() {
                         !br.id_du_an || projectIds.includes(br.id_du_an)
                     );
                     setBudgetRequests(filteredBudgetRequests);
+                    setProcessedTransactions(buildProcessed(projectIds));
                 } else {
                     setCanApprove(false);
                     setPendingTransactions([]);
                     setBudgetRequests([]);
+                    setProcessedTransactions([]);
                 }
             }
 
@@ -147,7 +173,7 @@ export default function ApprovalsPage() {
                     "DISBURSE_BUDGET"
                 ])
                 .order("logged_at", { ascending: false })
-                .limit(50);
+                .limit(120);
 
             if (logsError) {
                 console.error("Failed to fetch approval logs", logsError);
@@ -178,7 +204,7 @@ export default function ApprovalsPage() {
                     };
                 });
 
-                setApprovalLogs(mappedLogs.slice(0, 10));
+                setApprovalLogs(mappedLogs);
             }
         } catch (error) {
             console.error(error);
@@ -220,6 +246,9 @@ export default function ApprovalsPage() {
     };
 
     const getFilteredTransactions = () => {
+        if (activeTab === "processed") {
+            return processedTransactions;
+        }
         if (activeTab === "high_value") {
             return pendingTransactions.filter(tx => {
                 const isHighVND = tx.currency === "VND" && tx.amount > 5000000;
@@ -228,6 +257,55 @@ export default function ApprovalsPage() {
             });
         }
         return pendingTransactions;
+    };
+
+    const txAccountLabel = (tx: Transaction) =>
+        accounts.find((a) => a.id === tx.accountId)?.name || (tx.accountId ? tx.accountId : undefined);
+
+    const txProjectLabel = (tx: Transaction) =>
+        tx.projectId ? allProjects.find((p) => p.id === tx.projectId)?.name : undefined;
+
+    const LOG_TX_ACTIONS = new Set(["APPROVE", "REJECT"]);
+    const LOG_BUDGET_ACTIONS = new Set([
+        "APPROVE_BUDGET",
+        "REJECT_BUDGET",
+        "DIRECTOR_APPROVE_BUDGET",
+        "ACCOUNTANT_APPROVE_BUDGET",
+        "DISBURSE_BUDGET",
+    ]);
+
+    const handleViewApprovalLog = async (log: ApprovalLog) => {
+        if (!log.transactionId?.trim()) {
+            alert("Không có mã tham chiếu để mở chi tiết.");
+            return;
+        }
+        const id = log.transactionId.trim();
+
+        if (LOG_TX_ACTIONS.has(log.action)) {
+            const tx = allTransactions.find((t) => t.id === id);
+            if (tx) {
+                setViewDetailTx(tx);
+                return;
+            }
+            alert("Không tìm thấy giao dịch (có thể đã xóa).");
+            return;
+        }
+
+        if (LOG_BUDGET_ACTIONS.has(log.action)) {
+            const { data, error } = await supabase
+                .from("budget_requests")
+                .select("*, du_an(ten_du_an), crm_agencies(ten_agency)")
+                .eq("id", id)
+                .maybeSingle();
+            if (error || !data) {
+                alert("Không tìm thấy báo giá / yêu cầu ngân sách.");
+                return;
+            }
+            setViewingBudget(data as BudgetRequest);
+            return;
+        }
+
+        alert("Loại nhật ký này chưa hỗ trợ xem chi tiết.");
     };
 
     /** Xin ngân sách (mới + bản cũ có hạng mục Nạp Quỹ + thụ hưởng): admin duyệt → tự tạo phiếu chi OUT, không trừ quỹ trên dòng yêu cầu. */
@@ -247,10 +325,6 @@ export default function ApprovalsPage() {
 
         try {
             if (isBudgetRequestApprovalFlow(tx)) {
-                if (!tx.accountId) {
-                    alert("Yêu cầu thiếu tài khoản nguồn chi (quỹ dự án). Cập nhật yêu cầu hoặc tạo lại trong Xin ngân sách.");
-                    return;
-                }
                 if (await hasBudgetExpenseVoucher(tx.id)) {
                     alert("Phiếu chi đã được tạo cho yêu cầu này.");
                     return;
@@ -562,7 +636,7 @@ export default function ApprovalsPage() {
 
             {activeMainTab === "transactions" && (
                 <>
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
                 <button
                     onClick={() => setActiveTab("all")}
                     className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === "all"
@@ -581,25 +655,41 @@ export default function ApprovalsPage() {
                 >
                     {t("high_value_tx")} (&gt;5tr / &gt;$100)
                 </button>
+                <button
+                    onClick={() => setActiveTab("processed")}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === "processed"
+                        ? "bg-slate-500/25 text-slate-200"
+                        : "text-[var(--muted)] hover:text-white"
+                        }`}
+                >
+                    Đã xử lý ({processedTransactions.length})
+                </button>
             </div>
 
                     {loading ? (
                 <div className="text-center py-12 text-[var(--muted)]">{t("loading")}</div>
             ) : filteredTxs.length === 0 ? (
                 <div className="glass-card p-12 text-center text-[var(--muted)] rounded-xl">
-                    <div className="text-4xl mb-4">✓</div>
-                    <p>{t("no_pending_tx")}</p>
+                    <div className="text-4xl mb-4">{activeTab === "processed" ? "📋" : "✓"}</div>
+                    <p>{activeTab === "processed" ? "Chưa có giao dịch đã duyệt / từ chối trong phạm vi quyền (90 ngày gần nhất)." : t("no_pending_tx")}</p>
                 </div>
             ) : (
                 <div className="grid gap-4">
                     {filteredTxs.map(tx => {
                         const isHighValue = (tx.currency === "VND" && tx.amount > 5000000) ||
                             (tx.currency !== "VND" && tx.amount > 100);
+                        const isProcessedList = activeTab === "processed";
+
+                        const statusLabel =
+                            tx.status === "APPROVED" ? "Đã duyệt" :
+                            tx.status === "REJECTED" ? "Từ chối" :
+                            tx.status === "PAID" ? "Đã TT" :
+                            tx.status === "COMPLETED" ? "Hoàn thành" : tx.status;
 
                         return (
                             <div
                                 key={tx.id}
-                                className={`glass-card p-6 rounded-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4 ${isHighValue ? "border-l-4 border-red-500" : ""
+                                className={`glass-card p-6 rounded-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4 ${isHighValue && !isProcessedList ? "border-l-4 border-red-500" : ""
                                     }`}
                             >
                                 <div className="flex-1">
@@ -608,13 +698,18 @@ export default function ApprovalsPage() {
                                             }`}>
                                             {tx.type === "IN" ? t("income") : t("expense")}
                                         </span>
-                                        {isHighValue && (
+                                        {isProcessedList && (
+                                            <span className="px-2 py-1 rounded text-xs font-bold bg-blue-500/20 text-blue-300">
+                                                {statusLabel}
+                                            </span>
+                                        )}
+                                        {isHighValue && !isProcessedList && (
                                             <span className="bg-red-500/20 text-red-400 px-2 py-1 rounded text-xs font-bold">
                                                 ⚠️ {t("high_value_warning")}
                                             </span>
                                         )}
                                         <span className="text-sm text-[var(--muted)]">{new Date(tx.date).toLocaleDateString()}</span>
-                                        <span className="text-sm text-[var(--muted)]">{t("approved_by").replace("{name}", tx.createdBy)}</span>
+                                        <span className="text-sm text-[var(--muted)]">Người tạo: {tx.createdBy}</span>
                                     </div>
                                     <h3 className="text-xl font-bold text-white mb-1">
                                         {tx.amount.toLocaleString("vi-VN")} {tx.currency}
@@ -647,19 +742,33 @@ export default function ApprovalsPage() {
                                     )}
                                 </div>
 
-                                <div className="flex gap-3">
+                                <div className="flex flex-wrap gap-3">
                                     <button
-                                        onClick={() => openRejectModal(tx)}
-                                        className="px-4 py-2 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 font-medium transition-colors"
+                                        type="button"
+                                        onClick={() => setViewDetailTx(tx)}
+                                        className="px-4 py-2 rounded-lg bg-white/10 text-white hover:bg-white/15 font-medium transition-colors inline-flex items-center gap-2"
                                     >
-                                        {t("reject")}
+                                        <Eye size={18} />
+                                        Xem
                                     </button>
-                                    <button
-                                        onClick={() => handleApprove(tx)}
-                                        className="px-6 py-2 rounded-lg bg-green-500 hover:bg-green-600 text-white font-bold transition-colors shadow-lg shadow-green-500/20"
-                                    >
-                                        {t("approve")}
-                                    </button>
+                                    {!isProcessedList && (
+                                        <>
+                                            <button
+                                                type="button"
+                                                onClick={() => openRejectModal(tx)}
+                                                className="px-4 py-2 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 font-medium transition-colors"
+                                            >
+                                                {t("reject")}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleApprove(tx)}
+                                                className="px-6 py-2 rounded-lg bg-green-500 hover:bg-green-600 text-white font-bold transition-colors shadow-lg shadow-green-500/20"
+                                            >
+                                                {t("approve")}
+                                            </button>
+                                        </>
+                                    )}
                                 </div>
                             </div>
                         );
@@ -753,8 +862,17 @@ export default function ApprovalsPage() {
                                                 )}
                                             </td>
                                             <td className="px-4 py-3">
-                                                <div className="flex gap-2">
+                                                <div className="flex flex-wrap gap-2">
                                                     <button
+                                                        type="button"
+                                                        onClick={() => setViewingBudget(request)}
+                                                        className="px-3 py-1.5 rounded bg-white/10 text-white hover:bg-white/15 font-medium inline-flex items-center gap-1.5"
+                                                    >
+                                                        <Eye size={16} />
+                                                        Xem
+                                                    </button>
+                                                    <button
+                                                        type="button"
                                                         onClick={() => openBudgetRejectModal(request)}
                                                         className="px-3 py-1.5 rounded bg-red-500/20 text-red-300 hover:bg-red-500/30 font-medium"
                                                     >
@@ -762,6 +880,7 @@ export default function ApprovalsPage() {
                                                     </button>
                                                     {!request.giam_doc_da_duyet && canDirectorApproveBudget(request) && (
                                                         <button
+                                                            type="button"
                                                             onClick={() => handleDirectorApproveBudget(request)}
                                                             className="px-3 py-1.5 rounded bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30 font-medium"
                                                         >
@@ -770,6 +889,7 @@ export default function ApprovalsPage() {
                                                     )}
                                                     {!request.ke_toan_da_duyet && canAccountantApproveBudget(request) && (
                                                         <button
+                                                            type="button"
                                                             onClick={() => handleAccountantApproveBudget(request)}
                                                             className="px-3 py-1.5 rounded bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30 font-medium"
                                                         >
@@ -778,6 +898,7 @@ export default function ApprovalsPage() {
                                                     )}
                                                     {request.giam_doc_da_duyet && request.ke_toan_da_duyet && !request.da_giai_ngan && (
                                                         <button
+                                                            type="button"
                                                             onClick={() => openDisburseModal(request)}
                                                             className="px-3 py-1.5 rounded bg-green-500/20 text-green-300 hover:bg-green-500/30 font-medium"
                                                         >
@@ -796,74 +917,193 @@ export default function ApprovalsPage() {
             )}
 
             {/* Approval History */}
-            <div>
-                <div className="mb-4">
+            <div className="glass-card rounded-xl p-6 min-h-[min(70vh,720px)] flex flex-col">
+                <div className="mb-4 shrink-0">
                     <h3 className="text-lg font-bold text-white">{t("recent_approval_history")}</h3>
+                    <p className="text-sm text-[var(--muted)] mt-1">Tối đa 120 bản ghi gần nhất. Dùng nút Xem để mở chi tiết giao dịch hoặc báo giá.</p>
                 </div>
-                <DataTable
-                    data={approvalLogs}
-                    colorScheme="blue"
-                    emptyMessage={t("no_approval_history")}
-                    showIndex={false}
-                    itemsPerPage={10}
-                    columns={[
-                        {
-                            key: "timestamp",
-                            header: t("time"),
-                            render: (log) => (
-                                <span className="text-white/70">
-                                    {new Date(log.timestamp).toLocaleString("vi-VN")}
-                                </span>
-                            )
-                        },
-                        {
-                            key: "userName",
-                            header: t("approver"),
-                            render: (log) => <span className="text-white font-medium">{log.userName}</span>
-                        },
-                        {
-                            key: "action",
-                            header: t("action"),
-                            align: "center",
-                            render: (log) => {
-                                const isRejectAction = log.action === "REJECT" || log.action === "REJECT_BUDGET";
-                                return (
-                                    <span className={`px-2 py-1 rounded text-xs font-bold ${isRejectAction
-                                        ? "bg-red-500/20 text-red-400"
-                                        : "bg-green-500/20 text-green-400"
-                                        }`}>
-                                        {isRejectAction ? t("rejected_label") : t("approved")}
+                <div className="flex-1 min-h-[420px] min-w-0">
+                    <DataTable
+                        data={approvalLogs}
+                        colorScheme="blue"
+                        emptyMessage={t("no_approval_history")}
+                        showIndex={false}
+                        itemsPerPage={25}
+                        columns={[
+                            {
+                                key: "timestamp",
+                                header: t("time"),
+                                render: (log) => (
+                                    <span className="text-white/70 whitespace-nowrap">
+                                        {new Date(log.timestamp).toLocaleString("vi-VN")}
                                     </span>
-                                );
-                            }
-                        },
-                        {
-                            key: "details",
-                            header: t("details"),
-                            render: (log) => {
-                                let displayDetails = log.details || "";
-                                // Khử JSON nếu log.details là chuỗi JSON (do API lưu JSON.stringify)
-                                if (displayDetails.startsWith('{')) {
-                                    try {
-                                        const parsed = JSON.parse(displayDetails);
-                                        displayDetails = parsed.details || displayDetails;
-                                    } catch (e) {
-                                        console.error("Failed to parse log details", e);
+                                )
+                            },
+                            {
+                                key: "userName",
+                                header: t("approver"),
+                                render: (log) => <span className="text-white font-medium">{log.userName}</span>
+                            },
+                            {
+                                key: "action",
+                                header: t("action"),
+                                align: "center",
+                                render: (log) => {
+                                    const isRejectAction = log.action === "REJECT" || log.action === "REJECT_BUDGET";
+                                    const isDisburse = log.action === "DISBURSE_BUDGET";
+                                    if (isDisburse) {
+                                        return (
+                                            <span className="px-2 py-1 rounded text-xs font-bold bg-blue-500/20 text-blue-300">
+                                                Giải ngân
+                                            </span>
+                                        );
                                     }
+                                    return (
+                                        <span className={`px-2 py-1 rounded text-xs font-bold ${isRejectAction
+                                            ? "bg-red-500/20 text-red-400"
+                                            : "bg-green-500/20 text-green-400"
+                                            }`}>
+                                            {isRejectAction ? t("rejected_label") : t("approved")}
+                                        </span>
+                                    );
                                 }
-                                return (
-                                    <div className="max-w-[400px]">
-                                        <div className="text-white/70 whitespace-normal break-words">{displayDetails === "{}" ? "-" : displayDetails}</div>
-                                        {log.reason && (
-                                            <div className="text-xs text-white/40 mt-1">{t("reason")}: {log.reason}</div>
-                                        )}
-                                    </div>
-                                );
+                            },
+                            {
+                                key: "details",
+                                header: t("details"),
+                                render: (log) => {
+                                    let displayDetails = log.details || "";
+                                    if (displayDetails.startsWith('{')) {
+                                        try {
+                                            const parsed = JSON.parse(displayDetails);
+                                            displayDetails = typeof parsed.details === "string" ? parsed.details : displayDetails;
+                                        } catch (e) {
+                                            console.error("Failed to parse log details", e);
+                                        }
+                                    }
+                                    return (
+                                        <div className="max-w-xl">
+                                            <div className="text-white/70 whitespace-normal break-words">{displayDetails === "{}" ? "-" : displayDetails}</div>
+                                            {log.reason && (
+                                                <div className="text-xs text-white/40 mt-1">{t("reason")}: {log.reason}</div>
+                                            )}
+                                        </div>
+                                    );
+                                }
+                            },
+                            {
+                                key: "view",
+                                header: "Thao tác",
+                                align: "right",
+                                render: (log) => {
+                                    const canTry =
+                                        !!log.transactionId?.trim() &&
+                                        (LOG_TX_ACTIONS.has(log.action) || LOG_BUDGET_ACTIONS.has(log.action));
+                                    return (
+                                        <button
+                                            type="button"
+                                            disabled={!canTry}
+                                            onClick={() => void handleViewApprovalLog(log)}
+                                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${canTry
+                                                ? "bg-white/10 text-white hover:bg-white/15"
+                                                : "bg-white/5 text-white/30 cursor-not-allowed"
+                                                }`}
+                                        >
+                                            <Eye size={16} />
+                                            Xem
+                                        </button>
+                                    );
+                                }
                             }
-                        }
-                    ]}
-                />
+                        ]}
+                    />
+                </div>
             </div>
+
+            <TransactionDetailModal
+                transaction={viewDetailTx}
+                isOpen={!!viewDetailTx}
+                onClose={() => setViewDetailTx(null)}
+                accountName={viewDetailTx ? txAccountLabel(viewDetailTx) : undefined}
+                projectName={viewDetailTx ? txProjectLabel(viewDetailTx) : undefined}
+            />
+
+            {viewingBudget && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+                    <div className="glass-card w-full max-w-lg p-6 rounded-2xl relative max-h-[90vh] overflow-y-auto">
+                        <button
+                            type="button"
+                            onClick={() => setViewingBudget(null)}
+                            className="absolute top-4 right-4 text-[var(--muted)] hover:text-white text-xl leading-none"
+                            aria-label="Đóng"
+                        >
+                            ✕
+                        </button>
+                        <h2 className="text-xl font-bold text-white mb-4 pr-8">Chi tiết yêu cầu ngân sách</h2>
+                        <div className="space-y-3 text-sm">
+                            <div className="flex justify-between gap-4 border-b border-white/10 pb-2">
+                                <span className="text-[var(--muted)]">Dự án</span>
+                                <span className="text-white font-medium text-right">{viewingBudget.du_an?.ten_du_an || "—"}</span>
+                            </div>
+                            <div className="flex justify-between gap-4 border-b border-white/10 pb-2">
+                                <span className="text-[var(--muted)]">Agency</span>
+                                <span className="text-white font-medium text-right">{viewingBudget.crm_agencies?.ten_agency || "—"}</span>
+                            </div>
+                            <div className="flex justify-between gap-4 border-b border-white/10 pb-2">
+                                <span className="text-[var(--muted)]">Ngân sách xin</span>
+                                <span className="text-blue-300 font-bold">{formatMoneyVND(viewingBudget.ngan_sach_xin)}</span>
+                            </div>
+                            <div className="flex justify-between gap-4 border-b border-white/10 pb-2">
+                                <span className="text-[var(--muted)]">Trạng thái</span>
+                                <span className="text-white">{viewingBudget.trang_thai}</span>
+                            </div>
+                            <div className="flex justify-between gap-4 border-b border-white/10 pb-2">
+                                <span className="text-[var(--muted)]">Giám đốc</span>
+                                <span className="text-white">{viewingBudget.giam_doc_da_duyet ? `Đã duyệt${viewingBudget.giam_doc_duyet_boi ? ` — ${viewingBudget.giam_doc_duyet_boi}` : ""}` : "Chờ duyệt"}</span>
+                            </div>
+                            <div className="flex justify-between gap-4 border-b border-white/10 pb-2">
+                                <span className="text-[var(--muted)]">Kế toán</span>
+                                <span className="text-white">{viewingBudget.ke_toan_da_duyet ? `Đã duyệt${viewingBudget.ke_toan_duyet_boi ? ` — ${viewingBudget.ke_toan_duyet_boi}` : ""}` : "Chờ duyệt"}</span>
+                            </div>
+                            <div className="flex justify-between gap-4 border-b border-white/10 pb-2">
+                                <span className="text-[var(--muted)]">Giải ngân</span>
+                                <span className="text-white">{viewingBudget.da_giai_ngan ? "Đã giải ngân" : "Chưa"}</span>
+                            </div>
+                            {viewingBudget.ghi_chu && (
+                                <div>
+                                    <span className="text-[var(--muted)] block mb-1">Ghi chú</span>
+                                    <p className="text-white/90 whitespace-pre-wrap">{viewingBudget.ghi_chu}</p>
+                                </div>
+                            )}
+                            {viewingBudget.ly_do_tu_choi && (
+                                <div>
+                                    <span className="text-red-400 block mb-1 font-medium">Lý do từ chối</span>
+                                    <p className="text-red-200/90 whitespace-pre-wrap">{viewingBudget.ly_do_tu_choi}</p>
+                                </div>
+                            )}
+                            {!!viewingBudget.chung_tu_urls?.length && (
+                                <div>
+                                    <span className="text-[var(--muted)] block mb-2">Chứng từ</span>
+                                    <div className="flex flex-wrap gap-2">
+                                        {viewingBudget.chung_tu_urls.map((url, i) => (
+                                            <a key={url} href={url} target="_blank" rel="noreferrer" className="text-blue-400 hover:underline text-xs">
+                                                Tệp {i + 1}
+                                            </a>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => setViewingBudget(null)}
+                            className="mt-6 w-full py-2 rounded-lg bg-white/10 text-white hover:bg-white/15 font-medium"
+                        >
+                            Đóng
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {/* Rejection Modal */}
             {showRejectModal && rejectingTx && (

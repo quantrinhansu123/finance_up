@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useTranslation } from "@/lib/i18n";
 import { Transaction, Account, Project, TransactionStatus } from "@/types/finance";
 import { getTransactions, getAccounts, getProjects, deleteTransaction } from "@/lib/finance";
-import { getUserRole, hasProjectPermission, getAccessibleProjects } from "@/lib/permissions";
+import { getUsers } from "@/lib/users";
+import type { UserProfile } from "@/types/user";
+import { getUserRole, getAccessibleProjects } from "@/lib/permissions";
 import DataTable from "@/components/finance/DataTable";
 import { Plus, Filter, RefreshCw, Upload, CheckCircle, Clock, ArrowRightCircle, XCircle, AlertTriangle, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -24,6 +26,7 @@ export default function BudgetRequestsPage() {
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
     const [currentUser, setCurrentUser] = useState<any>(null);
+    const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
 
     useEffect(() => {
         const u = localStorage.getItem("user") || sessionStorage.getItem("user");
@@ -34,14 +37,16 @@ export default function BudgetRequestsPage() {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [allTxs, accounts, projects] = await Promise.all([
+            const [allTxs, accounts, projects, users] = await Promise.all([
                 getTransactions(),
                 getAccounts(),
-                getProjects()
+                getProjects(),
+                getUsers(),
             ]);
 
             setAllProjects(projects);
             setAllAccounts(accounts);
+            setAllUsers(users);
 
             // Get user from storage for filtering
             const userStr = localStorage.getItem("user") || sessionStorage.getItem("user");
@@ -83,23 +88,32 @@ export default function BudgetRequestsPage() {
         }
     };
 
-    // Check if user can create budget requests
-    const canCreateRequest = () => {
-        if (!currentUser) return false;
-        const role = getUserRole(currentUser);
-        const financeRole = currentUser?.financeRole;
+    const resolvePageUser = (): any => {
+        if (currentUser) return currentUser;
+        if (typeof window === "undefined") return null;
+        try {
+            const raw = localStorage.getItem("user") || sessionStorage.getItem("user");
+            return raw ? JSON.parse(raw) : null;
+        } catch {
+            return null;
+        }
+    };
 
-        // ADMIN can always create
-        if (role === "ADMIN") return true;
+    const canCreateRequest = () => !!resolvePageUser();
 
-        // Users with specific finance roles can create
-        if (financeRole === "MANAGER" || financeRole === "ADMIN" || financeRole === "STAFF") return true;
+    const userNameById = useMemo(() => {
+        const m = new Map<string, string>();
+        for (const u of allUsers) {
+            const label = (u.displayName || "").trim() || u.email || u.uid;
+            m.set(u.uid, label);
+            if (u.email) m.set(u.email, label);
+        }
+        return m;
+    }, [allUsers]);
 
-        // Check if user has request_budget permission in any accessible project
-        const accessibleProjects = getAccessibleProjects(currentUser, allProjects);
-        return accessibleProjects.some(project =>
-            hasProjectPermission(currentUser?.uid || currentUser?.id, project, "request_budget", currentUser)
-        );
+    const resolveUserName = (idOrName?: string) => {
+        if (!idOrName) return "—";
+        return userNameById.get(idOrName) || idOrName;
     };
 
     // Handle delete request (only for PENDING status)
@@ -182,7 +196,7 @@ export default function BudgetRequestsPage() {
                 <div>
                     <h1 className="text-3xl font-bold text-white mb-2">{t("budget_requests")}</h1>
                     <p className="text-[var(--muted)]">
-                        Hạng mục: <span className="text-white/80 font-medium">Nạp Quỹ</span>. Quy trình: Gửi yêu cầu → Admin duyệt (hệ thống tự tạo phiếu chi trên tài khoản nguồn) → Kế toán xử lý chuyển khoản / xác nhận đã chi trên trang Chi.
+                        Hạng mục: <span className="text-white/80 font-medium">Nạp Quỹ</span>. Quy trình: Gửi yêu cầu → Admin duyệt (hệ thống tạo phiếu chi liên kết) → Kế toán chọn tài khoản thanh toán, tải bill và xử lý trên trang Chi.
                     </p>
                 </div>
                 {canCreateRequest() && (
@@ -310,7 +324,11 @@ export default function BudgetRequestsPage() {
                         {
                             key: "createdBy",
                             header: "Người tạo",
-                            render: (tx) => <span className="text-sm text-white/50">{tx.createdBy}</span>
+                            render: (tx) => (
+                                <span className="text-sm text-white/80" title={tx.createdBy}>
+                                    {resolveUserName(tx.createdBy)}
+                                </span>
+                            )
                         },
                         {
                             key: "actions",
@@ -342,7 +360,6 @@ export default function BudgetRequestsPage() {
                     onClose={() => setShowCreateModal(false)}
                     username={currentUser?.displayName || currentUser?.email || "User"}
                     userId={currentUser?.uid || currentUser?.id}
-                    currentUser={currentUser}
                     onSuccess={() => {
                         setShowCreateModal(false);
                         fetchData();
@@ -356,6 +373,7 @@ export default function BudgetRequestsPage() {
                     currentUser={currentUser}
                     allProjects={allProjects}
                     allAccounts={allAccounts}
+                    allUsers={allUsers}
                     onClose={() => setSelectedTx(null)}
                     onUpdate={() => {
                         setSelectedTx(null);

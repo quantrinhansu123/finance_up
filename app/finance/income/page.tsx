@@ -18,6 +18,7 @@ import { useTranslation } from "@/lib/i18n";
 import { projectLabelById, formatProjectListLabel, formatProjectMaLan } from "@/lib/project-display";
 import { sessionUserDisplayLabel } from "@/lib/session-user-label";
 import { resolveTransactionApproverDisplay } from "@/lib/transaction-approver-display";
+import { incomeMatchesDateRange, incomePrimarySortDay } from "@/lib/income-dates";
 import { getUsers } from "@/lib/users";
 import { UserProfile } from "@/types/user";
 
@@ -189,16 +190,32 @@ export default function IncomePage() {
                     t.userId === userId
                 );
             }
-            if (activeFilters.startDate) txs = txs.filter(t => t.date.split("T")[0] >= activeFilters.startDate);
-            if (activeFilters.endDate) txs = txs.filter(t => t.date.split("T")[0] <= activeFilters.endDate);
-            if (activeFilters.date) txs = txs.filter(t => t.date.startsWith(activeFilters.date));
+            if (activeFilters.startDate || activeFilters.endDate) {
+                txs = txs.filter((t) =>
+                    incomeMatchesDateRange(t, activeFilters.startDate || "", activeFilters.endDate || "")
+                );
+            }
+            if (activeFilters.date) {
+                const d = activeFilters.date;
+                txs = txs.filter((t) => {
+                    const onPosted = t.date.startsWith(d);
+                    const onActual =
+                        t.status === "PAID" &&
+                        !!t.paidConfirmMeta?.at &&
+                        t.paidConfirmMeta.at.startsWith(d);
+                    return onPosted || onActual;
+                });
+            }
             if (activeFilters.projectId) txs = txs.filter(t => t.projectId === activeFilters.projectId);
             if (activeFilters.accountId) txs = txs.filter(t => t.accountId === activeFilters.accountId);
             if (searchTerm) {
                 const term = searchTerm.toLowerCase();
                 txs = txs.filter(t => (t.source?.toLowerCase().includes(term)) || (t.category?.toLowerCase().includes(term)) || (t.description?.toLowerCase().includes(term)));
             }
-            txs.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+            txs.sort(
+                (a, b) =>
+                    new Date(incomePrimarySortDay(b)).getTime() - new Date(incomePrimarySortDay(a)).getTime()
+            );
             setTransactions(txs);
         } catch (e) { console.error(e); }
     };
@@ -363,6 +380,20 @@ export default function IncomePage() {
 
     const resolveApproverDisplay = (tx: Transaction) =>
         resolveTransactionApproverDisplay(tx, resolveUserName, t("approver_not_recorded"));
+
+    /** Tổng các phiếu thu đang hiển thị (theo bộ lọc / tìm kiếm), gom theo từng loại tiền — không cộng chéo tiền tệ khác nhau. */
+    const filteredIncomeTotals = useMemo(() => {
+        const byCurrency = new Map<string, number>();
+        let count = 0;
+        for (const tx of transactions) {
+            if (tx.type !== "IN") continue;
+            count += 1;
+            const cur = tx.currency || "USD";
+            byCurrency.set(cur, (byCurrency.get(cur) || 0) + Number(tx.amount || 0));
+        }
+        const rows = [...byCurrency.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+        return { count, rows };
+    }, [transactions]);
 
     /** Không sửa/xóa khi đã duyệt hoặc đã xác nhận Đã thu (PAID). */
     const canModifyIncomeTransaction = (tx: Transaction) =>
@@ -722,6 +753,30 @@ export default function IncomePage() {
                     enableDateRange={true}
                 />
 
+                {filteredIncomeTotals.count > 0 && (
+                    <div className="glass-card rounded-xl border border-white/10 px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-sm">
+                        <p className="text-[var(--muted)]">
+                            Số phiếu thu:{" "}
+                            <span className="text-white font-bold tabular-nums">{filteredIncomeTotals.count}</span>
+                            <span className="text-white/40 mx-2">·</span>
+                            <span className="text-white/60 text-xs">Theo bộ lọc / tìm kiếm hiện tại</span>
+                        </p>
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                            <span className="text-[var(--muted)] text-xs uppercase tracking-wider shrink-0">Tổng tiền</span>
+                            {filteredIncomeTotals.rows.map(([cur, sum]) => (
+                                <span
+                                    key={cur}
+                                    className="font-bold text-green-400 whitespace-nowrap tabular-nums"
+                                >
+                                    {CURRENCY_FLAGS[cur] || "💰"}{" "}
+                                    {new Intl.NumberFormat("vi-VN").format(sum)}{" "}
+                                    <span className="text-[10px] font-semibold uppercase opacity-80">{cur}</span>
+                                </span>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
                 <DataTable
                     data={transactions}
                     nowrapRows
@@ -730,6 +785,18 @@ export default function IncomePage() {
                             key: "date",
                             header: t("date"),
                             render: (tx: Transaction) => <DateCell date={tx.date} />
+                        },
+                        {
+                            key: "paidAt",
+                            header: "Ngày thu thực tế",
+                            render: (tx: Transaction) =>
+                                tx.status === "PAID" && tx.paidConfirmMeta?.at ? (
+                                    <span className="text-xs text-purple-200/95 whitespace-nowrap">
+                                        {new Date(tx.paidConfirmMeta.at).toLocaleString("vi-VN")}
+                                    </span>
+                                ) : (
+                                    <span className="text-white/25 text-xs">—</span>
+                                ),
                         },
                         {
                             key: "source",
