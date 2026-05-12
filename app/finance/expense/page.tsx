@@ -17,6 +17,7 @@ import DataTable, { AmountCell, DateCell, TextCell, StatusBadge, ActionCell } fr
 import { useTranslation } from "@/lib/i18n";
 import { projectLabelById, formatProjectListLabel, formatProjectMaLan } from "@/lib/project-display";
 import { sessionUserDisplayLabel } from "@/lib/session-user-label";
+import { resolveTransactionApproverDisplay } from "@/lib/transaction-approver-display";
 import { getUsers } from "@/lib/users";
 import { UserProfile } from "@/types/user";
 
@@ -498,13 +499,8 @@ export default function ExpensePage() {
         return userNameById.get(idOrName) || idOrName;
     };
 
-    const resolveApproverDisplay = (tx: Transaction) => {
-        const label = tx.approverDisplayName?.trim();
-        if (label) return label;
-        if (tx.approvedBy) return resolveUserName(tx.approvedBy);
-        if (tx.status === "APPROVED") return t("approver_not_recorded");
-        return "—";
-    };
+    const resolveApproverDisplay = (tx: Transaction) =>
+        resolveTransactionApproverDisplay(tx, resolveUserName, t("approver_not_recorded"));
 
     if (loading) return <div className="p-8 text-[var(--muted)]">{t("loading")}</div>;
 
