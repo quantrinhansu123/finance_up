@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Save, AlertCircle, Upload, ImageIcon, Trash2, ChevronDown } from "lucide-react";
-import { getAccounts, getProjects, createTransaction, getBeneficiaries } from "@/lib/finance";
+import { X, Save, AlertCircle, Upload, ImageIcon, Trash2 } from "lucide-react";
+import { getAccounts, getProjects, createTransaction, getBeneficiaries, BUDGET_REQUEST_CATEGORY } from "@/lib/finance";
 import { Account, Project, Currency, TransactionType, BankInfo, TransactionStatus, Beneficiary } from "@/types/finance";
 import { getAccessibleProjects, getProjectsWithPermission } from "@/lib/permissions";
 import { uploadImage } from "../../lib/upload";
@@ -25,23 +25,6 @@ interface Props {
 
 
 
-const FULL_CATEGORIES = [
-    {
-        group: "MARKETING",
-        items: [
-            "Nạp quỹ ADS ZENO AGENCY",
-            "Nạp quỹ ADS ECOME AGENCY",
-            "Chi phí Media",
-            "Thưởng Marketing",
-            "Lương cơ bản Marketing",
-            "Thưởng %KPI Marketing"
-        ]
-    }
-];
-
-const CATEGORIES = FULL_CATEGORIES.flatMap(c => c.items);
-
-
 export default function CreateBudgetRequestModal({ onClose, onSuccess, username, userId, currentUser, initialProjectId }: Props) {
     const { t } = useTranslation();
     const [loading, setLoading] = useState(false);
@@ -59,7 +42,6 @@ export default function CreateBudgetRequestModal({ onClose, onSuccess, username,
     const [beneficiary, setBeneficiary] = useState("");
     const [amount, setAmount] = useState<number>(0);
     const [currency, setCurrency] = useState<Currency>("VND");
-    const [category, setCategory] = useState("Nạp quỹ ADS ZENO AGENCY");
     const [description, setDescription] = useState(""); // Purpose
     const [transferContent, setTransferContent] = useState(""); // Content
     const [bankInfo, setBankInfo] = useState<BankInfo>({
@@ -118,15 +100,6 @@ export default function CreateBudgetRequestModal({ onClose, onSuccess, username,
         }
     }, [selectedBeneficiaryId, allBeneficiaries]);
 
-    // Update Platform and Bank Info logic
-    useEffect(() => {
-        if (selectedPlatform) {
-            // Update category based on platform if needed
-            if (selectedPlatform.toLowerCase().includes("tiktok")) setCategory("Nạp quỹ ADS ZENO AGENCY");
-            if (selectedPlatform.toLowerCase().includes("google")) setCategory("Nạp quỹ ADS ECOME AGENCY");
-        }
-    }, [selectedPlatform]);
-
     // Derived State
     const filteredAccounts = accounts.filter(a => a.projectId === projectId);
     const selectedAccount = accounts.find(a => a.id === accountId);
@@ -148,8 +121,6 @@ export default function CreateBudgetRequestModal({ onClose, onSuccess, username,
             setAccountId(filteredAccounts[0].id);
         }
     }, [projectId, filteredAccounts]);
-
-    const displayCategories = FULL_CATEGORIES;
 
     // Handle file selection for supporting docs
     const handleDocFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -177,8 +148,12 @@ export default function CreateBudgetRequestModal({ onClose, onSuccess, username,
     };
 
     const handleSubmit = async () => {
-        if (!amount || !projectId || !category || !beneficiary) {
+        if (!amount || !projectId || !beneficiary) {
             alert("Vui lòng điền đầy đủ thông tin bắt buộc!");
+            return;
+        }
+        if (!accountId) {
+            alert("Vui lòng chọn tài khoản nguồn chi (quỹ dự án) — kế toán sẽ trừ quỹ trên tài khoản này khi admin duyệt.");
             return;
         }
 
@@ -187,22 +162,25 @@ export default function CreateBudgetRequestModal({ onClose, onSuccess, username,
             // Upload supporting documents first
             const uploadedDocs = await uploadSupportingDocs();
 
+            const uid = userId || "";
             const newTx = {
                 date: new Date().toISOString(),
                 amount: Number(amount),
                 currency,
                 type: "OUT" as TransactionType,
-                category,
+                category: BUDGET_REQUEST_CATEGORY,
                 description: description,
                 transferContent: transferContent,
                 projectId: projectId || undefined,
+                accountId,
                 status: "PENDING" as TransactionStatus,
-                createdBy: username,
-                userId,
+                createdBy: uid || username,
+                userId: uid || username,
                 beneficiary,
                 platform: selectedPlatform,
                 bankInfo,
                 images: uploadedDocs, // Supporting documents
+                isBudgetRequest: true,
                 createdAt: Date.now(),
                 updatedAt: Date.now()
             };
@@ -252,6 +230,35 @@ export default function CreateBudgetRequestModal({ onClose, onSuccess, username,
                                     </option>
                                 ))}
                             </select>
+                        </div>
+                        <div>
+                            <label className="block text-sm text-[var(--muted)] mb-1">Tài khoản nguồn chi (quỹ dự án) *</label>
+                            <p className="text-[11px] text-white/40 mb-2">
+                                Sau khi admin duyệt, hệ thống tự tạo phiếu chi và trừ số dư trên tài khoản này. Thụ hưởng nhận tiền theo STK bên dưới.
+                            </p>
+                            <select
+                                value={accountId}
+                                onChange={(e) => setAccountId(e.target.value)}
+                                className="glass-input w-full p-3 rounded-xl font-bold text-white focus:ring-2 focus:ring-blue-500/30 transition-all"
+                                disabled={!projectId || filteredAccounts.length === 0}
+                            >
+                                <option value="">
+                                    {!projectId
+                                        ? "Chọn dự án trước"
+                                        : filteredAccounts.length === 0
+                                            ? "Dự án chưa có tài khoản quỹ"
+                                            : "— Chọn tài khoản —"}
+                                </option>
+                                {filteredAccounts.map((a) => (
+                                    <option key={a.id} value={a.id}>
+                                        {a.name} ({a.currency}) — {Number(a.balance).toLocaleString("vi-VN")}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                        <div className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2">
+                            <span className="text-[10px] uppercase font-bold text-white/40 tracking-wider">Hạng mục chi phí</span>
+                            <p className="text-white font-semibold mt-1">{BUDGET_REQUEST_CATEGORY}</p>
                         </div>
                     </div>
 
@@ -385,28 +392,6 @@ export default function CreateBudgetRequestModal({ onClose, onSuccess, username,
                                         <option value="THB">THB</option>
                                         <option value="TRY">TRY</option>
                                     </select>
-                                </div>
-                            </div>
-                        </div>
-                        <div>
-                            <label className="block text-sm text-[var(--muted)] mb-1">Hạng mục chi phí *</label>
-                            <div className="relative">
-                                <select
-                                    value={category}
-                                    onChange={(e) => setCategory(e.target.value)}
-                                    className="glass-input w-full p-3 rounded-xl font-medium appearance-none"
-                                >
-                                    {displayCategories.map(group => (
-                                        <optgroup key={group.group} label={group.group} className="bg-[#1a1a1a]">
-                                            {group.items.map(c => (
-                                                <option key={c} value={c}>{c}</option>
-                                            ))}
-                                        </optgroup>
-                                    ))}
-                                    <option value="Khác">Khác</option>
-                                </select>
-                                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--muted)]">
-                                    <ChevronDown size={18} />
                                 </div>
                             </div>
                         </div>

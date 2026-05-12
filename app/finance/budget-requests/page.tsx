@@ -48,12 +48,17 @@ export default function BudgetRequestsPage() {
             const user = userStr ? JSON.parse(userStr) : null;
             const role = getUserRole(user);
 
-            // Filter only Budget Requests
-            let budgetRequests = allTxs.filter(tx =>
-                (tx.beneficiary && tx.beneficiary.length > 0) ||
-                (tx.category && tx.category.toLowerCase().includes("nạp quỹ")) ||
-                (tx.category && tx.category.toLowerCase().includes("marketing"))
-            );
+            // Xin ngân sách: không hiển thị phiếu chi tự tạo (có budgetRequestSourceId); gồm bản ghi cờ is_budget_request hoặc bản cũ (thụ hưởng + Nạp Quỹ / marketing)
+            let budgetRequests = allTxs.filter((tx) => {
+                if (tx.type !== "OUT" || tx.budgetRequestSourceId) return false;
+                if (tx.isBudgetRequest) return true;
+                const c = (tx.category || "").toLowerCase();
+                const ben = (tx.beneficiary || "").trim();
+                return (
+                    (!!ben && c.includes("nạp quỹ")) ||
+                    (!!ben && c.includes("marketing"))
+                );
+            });
 
             // Filter by accessible projects (unless ADMIN)
             if (role !== "ADMIN") {
@@ -176,7 +181,9 @@ export default function BudgetRequestsPage() {
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
                     <h1 className="text-3xl font-bold text-white mb-2">{t("budget_requests")}</h1>
-                    <p className="text-[var(--muted)]">Quy trình: Tạo yêu cầu → Duyệt → Kế toán chuyển khoản → Xác nhận nhận tiền</p>
+                    <p className="text-[var(--muted)]">
+                        Hạng mục: <span className="text-white/80 font-medium">Nạp Quỹ</span>. Quy trình: Gửi yêu cầu → Admin duyệt (hệ thống tự tạo phiếu chi trên tài khoản nguồn) → Kế toán xử lý chuyển khoản / xác nhận đã chi trên trang Chi.
+                    </p>
                 </div>
                 {canCreateRequest() && (
                     <button

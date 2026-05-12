@@ -84,6 +84,11 @@ export interface Transaction {
     source?: string; // Money In Source: "COD VET", "COD JNT", "Customer Transfer", "Other"
     images?: string[]; // Added: Array of image URLs/Base64
 
+    /** Yêu cầu trong /finance/budget-requests (không hiện ở trang Chi cho đến khi có phiếu chi). */
+    isBudgetRequest?: boolean;
+    /** Phiếu chi OUT tạo sau khi admin duyệt — trỏ tới id yêu cầu gốc. */
+    budgetRequestSourceId?: string;
+
     // Budget Request Specific Fields
     beneficiary?: string; // "ZENO", "ECOME", etc.
     platform?: string; // "TikTok Ads", "Facebook Ads", etc.

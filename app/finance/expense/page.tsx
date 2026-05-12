@@ -181,7 +181,15 @@ export default function ExpensePage() {
         if (!currentUser) return;
         try {
             const all = await getTransactions();
-            let txs = all.filter((t) => t.type === "OUT");
+            let txs = all.filter((t) => {
+                if (t.type !== "OUT" || t.isBudgetRequest) return false;
+                if (t.status === "PENDING") {
+                    const c = (t.category || "").toLowerCase();
+                    const ben = (t.beneficiary || "").trim();
+                    if (ben && (c.includes("nạp quỹ") || c.includes("marketing"))) return false;
+                }
+                return true;
+            });
             if (userRole !== "ADMIN") {
                 const userId = currentUser.uid || currentUser.id;
                 const ids = idsOverride ?? viewableProjectIds;

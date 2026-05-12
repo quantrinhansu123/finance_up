@@ -1,7 +1,21 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { getTransactions, updateTransactionStatus, updateTransaction, updateAccountBalance, getAccounts, getProjects, getBudgetRequests, updateBudgetStatus, approveBudgetByDirector, approveBudgetByAccountant, disburseBudgetRequest } from "@/lib/finance";
+import {
+    getTransactions,
+    updateTransactionStatus,
+    updateTransaction,
+    updateAccountBalance,
+    getAccounts,
+    getProjects,
+    getBudgetRequests,
+    updateBudgetStatus,
+    approveBudgetByDirector,
+    approveBudgetByAccountant,
+    disburseBudgetRequest,
+    hasBudgetExpenseVoucher,
+    createExpenseVoucherFromBudgetRequest,
+} from "@/lib/finance";
 import { Transaction, Account, Project, BudgetRequest } from "@/types/finance";
 import { logActivity } from "@/lib/logger";
 import { supabase } from "@/lib/supabase";
@@ -216,17 +230,62 @@ export default function ApprovalsPage() {
         return pendingTransactions;
     };
 
+    /** Xin ngân sách (mới + bản cũ có hạng mục Nạp Quỹ + thụ hưởng): admin duyệt → tự tạo phiếu chi OUT, không trừ quỹ trên dòng yêu cầu. */
+    const isBudgetRequestApprovalFlow = (tx: Transaction) => {
+        if (tx.type !== "OUT" || tx.status !== "PENDING") return false;
+        if (tx.isBudgetRequest) return true;
+        const c = (tx.category || "").toLowerCase();
+        return !!tx.beneficiary?.trim() && c.includes("nạp quỹ");
+    };
+
     const handleApprove = async (tx: Transaction) => {
         if (!currentUser) return alert("Error: User not found");
         if (!confirm(t("verify_approve_tx"))) return;
 
+        const approverId = currentUser.uid || currentUser.id;
+        const approverLabel = sessionUserDisplayLabel(currentUser);
+
         try {
+            if (isBudgetRequestApprovalFlow(tx)) {
+                if (!tx.accountId) {
+                    alert("Yêu cầu thiếu tài khoản nguồn chi (quỹ dự án). Cập nhật yêu cầu hoặc tạo lại trong Xin ngân sách.");
+                    return;
+                }
+                if (await hasBudgetExpenseVoucher(tx.id)) {
+                    alert("Phiếu chi đã được tạo cho yêu cầu này.");
+                    return;
+                }
+                if (!approverId) return alert("Error: User not found");
+
+                await createExpenseVoucherFromBudgetRequest(tx, {
+                    approvedBy: approverId,
+                    approverDisplayName: approverLabel || undefined,
+                });
+
+                await updateTransaction(tx.id, {
+                    status: "APPROVED",
+                    ...(approverId ? { approvedBy: approverId } : {}),
+                    ...(approverLabel ? { approverDisplayName: approverLabel } : {}),
+                    warning: false,
+                });
+
+                const proj = allProjects.find(p => p.id === tx.projectId);
+                const logMsg = `Duyệt xin ngân sách & tạo phiếu chi: ${tx.amount.toLocaleString("vi-VN")} ${tx.currency} | ${proj?.name || "N/A"}`;
+                await logActivity(
+                    { uid: currentUser.id || currentUser.uid || "admin", displayName: currentUser.name || currentUser.displayName || "Admin" },
+                    "APPROVE",
+                    "TRANSACTION",
+                    tx.id,
+                    logMsg
+                );
+                fetchData();
+                return;
+            }
+
             // 1. Update Status
             await updateTransactionStatus(tx.id, "APPROVED");
 
             // 2. Update transaction with approver info
-            const approverId = currentUser.uid || currentUser.id;
-            const approverLabel = sessionUserDisplayLabel(currentUser);
             await updateTransaction(tx.id, {
                 ...(approverId ? { approvedBy: approverId } : {}),
                 ...(approverLabel ? { approverDisplayName: approverLabel } : {}),
@@ -258,7 +317,7 @@ export default function ApprovalsPage() {
             fetchData();
         } catch (error) {
             console.error("Approval failed", error);
-            alert(t("approve_error"));
+            alert(error instanceof Error ? error.message : t("approve_error"));
         }
     };
 

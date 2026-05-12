@@ -434,6 +434,8 @@ const mapTxFromDB = (data: any): Transaction => ({
     proofOfReceipt: data.proof_of_receipt || [],
     warning: data.warning || false,
     rejectionReason: data.rejection_reason || undefined,
+    isBudgetRequest: data.is_budget_request === true,
+    budgetRequestSourceId: data.budget_request_source_id || undefined,
     approvedBy: data.approved_by || undefined,
     approverDisplayName: data.approver_display_name?.trim() || undefined,
     rejectedBy: data.rejected_by || undefined,
@@ -471,6 +473,9 @@ const mapTxToDB = (data: any) => {
     if (data.proofOfReceipt !== undefined) res.proof_of_receipt = data.proofOfReceipt;
     if (data.warning !== undefined) res.warning = data.warning;
     if (data.rejectionReason !== undefined) res.rejection_reason = data.rejectionReason;
+    if (data.isBudgetRequest !== undefined) res.is_budget_request = data.isBudgetRequest;
+    if (data.budgetRequestSourceId !== undefined)
+        res.budget_request_source_id = data.budgetRequestSourceId || null;
     if (data.approvedBy !== undefined) res.approved_by = data.approvedBy;
     if (data.approverDisplayName !== undefined)
         res.approver_display_name = data.approverDisplayName?.trim() || null;
@@ -490,9 +495,80 @@ export async function getTransactions(): Promise<Transaction[]> {
     return (data || []).map(mapTxFromDB);
 }
 
+/** Hàng OUT cần xác nhận chi (ngưỡng giống tạo phiếu chi thủ công). */
+export function outflowNeedsApproverConfirmation(amount: number, currency: string): boolean {
+    const cur = currency || "USD";
+    const num = Number(amount) || 0;
+    if (cur === "VND" && num > 5_000_000) return true;
+    if ((cur === "USD" || cur === "KHR" || cur === "TRY") && num > 100) return true;
+    return false;
+}
+
+/** Hạng mục cố định cho yêu cầu xin ngân sách / phiếu chi sau duyệt. */
+export const BUDGET_REQUEST_CATEGORY = "Nạp Quỹ";
+
 /** Chi OUT đã được duyệt từ luồng chờ (warning) — chờ người tạo xác nhận đã chi thực tế → COMPLETED */
 export function needsExpenseSpendConfirmation(tx: Pick<Transaction, "type" | "status" | "warning">): boolean {
     return tx.type === "OUT" && tx.status === "APPROVED" && !!tx.warning;
+}
+
+export async function hasBudgetExpenseVoucher(sourceRequestId: string): Promise<boolean> {
+    const { count, error } = await supabase
+        .from("finance_transactions")
+        .select("id", { count: "exact", head: true })
+        .eq("budget_request_source_id", sourceRequestId);
+    if (error) throw error;
+    return (count || 0) > 0;
+}
+
+/**
+ * Sau khi admin duyệt yêu cầu xin ngân sách: tạo phiếu chi OUT trên tài khoản nguồn, trừ quỹ.
+ */
+export async function createExpenseVoucherFromBudgetRequest(
+    requestTx: Transaction,
+    opts: { approvedBy: string; approverDisplayName?: string }
+): Promise<string> {
+    if (!requestTx.accountId) {
+        throw new Error("Yêu cầu thiếu tài khoản nguồn chi. Vui lòng sửa yêu cầu hoặc tạo lại.");
+    }
+    const account = await getAccount(requestTx.accountId);
+    if (!account) throw new Error("Không tìm thấy tài khoản nguồn.");
+    if (account.balance < requestTx.amount) {
+        throw new Error("Số dư tài khoản nguồn không đủ để lập phiếu chi.");
+    }
+
+    const warning = outflowNeedsApproverConfirmation(requestTx.amount, requestTx.currency);
+    const uid = opts.approvedBy;
+    const desc = `Phiếu chi sau duyệt xin ngân sách — ${requestTx.beneficiary || "thụ hưởng"}`.trim();
+
+    const newId = await createTransaction({
+        type: "OUT",
+        amount: requestTx.amount,
+        currency: requestTx.currency,
+        category: BUDGET_REQUEST_CATEGORY,
+        description: desc,
+        transferContent: requestTx.transferContent,
+        projectId: requestTx.projectId,
+        accountId: requestTx.accountId,
+        beneficiary: requestTx.beneficiary,
+        platform: requestTx.platform,
+        bankInfo: requestTx.bankInfo,
+        images: requestTx.images?.length ? [...requestTx.images] : [],
+        status: "APPROVED",
+        warning,
+        approvedBy: uid,
+        approverDisplayName: opts.approverDisplayName,
+        createdBy: uid,
+        userId: uid,
+        isBudgetRequest: false,
+        budgetRequestSourceId: requestTx.id,
+        date: new Date().toISOString(),
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+    });
+
+    await updateAccountBalance(account.id, account.balance - requestTx.amount);
+    return newId;
 }
 
 export async function createTransaction(tx: Omit<Transaction, "id">): Promise<string> {
