@@ -499,6 +499,16 @@ const mapTxToDB = (data: any) => {
     return res;
 };
 
+function isMissingBeneficiaryAccountColumn(error: unknown): boolean {
+    if (!error || typeof error !== "object") return false;
+    const o = error as { code?: unknown; message?: unknown };
+    const message = typeof o.message === "string" ? o.message : "";
+    return (
+        message.includes("beneficiary_account_id") ||
+        (o.code === "PGRST204" && message.includes("finance_transactions"))
+    );
+}
+
 export async function getTransactions(): Promise<Transaction[]> {
     const { data, error } = await supabase.from("finance_transactions").select("*").order("transaction_date", { ascending: false });
     if (error) throw error;
@@ -694,10 +704,15 @@ export async function createTransaction(tx: Omit<Transaction, "id">): Promise<st
     if (tx.createdBy !== undefined && !isFinanceUserId(tx.createdBy)) {
         throw new Error("Thiếu mã người tạo (UUID) cho giao dịch. Vui lòng đăng nhập lại.");
     }
-    const { data, error } = await supabase.from("finance_transactions").insert([mapTxToDB(tx)]).select("id").single();
-    if (error) throw error;
-    await logAction("CREATE_TRANSACTION", { amount: tx.amount, currency: tx.currency }, data.id, tx.userId);
-    return data.id;
+    const dbData = mapTxToDB(tx);
+    let result = await supabase.from("finance_transactions").insert([dbData]).select("id").single();
+    if (result.error && dbData.beneficiary_account_id !== undefined && isMissingBeneficiaryAccountColumn(result.error)) {
+        delete dbData.beneficiary_account_id;
+        result = await supabase.from("finance_transactions").insert([dbData]).select("id").single();
+    }
+    if (result.error) throw result.error;
+    await logAction("CREATE_TRANSACTION", { amount: tx.amount, currency: tx.currency }, result.data.id, tx.userId);
+    return result.data.id;
 }
 
 export async function updateTransactionStatus(txId: string, status: Transaction["status"]): Promise<void> {
@@ -708,8 +723,12 @@ export async function updateTransactionStatus(txId: string, status: Transaction[
 export async function updateTransaction(txId: string, tx: Partial<Transaction>): Promise<void> {
     const dbData = mapTxToDB(tx);
     dbData.updated_at = new Date().toISOString();
-    const { error } = await supabase.from("finance_transactions").update(dbData).eq("id", txId);
-    if (error) throw error;
+    let result = await supabase.from("finance_transactions").update(dbData).eq("id", txId);
+    if (result.error && dbData.beneficiary_account_id !== undefined && isMissingBeneficiaryAccountColumn(result.error)) {
+        delete dbData.beneficiary_account_id;
+        result = await supabase.from("finance_transactions").update(dbData).eq("id", txId);
+    }
+    if (result.error) throw result.error;
 }
 
 export async function deleteTransaction(txId: string): Promise<void> {
