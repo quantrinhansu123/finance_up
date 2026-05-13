@@ -599,18 +599,20 @@ export async function payBudgetRequestToBeneficiaryAccount(
     requestTx: Transaction,
     opts: {
         sourceAccountId: string;
+        beneficiaryAccountId?: string;
         proofOfPayment: string[];
         paidBy: string;
         exchangeRate?: number;
     }
 ): Promise<string> {
-    if (!requestTx.beneficiaryAccountId) {
-        throw new Error("Yêu cầu này chưa có tài khoản thụ hưởng. Vui lòng chọn tài khoản từ danh sách TK khi tạo yêu cầu.");
+    const targetAccountId = opts.beneficiaryAccountId || requestTx.beneficiaryAccountId;
+    if (!targetAccountId) {
+        throw new Error("Vui lòng chọn tài khoản thụ hưởng để nhận tiền.");
     }
     if (!opts.sourceAccountId) {
         throw new Error("Vui lòng chọn tài khoản nguồn để thanh toán.");
     }
-    if (opts.sourceAccountId === requestTx.beneficiaryAccountId) {
+    if (opts.sourceAccountId === targetAccountId) {
         throw new Error("Tài khoản nguồn và tài khoản thụ hưởng không được trùng nhau.");
     }
     if (await hasBudgetFundingReceipt(requestTx.id)) {
@@ -619,7 +621,7 @@ export async function payBudgetRequestToBeneficiaryAccount(
 
     const [sourceAccount, targetAccount] = await Promise.all([
         getAccount(opts.sourceAccountId),
-        getAccount(requestTx.beneficiaryAccountId),
+        getAccount(targetAccountId),
     ]);
     if (!sourceAccount) throw new Error("Không tìm thấy tài khoản nguồn.");
     if (!targetAccount) throw new Error("Không tìm thấy tài khoản thụ hưởng.");
@@ -676,6 +678,7 @@ export async function payBudgetRequestToBeneficiaryAccount(
     await updateTransaction(requestTx.id, {
         status: "PAID",
         accountId: sourceAccount.id,
+        beneficiaryAccountId: targetAccount.id,
         paidBy: opts.paidBy,
         proofOfPayment: opts.proofOfPayment,
         description: `${requestTx.description || ""}${rateInfo}`.trim(),

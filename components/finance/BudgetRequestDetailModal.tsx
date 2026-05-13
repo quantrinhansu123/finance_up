@@ -136,10 +136,15 @@ export default function BudgetRequestDetailModal({ transaction, onClose, onUpdat
     const [uploadFiles, setUploadFiles] = useState<File[]>([]);
     const [uploading, setUploading] = useState(false);
     const [selectedAccountId, setSelectedAccountId] = useState(transaction.accountId || "");
+    const [selectedBeneficiaryAccountId, setSelectedBeneficiaryAccountId] = useState(transaction.beneficiaryAccountId || "");
     const [exchangeRate, setExchangeRate] = useState<string>("1");
 
     const selectedAccountObj = allAccounts.find(a => a.id === selectedAccountId);
-    const beneficiaryAccountObj = allAccounts.find(a => a.id === transaction.beneficiaryAccountId);
+    const beneficiaryAccountObj = allAccounts.find(a => a.id === selectedBeneficiaryAccountId);
+    const beneficiaryAccountOptions = allAccounts.filter(a =>
+        a.id !== selectedAccountId &&
+        a.currency === transaction.currency
+    );
     const usesDifferentCurrency = selectedAccountObj && selectedAccountObj.currency !== transaction.currency;
 
     const deductAmount = usesDifferentCurrency
@@ -158,6 +163,24 @@ export default function BudgetRequestDetailModal({ transaction, onClose, onUpdat
             alert("Vui lòng tải lên tài liệu chứng minh.");
             return;
         }
+        if (pendingAction === "PAY") {
+            if (!selectedBeneficiaryAccountId) {
+                alert("Vui lòng chọn tài khoản thụ hưởng để nhận tiền.");
+                return;
+            }
+            if (!selectedAccountId) {
+                alert("Vui lòng chọn tài khoản nguồn để thanh toán.");
+                return;
+            }
+            if (selectedAccountId === selectedBeneficiaryAccountId) {
+                alert("Tài khoản nguồn và tài khoản thụ hưởng không được trùng nhau.");
+                return;
+            }
+            if (!currentUser.uid && !currentUser.id) {
+                alert("Phiên đăng nhập thiếu mã nhân viên. Vui lòng đăng nhập lại.");
+                return;
+            }
+        }
 
         setUploading(true);
         try {
@@ -165,22 +188,13 @@ export default function BudgetRequestDetailModal({ transaction, onClose, onUpdat
             const urls = await Promise.all(uploadFiles.map(file => uploadImage(file)));
 
             if (pendingAction === "PAY") {
-                if (!selectedAccountId) {
-                    alert("Vui lòng chọn tài khoản thanh toán.");
-                    setUploading(false);
-                    return;
-                }
                 const payerId = currentUser.uid || currentUser.id;
-                if (!payerId) {
-                    alert("Phiên đăng nhập thiếu mã nhân viên. Vui lòng đăng nhập lại.");
-                    setUploading(false);
-                    return;
-                }
 
                 await payBudgetRequestToBeneficiaryAccount(transaction, {
                     sourceAccountId: selectedAccountId,
+                    beneficiaryAccountId: selectedBeneficiaryAccountId,
                     proofOfPayment: urls,
-                    paidBy: payerId,
+                    paidBy: payerId!,
                     exchangeRate: parseFloat(exchangeRate) || 1,
                 });
             } else if (pendingAction === "CONFIRM") {
@@ -337,8 +351,8 @@ export default function BudgetRequestDetailModal({ transaction, onClose, onUpdat
                                         </div>
                                     )}
                                     {!transaction.beneficiaryAccountId && (
-                                        <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-2 text-xs text-red-200">
-                                            Yêu cầu cũ chưa có tài khoản thụ hưởng. Hãy tạo yêu cầu mới và chọn tài khoản từ danh sách TK.
+                                        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-2 text-xs text-amber-100">
+                                            Yêu cầu cũ chưa lưu tài khoản thụ hưởng. Kế toán chọn tài khoản nhận ở bước thanh toán.
                                         </div>
                                     )}
                                     {transaction.platform && (
@@ -601,11 +615,23 @@ export default function BudgetRequestDetailModal({ transaction, onClose, onUpdat
                                 <div className="mb-4 space-y-4">
                                     <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-3 text-sm">
                                         <div className="text-xs uppercase font-bold text-emerald-300 mb-1">Tài khoản thụ hưởng</div>
-                                        <div className="text-white font-semibold">
-                                            {beneficiaryAccountObj
-                                                ? `${beneficiaryAccountObj.name} (${beneficiaryAccountObj.balance.toLocaleString("vi-VN")} ${beneficiaryAccountObj.currency})`
-                                                : "Chưa chọn tài khoản thụ hưởng"}
-                                        </div>
+                                        <select
+                                            value={selectedBeneficiaryAccountId}
+                                            onChange={(e) => setSelectedBeneficiaryAccountId(e.target.value)}
+                                            className="glass-input w-full p-2 rounded-lg text-sm text-white"
+                                        >
+                                            <option value="">-- Chọn tài khoản nhận tiền --</option>
+                                            {beneficiaryAccountOptions.map(a => (
+                                                <option key={a.id} value={a.id}>
+                                                    {a.name} ({a.balance.toLocaleString("vi-VN")} {a.currency})
+                                                </option>
+                                            ))}
+                                        </select>
+                                        {beneficiaryAccountOptions.length === 0 && (
+                                            <div className="mt-2 text-xs text-amber-200">
+                                                Không có tài khoản nhận cùng tiền tệ {transaction.currency} trong dự án này.
+                                            </div>
+                                        )}
                                     </div>
                                     <div>
                                         <label className="block text-xs text-[var(--muted)] uppercase font-bold mb-1">Chọn tài khoản nguồn *</label>
@@ -617,7 +643,7 @@ export default function BudgetRequestDetailModal({ transaction, onClose, onUpdat
                                             <option value="">-- Chọn tài khoản --</option>
                                             {allAccounts
                                                 .filter(a =>
-                                                    a.id !== transaction.beneficiaryAccountId &&
+                                                    a.id !== selectedBeneficiaryAccountId &&
                                                     (transaction.projectId
                                                         ? a.projectId === transaction.projectId
                                                         : true)
