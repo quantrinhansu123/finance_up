@@ -132,7 +132,7 @@ export default function BudgetRequestDetailModal({ transaction, onClose, onUpdat
         }
     };
 
-    const [pendingAction, setPendingAction] = useState<"PAY" | "CONFIRM" | null>(null);
+    const [pendingAction, setPendingAction] = useState<"PAY" | null>(null);
     const [uploadFiles, setUploadFiles] = useState<File[]>([]);
     const [uploading, setUploading] = useState(false);
     const [selectedAccountId, setSelectedAccountId] = useState(transaction.accountId || "");
@@ -164,58 +164,38 @@ export default function BudgetRequestDetailModal({ transaction, onClose, onUpdat
     const processAction = async () => {
         if (!pendingAction) return;
         if (uploadFiles.length === 0) {
-            alert("Vui lòng tải lên ảnh chứng minh.");
+            alert("Vui lòng tải lên bill thanh toán.");
             return;
         }
-        if (pendingAction === "PAY") {
-            if (!selectedBeneficiaryAccountId) {
-                alert("Vui lòng chọn tài khoản thụ hưởng để nhận tiền.");
-                return;
-            }
-            if (!selectedAccountId) {
-                alert("Vui lòng chọn tài khoản nguồn để thanh toán.");
-                return;
-            }
-            if (selectedAccountId === selectedBeneficiaryAccountId) {
-                alert("Tài khoản nguồn và tài khoản thụ hưởng không được trùng nhau.");
-                return;
-            }
-            if (!currentUser.uid && !currentUser.id) {
-                alert("Phiên đăng nhập thiếu mã nhân viên. Vui lòng đăng nhập lại.");
-                return;
-            }
+        if (!selectedBeneficiaryAccountId) {
+            alert("Vui lòng chọn tài khoản thụ hưởng để nhận tiền.");
+            return;
+        }
+        if (!selectedAccountId) {
+            alert("Vui lòng chọn tài khoản nguồn để thanh toán.");
+            return;
+        }
+        if (selectedAccountId === selectedBeneficiaryAccountId) {
+            alert("Tài khoản nguồn và tài khoản thụ hưởng không được trùng nhau.");
+            return;
+        }
+        if (!currentUser.uid && !currentUser.id) {
+            alert("Phiên đăng nhập thiếu mã nhân viên. Vui lòng đăng nhập lại.");
+            return;
         }
 
         setUploading(true);
         try {
-            // Upload all files
             const urls = await Promise.all(uploadFiles.map(file => uploadImage(file)));
+            const payerId = currentUser.uid || currentUser.id;
 
-            if (pendingAction === "PAY") {
-                const payerId = currentUser.uid || currentUser.id;
-
-                await payBudgetRequestToBeneficiaryAccount(transaction, {
-                    sourceAccountId: selectedAccountId,
-                    beneficiaryAccountId: selectedBeneficiaryAccountId,
-                    proofOfPayment: urls,
-                    paidBy: payerId!,
-                    exchangeRate: parseFloat(exchangeRate) || 1,
-                });
-            } else if (pendingAction === "CONFIRM") {
-                // Enforce 2 photos for Marketing Budget confirmation
-                if (urls.length < 2) {
-                    alert("Yêu cầu tối thiểu 2 ảnh bằng chứng để hoàn thành.");
-                    setUploading(false);
-                    return;
-                }
-
-                await updateTransactionStatus(transaction.id, "COMPLETED");
-                const confirmerId = currentUser.uid || currentUser.id;
-                await updateTransaction(transaction.id, {
-                    ...(confirmerId ? { confirmedBy: confirmerId } : {}),
-                    proofOfReceipt: urls,
-                });
-            }
+            await payBudgetRequestToBeneficiaryAccount(transaction, {
+                sourceAccountId: selectedAccountId,
+                beneficiaryAccountId: selectedBeneficiaryAccountId,
+                proofOfPayment: urls,
+                paidBy: payerId!,
+                exchangeRate: parseFloat(exchangeRate) || 1,
+            });
 
             onUpdate();
             setPendingAction(null);
@@ -230,6 +210,29 @@ export default function BudgetRequestDetailModal({ transaction, onClose, onUpdat
             alert("Lỗi khi xử lý: " + message);
         } finally {
             setUploading(false);
+        }
+    };
+
+    const handleConfirmComplete = async () => {
+        if (!confirm("Xác nhận yêu cầu này đã hoàn thành?")) return;
+        setLoading(true);
+        try {
+            await updateTransactionStatus(transaction.id, "COMPLETED");
+            const confirmerId = currentUser.uid || currentUser.id;
+            await updateTransaction(transaction.id, {
+                ...(confirmerId ? { confirmedBy: confirmerId } : {}),
+            });
+            onUpdate();
+        } catch (e) {
+            console.error(e);
+            const message = e instanceof Error
+                ? e.message
+                : typeof e === "object" && e !== null && "message" in e
+                    ? String((e as { message?: unknown }).message)
+                    : String(e);
+            alert("Lỗi khi xác nhận hoàn thành: " + message);
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -556,10 +559,11 @@ export default function BudgetRequestDetailModal({ transaction, onClose, onUpdat
 
                     {transaction.status === "PAID" && isCreator && !pendingAction && (
                         <button
-                            onClick={() => setPendingAction("CONFIRM")}
-                            className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold flex items-center gap-2"
+                            onClick={handleConfirmComplete}
+                            disabled={loading}
+                            className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold flex items-center gap-2 disabled:opacity-50"
                         >
-                            <CheckCircle size={18} /> Xác Nhận & Hoàn Thành
+                            <CheckCircle size={18} /> {loading ? "Đang xử lý..." : "Xác Nhận & Hoàn Thành"}
                         </button>
                     )}
 
@@ -612,80 +616,76 @@ export default function BudgetRequestDetailModal({ transaction, onClose, onUpdat
                     <div className="absolute inset-0 bg-black/90 z-10 flex items-center justify-center p-6">
                         <div className="w-full max-w-md bg-[#1e1e2e] rounded-xl p-6 border border-white/10">
                             <h3 className="text-xl font-bold text-white mb-2">
-                                {pendingAction === "PAY" ? "Tạo Phiếu Chi & Thanh Toán" : "Upload Bằng Chứng Nhận Tiền"}
+                                Tạo Phiếu Chi & Thanh Toán
                             </h3>
                             <p className="text-sm text-[var(--muted)] mb-4">
-                                {pendingAction === "PAY"
-                                    ? "Chọn tài khoản nguồn và tải lên bill. Hệ thống sẽ cộng tiền vào tài khoản thụ hưởng và tạo lịch sử giao dịch."
-                                    : "Vui lòng tải lên 2 ảnh chứng minh (Ví dụ: Số dư tài khoản Ads)."}
+                                Chọn tài khoản nguồn và tải lên bill. Hệ thống sẽ cộng tiền vào tài khoản thụ hưởng và tạo lịch sử giao dịch.
                             </p>
 
-                            {pendingAction === "PAY" && (
-                                <div className="mb-4 space-y-4">
-                                    <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-3 text-sm">
-                                        <div className="text-xs uppercase font-bold text-emerald-300 mb-1">Tài khoản thụ hưởng</div>
-                                        <select
-                                            value={selectedBeneficiaryAccountId}
-                                            onChange={(e) => setSelectedBeneficiaryAccountId(e.target.value)}
-                                            className="glass-input w-full p-2 rounded-lg text-sm text-white"
-                                        >
-                                            <option value="">-- Chọn tài khoản nhận tiền --</option>
-                                            {beneficiaryAccountOptions.map(a => (
+                            <div className="mb-4 space-y-4">
+                                <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-3 text-sm">
+                                    <div className="text-xs uppercase font-bold text-emerald-300 mb-1">Tài khoản thụ hưởng</div>
+                                    <select
+                                        value={selectedBeneficiaryAccountId}
+                                        onChange={(e) => setSelectedBeneficiaryAccountId(e.target.value)}
+                                        className="glass-input w-full p-2 rounded-lg text-sm text-white"
+                                    >
+                                        <option value="">-- Chọn tài khoản nhận tiền --</option>
+                                        {beneficiaryAccountOptions.map(a => (
+                                            <option key={a.id} value={a.id}>
+                                                {a.name} ({a.balance.toLocaleString("vi-VN")} {a.currency})
+                                            </option>
+                                        ))}
+                                    </select>
+                                    {beneficiaryAccountOptions.length === 0 && (
+                                        <div className="mt-2 text-xs text-amber-200">
+                                            Không có tài khoản nhận cùng tiền tệ {transaction.currency} trong dự án này.
+                                        </div>
+                                    )}
+                                </div>
+                                <div>
+                                    <label className="block text-xs text-[var(--muted)] uppercase font-bold mb-1">Chọn tài khoản nguồn *</label>
+                                    <select
+                                        value={selectedAccountId}
+                                        onChange={(e) => setSelectedAccountId(e.target.value)}
+                                        className="glass-input w-full p-2 rounded-lg text-sm text-white"
+                                    >
+                                        <option value="">-- Chọn tài khoản --</option>
+                                        {allAccounts
+                                            .filter(a =>
+                                                a.id !== selectedBeneficiaryAccountId &&
+                                                (transaction.projectId
+                                                    ? a.projectId === transaction.projectId
+                                                    : true)
+                                            )
+                                            .map(a => (
                                                 <option key={a.id} value={a.id}>
                                                     {a.name} ({a.balance.toLocaleString("vi-VN")} {a.currency})
                                                 </option>
                                             ))}
-                                        </select>
-                                        {beneficiaryAccountOptions.length === 0 && (
-                                            <div className="mt-2 text-xs text-amber-200">
-                                                Không có tài khoản nhận cùng tiền tệ {transaction.currency} trong dự án này.
-                                            </div>
-                                        )}
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs text-[var(--muted)] uppercase font-bold mb-1">Chọn tài khoản nguồn *</label>
-                                        <select
-                                            value={selectedAccountId}
-                                            onChange={(e) => setSelectedAccountId(e.target.value)}
-                                            className="glass-input w-full p-2 rounded-lg text-sm text-white"
-                                        >
-                                            <option value="">-- Chọn tài khoản --</option>
-                                            {allAccounts
-                                                .filter(a =>
-                                                    a.id !== selectedBeneficiaryAccountId &&
-                                                    (transaction.projectId
-                                                        ? a.projectId === transaction.projectId
-                                                        : true)
-                                                )
-                                                .map(a => (
-                                                    <option key={a.id} value={a.id}>
-                                                        {a.name} ({a.balance.toLocaleString("vi-VN")} {a.currency})
-                                                    </option>
-                                                ))}
-                                        </select>
-                                    </div>
-
-                                    {usesDifferentCurrency && (
-                                        <div className="p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg space-y-2">
-                                            <div className="text-xs font-bold text-yellow-500 uppercase">Quy đổi ngoại tệ</div>
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-sm text-white">1 {transaction.currency} = </span>
-                                                <input
-                                                    type="number"
-                                                    value={exchangeRate}
-                                                    onChange={(e) => setExchangeRate(e.target.value)}
-                                                    className="glass-input flex-1 p-2 rounded text-sm text-white font-mono"
-                                                    placeholder="Tỷ giá..."
-                                                />
-                                                <span className="text-sm text-white">{selectedAccountObj?.currency}</span>
-                                            </div>
-                                            <div className="text-xs text-[var(--muted)]">
-                                                Số tiền sẽ trừ: <span className="text-white font-bold">{deductAmount.toLocaleString("vi-VN")} {selectedAccountObj?.currency}</span>
-                                            </div>
-                                        </div>
-                                    )}
+                                    </select>
                                 </div>
-                            )}
+
+                                {usesDifferentCurrency && (
+                                    <div className="p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg space-y-2">
+                                        <div className="text-xs font-bold text-yellow-500 uppercase">Quy đổi ngoại tệ</div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-sm text-white">1 {transaction.currency} = </span>
+                                            <input
+                                                type="number"
+                                                value={exchangeRate}
+                                                onChange={(e) => setExchangeRate(e.target.value)}
+                                                className="glass-input flex-1 p-2 rounded text-sm text-white font-mono"
+                                                placeholder="Tỷ giá..."
+                                            />
+                                            <span className="text-sm text-white">{selectedAccountObj?.currency}</span>
+                                        </div>
+                                        <div className="text-xs text-[var(--muted)]">
+                                            Số tiền sẽ trừ: <span className="text-white font-bold">{deductAmount.toLocaleString("vi-VN")} {selectedAccountObj?.currency}</span>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
 
                             <div className="border-2 border-dashed border-white/20 rounded-xl p-8 text-center mb-4">
                                 <input
