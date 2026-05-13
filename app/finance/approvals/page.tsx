@@ -523,7 +523,11 @@ export default function ApprovalsPage() {
 
     const handleDisburseFilesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (!e.target.files) return;
-        setDisburseFiles(Array.from(e.target.files));
+        const imageFiles = Array.from(e.target.files).filter((file) => file.type.startsWith("image/"));
+        if (imageFiles.length !== e.target.files.length) {
+            alert("Chỉ được chọn ảnh. PDF hoặc tài liệu khác không được hỗ trợ.");
+        }
+        setDisburseFiles(imageFiles);
     };
 
     const handleDisburseBudget = async () => {
@@ -1235,11 +1239,19 @@ export default function ApprovalsPage() {
 
                         <div className="mb-4 border-2 border-dashed border-white/20 rounded-xl p-4 text-center">
                             <input
+                                id="budget-disburse-image-upload"
                                 type="file"
                                 multiple
+                                accept="image/*"
                                 onChange={handleDisburseFilesChange}
-                                className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                                className="hidden"
                             />
+                            <label
+                                htmlFor="budget-disburse-image-upload"
+                                className="inline-flex cursor-pointer items-center justify-center rounded-full bg-blue-50 px-5 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-100"
+                            >
+                                Chọn ảnh
+                            </label>
                             {disburseFiles.length > 0 && (
                                 <div className="mt-2 text-sm text-green-400">Đã chọn {disburseFiles.length} ảnh giải ngân</div>
                             )}

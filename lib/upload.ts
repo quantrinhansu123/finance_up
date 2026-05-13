@@ -1,4 +1,8 @@
 export async function uploadImage(file: File): Promise<string> {
+    if (!file.type?.startsWith("image/")) {
+        throw new Error(`Chỉ được tải lên ảnh. File "${file.name}" không hợp lệ.`);
+    }
+
     const formData = new FormData();
     formData.append("file", file);
 

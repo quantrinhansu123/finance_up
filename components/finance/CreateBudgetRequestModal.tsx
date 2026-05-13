@@ -106,7 +106,10 @@ export default function CreateBudgetRequestModal({ onClose, onSuccess, userId }:
 
     const handleDocFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files) {
-            const newFiles = Array.from(e.target.files);
+            const newFiles = Array.from(e.target.files).filter((file) => file.type.startsWith("image/"));
+            if (newFiles.length !== e.target.files.length) {
+                alert("Chỉ được chọn ảnh. PDF hoặc tài liệu khác không được hỗ trợ.");
+            }
             setDocFiles(prev => [...prev, ...newFiles]);
         }
     };
@@ -376,13 +379,13 @@ export default function CreateBudgetRequestModal({ onClose, onSuccess, userId }:
 
                     <div>
                         <label className="block text-sm text-[var(--muted)] mb-1">
-                            Chứng từ đề xuất (Báo giá, Hợp đồng, Hóa đơn...)
+                            Ảnh chứng từ đề xuất (Báo giá, Hợp đồng, Hóa đơn...)
                         </label>
                         <div className="border-2 border-dashed border-white/20 rounded-xl p-4 text-center">
                             <input
                                 type="file"
                                 multiple
-                                accept="image/*,.pdf"
+                                accept="image/*"
                                 onChange={handleDocFileChange}
                                 className="hidden"
                                 id="doc-upload"
@@ -392,14 +395,14 @@ export default function CreateBudgetRequestModal({ onClose, onSuccess, userId }:
                                 className="cursor-pointer flex flex-col items-center gap-2 text-[var(--muted)] hover:text-white transition-colors"
                             >
                                 <Upload size={24} />
-                                <span className="text-sm">Click để chọn file hoặc kéo thả vào đây</span>
-                                <span className="text-xs text-white/30">Hỗ trợ: JPG, PNG, PDF</span>
+                                <span className="text-sm">Click để chọn ảnh hoặc kéo thả vào đây</span>
+                                <span className="text-xs text-white/30">Hỗ trợ: JPG, PNG, WEBP</span>
                             </label>
                         </div>
 
                         {docFiles.length > 0 && (
                             <div className="mt-3 space-y-2">
-                                <div className="text-xs text-[var(--muted)]">Đã chọn {docFiles.length} file:</div>
+                                <div className="text-xs text-[var(--muted)]">Đã chọn {docFiles.length} ảnh:</div>
                                 <div className="flex flex-wrap gap-2">
                                     {docFiles.map((file, i) => (
                                         <div key={i} className="flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-lg">

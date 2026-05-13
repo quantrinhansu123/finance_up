@@ -153,14 +153,18 @@ export default function BudgetRequestDetailModal({ transaction, onClose, onUpdat
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files) {
-            setUploadFiles(Array.from(e.target.files));
+            const imageFiles = Array.from(e.target.files).filter((file) => file.type.startsWith("image/"));
+            if (imageFiles.length !== e.target.files.length) {
+                alert("Chỉ được chọn ảnh. PDF hoặc tài liệu khác không được hỗ trợ.");
+            }
+            setUploadFiles(imageFiles);
         }
     };
 
     const processAction = async () => {
         if (!pendingAction) return;
         if (uploadFiles.length === 0) {
-            alert("Vui lòng tải lên tài liệu chứng minh.");
+            alert("Vui lòng tải lên ảnh chứng minh.");
             return;
         }
         if (pendingAction === "PAY") {
@@ -425,7 +429,7 @@ export default function BudgetRequestDetailModal({ transaction, onClose, onUpdat
                                         <div className="space-y-1">
                                             <div className="flex items-center gap-2 text-sm text-blue-400">
                                                 <Upload size={14} />
-                                                <span>Chứng từ đề xuất ({transaction.images.length} file):</span>
+                                                <span>Chứng từ đề xuất ({transaction.images.length} ảnh):</span>
                                             </div>
                                             <div className="flex flex-wrap gap-2">
                                                 {transaction.images.map((url, i) => (
@@ -685,18 +689,21 @@ export default function BudgetRequestDetailModal({ transaction, onClose, onUpdat
 
                             <div className="border-2 border-dashed border-white/20 rounded-xl p-8 text-center mb-4">
                                 <input
+                                    id={`budget-proof-upload-${pendingAction}`}
                                     type="file"
                                     multiple
+                                    accept="image/*"
                                     onChange={handleFileChange}
-                                    className="block w-full text-sm text-slate-500
-                                file:mr-4 file:py-2 file:px-4
-                                file:rounded-full file:border-0
-                                file:text-sm file:font-semibold
-                                file:bg-blue-50 file:text-blue-700
-                                hover:file:bg-blue-100"
+                                    className="hidden"
                                 />
+                                <label
+                                    htmlFor={`budget-proof-upload-${pendingAction}`}
+                                    className="inline-flex cursor-pointer items-center justify-center rounded-full bg-blue-50 px-5 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-100"
+                                >
+                                    Chọn ảnh
+                                </label>
                                 {uploadFiles.length > 0 && (
-                                    <div className="mt-2 text-sm text-green-400">Đã chọn {uploadFiles.length} file</div>
+                                    <div className="mt-2 text-sm text-green-400">Đã chọn {uploadFiles.length} ảnh</div>
                                 )}
                             </div>
 
