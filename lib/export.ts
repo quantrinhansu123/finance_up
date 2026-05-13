@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Utility to export data to CSV (Excel compatible)
+ * Utility to export tabular data as an Excel-readable worksheet.
  * @param data Array of objects to export
  * @param filename File name without extension
  * @param headers Mapping of object keys to human-readable headers
@@ -13,7 +13,14 @@ export function exportToCSV(data: any[], filename: string, headers: Record<strin
     }
 
     const columnKeys = Object.keys(headers);
-    const escapeCell = (value: unknown) => {
+    const escapeHtml = (value: unknown) =>
+        String(value ?? "")
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;");
+
+    const formatCell = (value: unknown) => {
         let val = value;
 
         if (val instanceof Date) {
@@ -22,24 +29,32 @@ export function exportToCSV(data: any[], filename: string, headers: Record<strin
             val = "";
         }
 
-        return `"${String(val).replace(/"/g, "\"\"")}"`;
+        return escapeHtml(val);
     };
 
-    const headerRow = columnKeys.map(key => escapeCell(headers[key])).join(",");
+    const headerRow = columnKeys.map(key => `<th>${escapeHtml(headers[key])}</th>`).join("");
+    const rows = data.map(item =>
+        `<tr>${columnKeys.map(key => `<td>${formatCell(item[key])}</td>`).join("")}</tr>`
+    );
 
-    const rows = data.map(item => {
-        return columnKeys.map(key => {
-            return escapeCell(item[key]);
-        }).join(",");
-    });
-
-    const csvContent = "\uFEFF" + [headerRow, ...rows].join("\n"); // Add UTF-8 BOM for Excel
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const excelContent = `\uFEFF<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8" />
+</head>
+<body>
+    <table>
+        <thead><tr>${headerRow}</tr></thead>
+        <tbody>${rows.join("")}</tbody>
+    </table>
+</body>
+</html>`;
+    const blob = new Blob([excelContent], { type: "application/vnd.ms-excel;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
 
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", `${filename}_${new Date().getTime()}.csv`);
+    link.setAttribute("download", `${filename}_${new Date().getTime()}.xls`);
     link.style.visibility = "hidden";
 
     document.body.appendChild(link);
