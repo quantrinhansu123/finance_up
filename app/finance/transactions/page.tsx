@@ -272,17 +272,29 @@ export default function TransactionsPage() {
                         setSearchTerm("");
                     }}
                     onExport={() => {
-                        exportToCSV(transactions, "Giao_Dich", {
-                            date: t("date"),
-                            type: t("type"),
-                            amount: t("amount"),
-                            currency: t("currency"),
-                            category: t("category"),
-                            source: t("source"),
-                            description: t("description"),
-                            status: t("status"),
-                            createdBy: t("creator")
-                        });
+                        exportToCSV(
+                            transactions.map(tx => ({
+                                date: tx.date?.slice(0, 10) || "",
+                                parentCategory: tx.parentCategory || "",
+                                category: tx.category || tx.source || "",
+                                amount: tx.amount,
+                                currency: tx.currency,
+                                accountName: tx.accountId ? getAccountName(tx.accountId) : "",
+                                projectName: tx.projectId ? getProjectName(tx.projectId) : "",
+                                description: tx.description || "",
+                            })),
+                            "Giao_Dich",
+                            {
+                                date: "Ngày",
+                                parentCategory: "Danh Mục Cha",
+                                category: "Danh Mục Chi Tiết",
+                                amount: "Số Tiền",
+                                currency: "Tiền tệ",
+                                accountName: "Tài khoản",
+                                projectName: "Dự án",
+                                description: "Mô tả"
+                            }
+                        );
                     }}
                     filters={[
                         {

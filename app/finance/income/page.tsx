@@ -732,15 +732,29 @@ export default function IncomePage() {
                         setActiveFilters({ startDate: "", endDate: "", date: "", projectId: "", accountId: "" });
                         setSearchTerm("");
                     }}
-                    onExport={() => exportToCSV(transactions, "Giao_Dich_Thu_Nhap", {
-                        date: t("date"),
-                        source: t("source"),
-                        amount: t("amount"),
-                        currency: t("currency"),
-                        accountName: t("account"),
-                        projectName: t("project"),
-                        description: t("description")
-                    })}
+                    onExport={() => exportToCSV(
+                        transactions.map(tx => ({
+                            date: tx.date?.slice(0, 10) || "",
+                            parentCategory: tx.parentCategory || "",
+                            category: tx.category || tx.source || "",
+                            amount: tx.amount,
+                            currency: tx.currency,
+                            accountName: getAccountName(tx.accountId || ""),
+                            projectName: projectLabelById(projects, tx.projectId || ""),
+                            description: tx.description || "",
+                        })),
+                        "Giao_Dich_Thu_Nhap",
+                        {
+                            date: "Ngày",
+                            parentCategory: "Danh Mục Cha",
+                            category: "Danh Mục Chi Tiết",
+                            amount: "Số Tiền",
+                            currency: "Tiền tệ",
+                            accountName: "Tài khoản",
+                            projectName: "Dự án",
+                            description: "Mô tả"
+                        }
+                    )}
                     filters={[
                         { id: "projectId", label: t("all_projects"), options: [{ value: "", label: t("all_projects") }, ...projects.map(p => ({ value: p.id, label: formatProjectListLabel(p) }))] },
                         { id: "accountId", label: t("all_accounts"), options: [{ value: "", label: t("all_accounts") }, ...accounts.map(a => ({ value: a.id, label: a.name }))] }

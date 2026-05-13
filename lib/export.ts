@@ -13,24 +13,24 @@ export function exportToCSV(data: any[], filename: string, headers: Record<strin
     }
 
     const columnKeys = Object.keys(headers);
-    const headerRow = columnKeys.map(key => headers[key]).join(";");
+    const escapeCell = (value: unknown) => {
+        let val = value;
+
+        if (val instanceof Date) {
+            val = val.toLocaleDateString("vi-VN");
+        } else if (val === null || val === undefined) {
+            val = "";
+        }
+
+        return `"${String(val).replace(/"/g, "\"\"")}"`;
+    };
+
+    const headerRow = columnKeys.map(key => escapeCell(headers[key])).join(",");
 
     const rows = data.map(item => {
         return columnKeys.map(key => {
-            let val = item[key];
-
-            // Handle dates
-            if (val instanceof Date) {
-                val = val.toLocaleDateString("vi-VN");
-            } else if (typeof val === "string" && (val.includes(";") || val.includes("\"") || val.includes("\n"))) {
-                // Escape quotes and wrap in quotes if contains separator
-                val = `"${val.replace(/"/g, "\"\"")}"`;
-            } else if (val === null || val === undefined) {
-                val = "";
-            }
-
-            return val;
-        }).join(";");
+            return escapeCell(item[key]);
+        }).join(",");
     });
 
     const csvContent = "\uFEFF" + [headerRow, ...rows].join("\n"); // Add UTF-8 BOM for Excel
