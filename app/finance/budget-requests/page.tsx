@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useTranslation } from "@/lib/i18n";
 import { Transaction, Account, Project, TransactionStatus } from "@/types/finance";
-import { getTransactions, getAccounts, getProjects, deleteTransaction } from "@/lib/finance";
+import { getTransactions, getAccounts, getProjects, deleteBudgetRequest } from "@/lib/finance";
 import { getUsers } from "@/lib/users";
 import type { UserProfile } from "@/types/user";
 import { getUserRole, getAccessibleProjects } from "@/lib/permissions";
@@ -121,27 +121,32 @@ export default function BudgetRequestsPage() {
         return allAccounts.find(a => a.id === id)?.name || id;
     };
 
-    // Handle delete request (only for PENDING status)
+    const canDeleteRequest = (tx: Transaction) => {
+        const role = getUserRole(currentUser);
+        if (role === "ADMIN") return true;
+        const isCreator = currentUser?.uid === tx.userId || currentUser?.id === tx.userId;
+        return isCreator && (tx.status === "PENDING" || tx.status === "REJECTED");
+    };
+
+    // Handle delete request and reverse linked balance/history when needed.
     const handleDeleteRequest = async (tx: Transaction, e: React.MouseEvent) => {
         e.stopPropagation();
 
-        if (tx.status !== "PENDING") {
-            alert("Chỉ có thể xóa yêu cầu ở trạng thái Chờ duyệt");
-            return;
-        }
-
-        // Only creator or admin can delete
-        const isCreator = currentUser?.uid === tx.userId || currentUser?.id === tx.userId;
-        const role = getUserRole(currentUser);
-        if (!isCreator && role !== "ADMIN") {
+        if (!canDeleteRequest(tx)) {
             alert("Bạn không có quyền xóa yêu cầu này");
             return;
         }
 
-        if (!confirm("Bạn có chắc chắn muốn xóa yêu cầu này?")) return;
+        const paidWarning = tx.status === "PAID" || tx.status === "COMPLETED"
+            ? "\n\nYêu cầu này đã thanh toán. Khi xóa, hệ thống sẽ hoàn tác số dư tài khoản nguồn/tài khoản nhận và xóa lịch sử giao dịch liên quan."
+            : "";
+        const approvedWarning = tx.status === "APPROVED"
+            ? "\n\nYêu cầu này đã duyệt. Khi xóa, hệ thống sẽ xóa cả phiếu chi liên kết nếu có."
+            : "";
+        if (!confirm(`Bạn có chắc chắn muốn xóa yêu cầu này?${paidWarning}${approvedWarning}`)) return;
 
         try {
-            await deleteTransaction(tx.id);
+            await deleteBudgetRequest(tx.id);
             fetchData();
         } catch (error) {
             console.error("Failed to delete request", error);
@@ -346,23 +351,22 @@ export default function BudgetRequestsPage() {
                         },
                         {
                             key: "actions",
-                            header: "",
+                            header: "Thao tác",
+                            align: "center",
+                            sortable: false,
                             render: (tx) => {
-                                // Only show delete for PENDING status and if user is creator or admin
-                                const isCreator = currentUser?.uid === tx.userId || currentUser?.id === tx.userId;
-                                const role = getUserRole(currentUser);
-                                if (tx.status === "PENDING" && (isCreator || role === "ADMIN")) {
+                                if (canDeleteRequest(tx)) {
                                     return (
                                         <button
                                             onClick={(e) => handleDeleteRequest(tx, e)}
-                                            className="p-1.5 text-red-400 hover:text-red-300 hover:bg-red-500/20 rounded transition-colors"
+                                            className="inline-flex items-center justify-center p-1.5 text-red-400 hover:text-red-300 hover:bg-red-500/20 rounded transition-colors"
                                             title="Xóa yêu cầu"
                                         >
                                             <Trash2 size={16} />
                                         </button>
                                     );
                                 }
-                                return null;
+                                return <span className="text-white/20">-</span>;
                             }
                         }
                     ]}

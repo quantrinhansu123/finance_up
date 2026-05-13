@@ -556,6 +556,76 @@ export async function hasBudgetFundingReceipt(sourceRequestId: string): Promise<
     return !!receipt;
 }
 
+const BALANCE_APPLIED_STATUSES = new Set<Transaction["status"]>(["APPROVED", "PAID", "COMPLETED"]);
+
+function parseBudgetExchangeRate(description: string | undefined, fromCurrency: string, toCurrency: string): number {
+    if (!description || fromCurrency === toCurrency) return 1;
+    const match = description.match(/Tỷ giá:\s*1\s+([A-Z]{3})\s*=\s*([\d.,]+)\s+([A-Z]{3})/i);
+    if (!match) return 1;
+    if (match[1].toUpperCase() !== fromCurrency || match[3].toUpperCase() !== toCurrency) return 1;
+    const value = Number(match[2].replace(",", "."));
+    return Number.isFinite(value) && value > 0 ? value : 1;
+}
+
+async function getBudgetRequestLinkedTransactions(sourceRequestId: string): Promise<Transaction[]> {
+    const { data, error } = await supabase
+        .from("finance_transactions")
+        .select("*")
+        .eq("budget_request_source_id", sourceRequestId);
+    if (error) throw error;
+    return (data || []).map(mapTxFromDB);
+}
+
+export async function deleteBudgetRequest(requestId: string): Promise<void> {
+    const { data, error } = await supabase
+        .from("finance_transactions")
+        .select("*")
+        .eq("id", requestId)
+        .maybeSingle();
+    if (error) throw error;
+    if (!data) return;
+
+    const requestTx = mapTxFromDB(data);
+    const linkedTxs = await getBudgetRequestLinkedTransactions(requestId);
+    const txsToDelete = [requestTx, ...linkedTxs];
+    const accounts = await getAccounts();
+    const accountsById = new Map(accounts.map((account) => [account.id, account]));
+    const balanceDeltas = new Map<string, number>();
+
+    for (const tx of txsToDelete) {
+        if (!tx.accountId || !BALANCE_APPLIED_STATUSES.has(tx.status)) continue;
+
+        // Yêu cầu gốc ở trạng thái APPROVED chỉ là hồ sơ chờ thanh toán; tiền chưa trừ ở dòng này.
+        if (tx.id === requestId && tx.type === "OUT" && tx.status === "APPROVED") continue;
+
+        const account = accountsById.get(tx.accountId);
+        if (!account) continue;
+
+        const rate = parseBudgetExchangeRate(tx.description, tx.currency, account.currency);
+        const signedDelta = tx.type === "IN"
+            ? -Number(tx.amount || 0)
+            : Number(tx.amount || 0) * rate;
+        balanceDeltas.set(account.id, (balanceDeltas.get(account.id) || 0) + signedDelta);
+    }
+
+    for (const [accountId, delta] of balanceDeltas) {
+        const account = accountsById.get(accountId);
+        if (!account || delta === 0) continue;
+        await updateAccountBalance(accountId, account.balance + delta);
+    }
+
+    const ids = Array.from(new Set(txsToDelete.map((tx) => tx.id).filter(Boolean)));
+    if (ids.length > 0) {
+        const { error: deleteError } = await supabase
+            .from("finance_transactions")
+            .delete()
+            .in("id", ids);
+        if (deleteError) throw deleteError;
+    }
+
+    await logAction("DELETE_BUDGET_REQUEST", { linkedTransactions: linkedTxs.length }, requestId);
+}
+
 async function getBudgetFundingReceipt(sourceRequestId: string): Promise<{
     id: string;
     account_id: string | null;
