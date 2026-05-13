@@ -440,6 +440,7 @@ const mapTxFromDB = (data: any): Transaction => ({
     rejectionReason: data.rejection_reason || undefined,
     isBudgetRequest: data.is_budget_request === true,
     budgetRequestSourceId: data.budget_request_source_id || undefined,
+    beneficiaryAccountId: data.beneficiary_account_id || undefined,
     approvedBy: data.approved_by || undefined,
     approverDisplayName: data.approver_display_name?.trim() || undefined,
     rejectedBy: data.rejected_by || undefined,
@@ -483,6 +484,8 @@ const mapTxToDB = (data: any) => {
     if (data.isBudgetRequest !== undefined) res.is_budget_request = data.isBudgetRequest;
     if (data.budgetRequestSourceId !== undefined)
         res.budget_request_source_id = data.budgetRequestSourceId || null;
+    if (data.beneficiaryAccountId !== undefined)
+        res.beneficiary_account_id = data.beneficiaryAccountId || null;
     if (data.approvedBy !== undefined) res.approved_by = data.approvedBy;
     if (data.approverDisplayName !== undefined)
         res.approver_display_name = data.approverDisplayName?.trim() || null;
@@ -531,6 +534,16 @@ export async function hasBudgetExpenseVoucher(sourceRequestId: string): Promise<
     return (count || 0) > 0;
 }
 
+export async function hasBudgetFundingReceipt(sourceRequestId: string): Promise<boolean> {
+    const { count, error } = await supabase
+        .from("finance_transactions")
+        .select("id", { count: "exact", head: true })
+        .eq("budget_request_source_id", sourceRequestId)
+        .eq("type", "IN");
+    if (error) throw error;
+    return (count || 0) > 0;
+}
+
 /**
  * Sau khi admin duyệt yêu cầu xin ngân sách: tạo phiếu chi OUT (liên kết yêu cầu gốc).
  * Nếu yêu cầu không có `accountId`, vẫn tạo phiếu nhưng **không** trừ số dư — kế toán chọn tài khoản khi thanh toán.
@@ -560,6 +573,7 @@ export async function createExpenseVoucherFromBudgetRequest(
         warning,
         approvedBy: uid,
         approverDisplayName: opts.approverDisplayName,
+        beneficiaryAccountId: requestTx.beneficiaryAccountId,
         createdBy: uid,
         userId: uid,
         isBudgetRequest: false,
@@ -579,6 +593,95 @@ export async function createExpenseVoucherFromBudgetRequest(
     }
 
     return newId;
+}
+
+export async function payBudgetRequestToBeneficiaryAccount(
+    requestTx: Transaction,
+    opts: {
+        sourceAccountId: string;
+        proofOfPayment: string[];
+        paidBy: string;
+        exchangeRate?: number;
+    }
+): Promise<string> {
+    if (!requestTx.beneficiaryAccountId) {
+        throw new Error("Yêu cầu này chưa có tài khoản thụ hưởng. Vui lòng chọn tài khoản từ danh sách TK khi tạo yêu cầu.");
+    }
+    if (!opts.sourceAccountId) {
+        throw new Error("Vui lòng chọn tài khoản nguồn để thanh toán.");
+    }
+    if (opts.sourceAccountId === requestTx.beneficiaryAccountId) {
+        throw new Error("Tài khoản nguồn và tài khoản thụ hưởng không được trùng nhau.");
+    }
+    if (await hasBudgetFundingReceipt(requestTx.id)) {
+        throw new Error("Yêu cầu này đã có giao dịch nạp tiền trong lịch sử.");
+    }
+
+    const [sourceAccount, targetAccount] = await Promise.all([
+        getAccount(opts.sourceAccountId),
+        getAccount(requestTx.beneficiaryAccountId),
+    ]);
+    if (!sourceAccount) throw new Error("Không tìm thấy tài khoản nguồn.");
+    if (!targetAccount) throw new Error("Không tìm thấy tài khoản thụ hưởng.");
+    if (targetAccount.currency !== requestTx.currency) {
+        throw new Error("Tiền tệ của tài khoản thụ hưởng không khớp với yêu cầu ngân sách.");
+    }
+
+    const rate = opts.exchangeRate && opts.exchangeRate > 0 ? opts.exchangeRate : 1;
+    const sourceDeductAmount = sourceAccount.currency !== requestTx.currency
+        ? requestTx.amount * rate
+        : requestTx.amount;
+    if (sourceAccount.balance < sourceDeductAmount) {
+        throw new Error("Số dư tài khoản nguồn không đủ để thanh toán.");
+    }
+
+    await updateAccountBalance(sourceAccount.id, sourceAccount.balance - sourceDeductAmount);
+    await updateAccountBalance(targetAccount.id, targetAccount.balance + requestTx.amount);
+
+    const now = new Date();
+    const rateInfo = sourceAccount.currency !== requestTx.currency
+        ? ` | Tỷ giá: 1 ${requestTx.currency} = ${rate} ${sourceAccount.currency}`
+        : "";
+    const description = [
+        `Nạp ngân sách từ yêu cầu #${requestTx.id.slice(0, 8)}`,
+        requestTx.description || "",
+        `Nguồn: ${sourceAccount.name}${rateInfo}`,
+    ].filter(Boolean).join(" | ");
+
+    const receiptId = await createTransaction({
+        type: "IN",
+        amount: requestTx.amount,
+        currency: requestTx.currency,
+        category: (requestTx.category && requestTx.category.trim()) || BUDGET_REQUEST_CATEGORY,
+        accountId: targetAccount.id,
+        projectId: requestTx.projectId || targetAccount.projectId,
+        source: `Nạp ngân sách từ ${sourceAccount.name}`,
+        description,
+        transferContent: requestTx.transferContent,
+        images: opts.proofOfPayment,
+        proofOfPayment: opts.proofOfPayment,
+        status: "APPROVED",
+        beneficiary: requestTx.beneficiary || targetAccount.name,
+        platform: requestTx.platform,
+        bankInfo: requestTx.bankInfo,
+        isBudgetRequest: false,
+        budgetRequestSourceId: requestTx.id,
+        createdBy: opts.paidBy,
+        userId: opts.paidBy,
+        date: now.toISOString(),
+        createdAt: now.getTime(),
+        updatedAt: now.getTime(),
+    });
+
+    await updateTransaction(requestTx.id, {
+        status: "PAID",
+        accountId: sourceAccount.id,
+        paidBy: opts.paidBy,
+        proofOfPayment: opts.proofOfPayment,
+        description: `${requestTx.description || ""}${rateInfo}`.trim(),
+    });
+
+    return receiptId;
 }
 
 export async function createTransaction(tx: Omit<Transaction, "id">): Promise<string> {

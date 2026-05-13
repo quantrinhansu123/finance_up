@@ -264,6 +264,9 @@ export default function ApprovalsPage() {
     const txAccountLabel = (tx: Transaction) =>
         accounts.find((a) => a.id === tx.accountId)?.name || (tx.accountId ? tx.accountId : undefined);
 
+    const txBeneficiaryAccountLabel = (tx: Transaction) =>
+        accounts.find((a) => a.id === tx.beneficiaryAccountId)?.name || (tx.beneficiaryAccountId ? tx.beneficiaryAccountId : undefined);
+
     const txProjectLabel = (tx: Transaction) =>
         tx.projectId ? allProjects.find((p) => p.id === tx.projectId)?.name : undefined;
 
@@ -719,8 +722,11 @@ export default function ApprovalsPage() {
                                     <div className="space-y-1">
                                         <p className="text-white font-medium">{tx.category}</p>
                                         <p className="text-[var(--muted)] text-sm">{tx.description}</p>
-                                        {tx.beneficiary && (
-                                            <p className="text-blue-400 text-xs font-bold uppercase">Thụ hưởng: {tx.beneficiary}</p>
+                                        {(tx.beneficiaryAccountId || tx.beneficiary) && (
+                                            <p className="text-blue-400 text-xs font-bold uppercase">
+                                                TK thụ hưởng: {txBeneficiaryAccountLabel(tx) || tx.beneficiary}
+                                                {tx.beneficiary && tx.beneficiaryAccountId ? ` | ${tx.beneficiary}` : ""}
+                                            </p>
                                         )}
                                         {tx.projectId && (
                                             <p className="text-[var(--muted)] text-[10px]">Dự án: {allProjects.find(p => p.id === tx.projectId)?.name || "N/A"}</p>

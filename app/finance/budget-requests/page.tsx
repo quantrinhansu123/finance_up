@@ -116,6 +116,11 @@ export default function BudgetRequestsPage() {
         return userNameById.get(idOrName) || idOrName;
     };
 
+    const resolveAccountName = (id?: string) => {
+        if (!id) return undefined;
+        return allAccounts.find(a => a.id === id)?.name || id;
+    };
+
     // Handle delete request (only for PENDING status)
     const handleDeleteRequest = async (tx: Transaction, e: React.MouseEvent) => {
         e.stopPropagation();
@@ -303,8 +308,17 @@ export default function BudgetRequestsPage() {
                         },
                         {
                             key: "beneficiary",
-                            header: "Đơn vị nhận",
-                            render: (tx) => <span className="font-medium text-white">{tx.beneficiary || "N/A"}</span>
+                            header: "Tài khoản nhận",
+                            render: (tx) => (
+                                <div>
+                                    <div className="font-medium text-white">
+                                        {resolveAccountName(tx.beneficiaryAccountId) || tx.beneficiary || "N/A"}
+                                    </div>
+                                    {tx.beneficiary && tx.beneficiaryAccountId && (
+                                        <div className="text-xs text-white/40">{tx.beneficiary}</div>
+                                    )}
+                                </div>
+                            )
                         },
                         {
                             key: "category",

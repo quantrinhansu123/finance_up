@@ -88,6 +88,8 @@ export interface Transaction {
     isBudgetRequest?: boolean;
     /** Phiếu chi OUT tạo sau khi admin duyệt — trỏ tới id yêu cầu gốc. */
     budgetRequestSourceId?: string;
+    /** Tài khoản nội bộ nhận tiền khi yêu cầu xin ngân sách được thanh toán. */
+    beneficiaryAccountId?: string;
 
     // Budget Request Specific Fields
     beneficiary?: string; // "ZENO", "ECOME", etc.

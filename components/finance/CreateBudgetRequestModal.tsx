@@ -5,12 +5,13 @@ import { X, Save, Upload, ImageIcon, Trash2 } from "lucide-react";
 import {
     createTransaction,
     getBeneficiaries,
+    getAccounts,
     BUDGET_REQUEST_CATEGORY,
     BUDGET_REQUEST_CATEGORY_SEPARATOR,
     isFinanceUserId,
 } from "@/lib/finance";
 import { getMasterCategories, getMasterSubCategories } from "@/lib/master-categories";
-import { Currency, TransactionType, BankInfo, TransactionStatus, Beneficiary, MasterCategory, MasterSubCategory } from "@/types/finance";
+import { Currency, TransactionType, BankInfo, TransactionStatus, Beneficiary, MasterCategory, MasterSubCategory, Account } from "@/types/finance";
 import BudgetRequestCategoryPicker from "./BudgetRequestCategoryPicker";
 import { uploadImage } from "../../lib/upload";
 import CurrencyInput from "./CurrencyInput";
@@ -24,9 +25,11 @@ interface Props {
 }
 
 
-export default function CreateBudgetRequestModal({ onClose, onSuccess, username, userId }: Props) {
+export default function CreateBudgetRequestModal({ onClose, onSuccess, userId }: Props) {
     const [loading, setLoading] = useState(false);
     const [allBeneficiaries, setAllBeneficiaries] = useState<Beneficiary[]>([]);
+    const [allAccounts, setAllAccounts] = useState<Account[]>([]);
+    const [beneficiaryAccountId, setBeneficiaryAccountId] = useState("");
     const [selectedBeneficiaryId, setSelectedBeneficiaryId] = useState("");
     const [selectedPlatform, setSelectedPlatform] = useState("");
 
@@ -52,17 +55,16 @@ export default function CreateBudgetRequestModal({ onClose, onSuccess, username,
     useEffect(() => {
         const loadData = async () => {
             try {
-                const [beneficiaries, cats, subs] = await Promise.all([
+                const [beneficiaries, accounts, cats, subs] = await Promise.all([
                     getBeneficiaries(),
+                    getAccounts(),
                     getMasterCategories(),
                     getMasterSubCategories(),
                 ]);
                 setAllBeneficiaries(beneficiaries);
+                setAllAccounts(accounts);
                 setMasterCategories(cats.filter((c) => c.isActive && c.type === "EXPENSE"));
                 setGlobalSubCategories(subs.filter((c) => c.isActive));
-                if (beneficiaries.length === 0) {
-                    setSelectedBeneficiaryId("manual");
-                }
             } catch (error) {
                 console.error("Failed to load budget request form data", error);
             }
@@ -95,6 +97,13 @@ export default function CreateBudgetRequestModal({ onClose, onSuccess, username,
         }
     }, [selectedBeneficiaryId, allBeneficiaries]);
 
+    useEffect(() => {
+        const selected = allAccounts.find(a => a.id === beneficiaryAccountId);
+        if (!selected) return;
+        setBeneficiary(selected.name);
+        setCurrency(selected.currency);
+    }, [beneficiaryAccountId, allAccounts]);
+
     const handleDocFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files) {
             const newFiles = Array.from(e.target.files);
@@ -118,8 +127,8 @@ export default function CreateBudgetRequestModal({ onClose, onSuccess, username,
     };
 
     const handleSubmit = async () => {
-        if (!amount || !beneficiary) {
-            alert("Vui lòng điền đầy đủ thông tin bắt buộc!");
+        if (!amount || !beneficiaryAccountId) {
+            alert("Vui lòng chọn tài khoản thụ hưởng và nhập số tiền.");
             return;
         }
         if (expenseCategories.length === 0) {
@@ -149,6 +158,7 @@ export default function CreateBudgetRequestModal({ onClose, onSuccess, username,
                 createdBy: uid,
                 userId: uid,
                 beneficiary,
+                beneficiaryAccountId,
                 platform: selectedPlatform,
                 bankInfo,
                 images: uploadedDocs,
@@ -194,13 +204,32 @@ export default function CreateBudgetRequestModal({ onClose, onSuccess, username,
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-sm text-[var(--muted)] mb-1">Đơn vị thụ hưởng *</label>
+                            <label className="block text-sm text-[var(--muted)] mb-1">Tài khoản thụ hưởng *</label>
+                            <select
+                                value={beneficiaryAccountId}
+                                onChange={(e) => setBeneficiaryAccountId(e.target.value)}
+                                className="glass-input w-full p-3 rounded-xl font-bold text-blue-300"
+                            >
+                                <option value="">-- Chọn tài khoản nhận tiền --</option>
+                                {allAccounts.map(a => (
+                                    <option key={a.id} value={a.id}>
+                                        {a.name} ({a.balance.toLocaleString("vi-VN")} {a.currency})
+                                    </option>
+                                ))}
+                            </select>
+                            <p className="mt-1 text-xs text-white/40">
+                                Khi kế toán thanh toán, số tiền sẽ được cộng vào tài khoản này và tạo lịch sử giao dịch.
+                            </p>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm text-[var(--muted)] mb-1">Đơn vị / Agency chuyển khoản</label>
                             <select
                                 value={selectedBeneficiaryId}
                                 onChange={(e) => setSelectedBeneficiaryId(e.target.value)}
-                                className="glass-input w-full p-3 rounded-xl font-bold text-blue-300"
+                                className="glass-input w-full p-3 rounded-xl font-bold text-green-300"
                             >
-                                <option value="">-- Chọn Công Ty / Agency --</option>
+                                <option value="">-- Không chọn --</option>
                                 {allBeneficiaries.map(b => (
                                     <option key={b.id} value={b.id}>{b.name}</option>
                                 ))}
@@ -311,6 +340,7 @@ export default function CreateBudgetRequestModal({ onClose, onSuccess, username,
                                     <select
                                         value={currency}
                                         onChange={(e) => setCurrency(e.target.value as Currency)}
+                                        disabled={!!beneficiaryAccountId}
                                         className="glass-input p-2 rounded-xl text-center font-bold text-blue-400"
                                     >
                                         <option value="VND">VND</option>

@@ -2,10 +2,9 @@
 
 import { Transaction, TransactionStatus, Project, Account } from "@/types/finance";
 import type { UserProfile } from "@/types/user";
-import { X, CheckCircle, Clock, Upload, ArrowRightCircle, ShieldCheck, Download, ExternalLink, XCircle, Wallet } from "lucide-react";
+import { X, CheckCircle, Upload, ArrowRightCircle, ShieldCheck, ExternalLink, XCircle, Wallet } from "lucide-react";
 import { useMemo, useState } from "react";
-import { useTranslation } from "@/lib/i18n";
-import { updateTransactionStatus, updateTransaction, updateAccountBalance, getAccount } from "@/lib/finance";
+import { updateTransactionStatus, updateTransaction, payBudgetRequestToBeneficiaryAccount } from "@/lib/finance";
 import { getUserRole, hasProjectPermission } from "@/lib/permissions";
 import { uploadImage } from "../../lib/upload";
 import { sessionUserDisplayLabel } from "@/lib/session-user-label";
@@ -17,16 +16,14 @@ interface Props {
     isOpen?: boolean;
     onClose: () => void;
     onUpdate: () => void;
-    currentUser: any;
+    currentUser: Partial<UserProfile> & { id?: string; name?: string };
     allProjects?: Project[]; // NEW: For permission checking
     allAccounts?: Account[]; // NEW: For showing source account info
     allUsers?: UserProfile[];
 }
 
 export default function BudgetRequestDetailModal({ transaction, onClose, onUpdate, currentUser, allProjects = [], allAccounts = [], allUsers = [] }: Props) {
-    const { t } = useTranslation();
     const [loading, setLoading] = useState(false);
-    const [uploadUrl, setUploadUrl] = useState("");
     const [isEditing, setIsEditing] = useState(false);
     const [editedAmount, setEditedAmount] = useState(transaction.amount);
     const [isRejecting, setIsRejecting] = useState(false);
@@ -41,15 +38,11 @@ export default function BudgetRequestDetailModal({ transaction, onClose, onUpdat
 
     // Accountant: System Admin OR User with ACCOUNTANT finance role OR has pay_transactions permission
     const isAccountant = role === "ADMIN" || financeRole === "ACCOUNTANT" ||
-        (project && hasProjectPermission(userId, project, "pay_transactions", currentUser));
+        (project && hasProjectPermission(userId || "", project, "pay_transactions", currentUser));
 
     // Confirming Request: System Admin OR has confirm_budget_request permission
     const isConfirmingPerson = role === "ADMIN" || financeRole === "MANAGER" || financeRole === "ADMIN" ||
-        (project && hasProjectPermission(userId, project, "confirm_budget_request", currentUser));
-
-    // Director/Approver: System Admin OR has approve_transactions permission in project
-    const isDirector = role === "ADMIN" || financeRole === "MANAGER" || financeRole === "ADMIN" ||
-        (project && hasProjectPermission(userId, project, "approve_transactions", currentUser));
+        (project && hasProjectPermission(userId || "", project, "confirm_budget_request", currentUser));
 
     const isCreator = currentUser?.uid === transaction.userId || currentUser?.id === transaction.userId;
 
@@ -146,6 +139,7 @@ export default function BudgetRequestDetailModal({ transaction, onClose, onUpdat
     const [exchangeRate, setExchangeRate] = useState<string>("1");
 
     const selectedAccountObj = allAccounts.find(a => a.id === selectedAccountId);
+    const beneficiaryAccountObj = allAccounts.find(a => a.id === transaction.beneficiaryAccountId);
     const usesDifferentCurrency = selectedAccountObj && selectedAccountObj.currency !== transaction.currency;
 
     const deductAmount = usesDifferentCurrency
@@ -176,29 +170,18 @@ export default function BudgetRequestDetailModal({ transaction, onClose, onUpdat
                     setUploading(false);
                     return;
                 }
-
-                // Update Balance when marked as PAID
-                try {
-                    const accRow = await getAccount(selectedAccountId);
-                    if (accRow) {
-                        const finalDeductAmount = usesDifferentCurrency
-                            ? transaction.amount * (parseFloat(exchangeRate) || 1)
-                            : transaction.amount;
-                        const newBalance = accRow.balance - finalDeductAmount;
-                        await updateAccountBalance(selectedAccountId, newBalance);
-                    }
-                } catch (balanceError) {
-                    console.error("Failed to update balance:", balanceError);
-                    throw new Error("Không thể cập nhật số dư tài khoản. Vui lòng thử lại.");
+                const payerId = currentUser.uid || currentUser.id;
+                if (!payerId) {
+                    alert("Phiên đăng nhập thiếu mã nhân viên. Vui lòng đăng nhập lại.");
+                    setUploading(false);
+                    return;
                 }
 
-                await updateTransactionStatus(transaction.id, "PAID");
-                const rateInfo = usesDifferentCurrency ? ` (Tỷ giá: 1 ${transaction.currency} = ${exchangeRate} ${selectedAccountObj?.currency})` : "";
-                await updateTransaction(transaction.id, {
-                    paidBy: currentUser.displayName || currentUser.email,
-                    accountId: selectedAccountId,
+                await payBudgetRequestToBeneficiaryAccount(transaction, {
+                    sourceAccountId: selectedAccountId,
                     proofOfPayment: urls,
-                    description: (transaction.description || "") + rateInfo,
+                    paidBy: payerId,
+                    exchangeRate: parseFloat(exchangeRate) || 1,
                 });
             } else if (pendingAction === "CONFIRM") {
                 // Enforce 2 photos for Marketing Budget confirmation
@@ -332,9 +315,32 @@ export default function BudgetRequestDetailModal({ transaction, onClose, onUpdat
                                 <h3 className="text-sm font-bold text-[var(--muted)] mb-2 uppercase">Thông tin thụ hưởng</h3>
                                 <div className="p-4 bg-blue-500/10 rounded-xl border border-blue-500/20 space-y-2">
                                     <div className="flex justify-between">
-                                        <span className="text-[var(--muted)]">Đơn vị:</span>
-                                        <span className="font-bold text-white">{transaction.beneficiary || "N/A"}</span>
+                                        <span className="text-[var(--muted)]">Tài khoản nhận:</span>
+                                        <span className="font-bold text-white text-right">
+                                            {beneficiaryAccountObj
+                                                ? `${beneficiaryAccountObj.name} (${beneficiaryAccountObj.currency})`
+                                                : transaction.beneficiary || "N/A"}
+                                        </span>
                                     </div>
+                                    {transaction.beneficiary && beneficiaryAccountObj && (
+                                        <div className="flex justify-between">
+                                            <span className="text-[var(--muted)]">Đơn vị:</span>
+                                            <span className="font-bold text-white text-right">{transaction.beneficiary}</span>
+                                        </div>
+                                    )}
+                                    {beneficiaryAccountObj && (
+                                        <div className="flex justify-between">
+                                            <span className="text-[var(--muted)]">Số dư hiện tại:</span>
+                                            <span className="font-bold text-emerald-300">
+                                                {beneficiaryAccountObj.balance.toLocaleString("vi-VN")} {beneficiaryAccountObj.currency}
+                                            </span>
+                                        </div>
+                                    )}
+                                    {!transaction.beneficiaryAccountId && (
+                                        <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-2 text-xs text-red-200">
+                                            Yêu cầu cũ chưa có tài khoản thụ hưởng. Hãy tạo yêu cầu mới và chọn tài khoản từ danh sách TK.
+                                        </div>
+                                    )}
                                     {transaction.platform && (
                                         <div className="flex justify-between">
                                             <span className="text-[var(--muted)]">Nền tảng:</span>
@@ -368,7 +374,7 @@ export default function BudgetRequestDetailModal({ transaction, onClose, onUpdat
                                     {transaction.status === "REJECTED" && transaction.rejectionReason && (
                                         <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
                                             <span className="block text-xs text-red-400 font-bold mb-1 uppercase">Lý do từ chối</span>
-                                            <div className="text-red-200 text-sm italic">"{transaction.rejectionReason}"</div>
+                                            <div className="text-red-200 text-sm italic">&quot;{transaction.rejectionReason}&quot;</div>
                                             <div className="text-[10px] text-red-400/50 mt-1">Bởi: {transaction.rejectedBy}</div>
                                         </div>
                                     )}
@@ -587,12 +593,20 @@ export default function BudgetRequestDetailModal({ transaction, onClose, onUpdat
                             </h3>
                             <p className="text-sm text-[var(--muted)] mb-4">
                                 {pendingAction === "PAY"
-                                    ? "Chọn tài khoản thanh toán và tải lên bill chuyển khoản để hoàn tất giao dịch."
+                                    ? "Chọn tài khoản nguồn và tải lên bill. Hệ thống sẽ cộng tiền vào tài khoản thụ hưởng và tạo lịch sử giao dịch."
                                     : "Vui lòng tải lên 2 ảnh chứng minh (Ví dụ: Số dư tài khoản Ads)."}
                             </p>
 
                             {pendingAction === "PAY" && (
                                 <div className="mb-4 space-y-4">
+                                    <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-3 text-sm">
+                                        <div className="text-xs uppercase font-bold text-emerald-300 mb-1">Tài khoản thụ hưởng</div>
+                                        <div className="text-white font-semibold">
+                                            {beneficiaryAccountObj
+                                                ? `${beneficiaryAccountObj.name} (${beneficiaryAccountObj.balance.toLocaleString("vi-VN")} ${beneficiaryAccountObj.currency})`
+                                                : "Chưa chọn tài khoản thụ hưởng"}
+                                        </div>
+                                    </div>
                                     <div>
                                         <label className="block text-xs text-[var(--muted)] uppercase font-bold mb-1">Chọn tài khoản nguồn *</label>
                                         <select
@@ -603,9 +617,10 @@ export default function BudgetRequestDetailModal({ transaction, onClose, onUpdat
                                             <option value="">-- Chọn tài khoản --</option>
                                             {allAccounts
                                                 .filter(a =>
-                                                    transaction.projectId
+                                                    a.id !== transaction.beneficiaryAccountId &&
+                                                    (transaction.projectId
                                                         ? a.projectId === transaction.projectId
-                                                        : true
+                                                        : true)
                                                 )
                                                 .map(a => (
                                                     <option key={a.id} value={a.id}>
