@@ -6,13 +6,14 @@ import EditAccountModal from "@/components/finance/EditAccountModal";
 import { getAccounts, getTransactions, getProjects, updateAccount, deleteAccount as apiDeleteAccount } from "@/lib/finance";
 import { Account, Transaction } from "@/types/finance";
 import { getExchangeRates, convertCurrency } from "@/lib/currency";
-import Link from "next/link";
 import { getUserRole, Role } from "@/lib/permissions";
-import { Plus, Lock, Unlock, Edit2, History, Wallet, Trash2, Building2, Banknote, Smartphone } from "lucide-react";
+import { Plus, Lock, Unlock, Edit2, Eye, Wallet, Trash2, Building2, Banknote, Smartphone, X } from "lucide-react";
 import DataTableToolbar from "@/components/finance/DataTableToolbar";
 import { exportToCSV } from "@/lib/export";
 import DataTable, { ActionCell } from "@/components/finance/DataTable";
 import { useTranslation } from "@/lib/i18n";
+
+const MONEY_STATUSES = new Set<Transaction["status"]>(["APPROVED", "PAID", "COMPLETED"]);
 
 export default function AccountsPage() {
     const { t } = useTranslation();
@@ -21,6 +22,7 @@ export default function AccountsPage() {
     const [projects, setProjects] = useState<Record<string, string>>({});
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [editingAccount, setEditingAccount] = useState<Account | null>(null);
+    const [historyAccount, setHistoryAccount] = useState<Account | null>(null);
     const [loading, setLoading] = useState(true);
     const [userRole, setUserRole] = useState<Role>("USER");
     const [rates, setRates] = useState<any>({});
@@ -100,6 +102,11 @@ export default function AccountsPage() {
         }
     };
 
+    const getAccountTransactions = (accountId: string) =>
+        transactions
+            .filter(tx => tx.accountId === accountId)
+            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
     // Calculate metrics per account
     const accountMetrics = useMemo(() => {
         const metrics: Record<string, { moneyIn: number; moneyOut: number; txCount: number }> = {};
@@ -107,7 +114,7 @@ export default function AccountsPage() {
             metrics[acc.id] = { moneyIn: 0, moneyOut: 0, txCount: 0 };
         });
         transactions.forEach(tx => {
-            if (tx.status === "APPROVED" && tx.accountId && metrics[tx.accountId]) {
+            if (MONEY_STATUSES.has(tx.status) && tx.accountId && metrics[tx.accountId]) {
                 const metric = metrics[tx.accountId];
                 metric.txCount++;
                 if (tx.type === "IN") metric.moneyIn += tx.amount;
@@ -294,19 +301,19 @@ export default function AccountsPage() {
                                     {acc.isLocked ? <Lock size={14} /> : <Unlock size={14} />}
                                 </button>
                                 <button
+                                    onClick={() => setHistoryAccount(acc)}
+                                    className="p-1.5 rounded hover:bg-white/10 text-white/40 hover:text-emerald-400 transition-colors"
+                                    title="Xem lịch sử giao dịch"
+                                >
+                                    <Eye size={14} />
+                                </button>
+                                <button
                                     onClick={() => deleteAccount(acc)}
                                     className="p-1.5 rounded hover:bg-red-500/20 text-white/40 hover:text-red-400 transition-colors"
                                     title={t("delete")}
                                 >
                                     <Trash2 size={14} />
                                 </button>
-                                <Link
-                                    href={`/finance/transactions?account=${acc.id}`}
-                                    className="p-1.5 rounded hover:bg-white/10 text-white/40 hover:text-blue-400 transition-colors"
-                                    title={t("history")}
-                                >
-                                    <History size={14} />
-                                </Link>
                             </ActionCell>
                         )
                     }
@@ -325,6 +332,76 @@ export default function AccountsPage() {
                 onSuccess={fetchData}
                 account={editingAccount}
             />
+            {historyAccount && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+                    <div className="glass-card w-full max-w-5xl rounded-2xl overflow-hidden">
+                        <div className="p-5 border-b border-white/10 flex items-start justify-between gap-4">
+                            <div>
+                                <h2 className="text-xl font-bold text-white">Lịch sử giao dịch</h2>
+                                <p className="text-sm text-[var(--muted)]">
+                                    {historyAccount.name} · Số dư {historyAccount.balance.toLocaleString("vi-VN")} {historyAccount.currency}
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setHistoryAccount(null)}
+                                className="p-2 rounded-lg text-white/50 hover:text-white hover:bg-white/10"
+                                aria-label="Đóng"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        <div className="max-h-[70vh] overflow-y-auto p-5">
+                            {getAccountTransactions(historyAccount.id).length === 0 ? (
+                                <div className="py-12 text-center text-[var(--muted)]">
+                                    Chưa có giao dịch cho tài khoản này.
+                                </div>
+                            ) : (
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-sm">
+                                        <thead className="text-xs uppercase text-white/40 border-b border-white/10">
+                                            <tr>
+                                                <th className="py-3 px-3 text-left">Ngày</th>
+                                                <th className="py-3 px-3 text-left">Loại</th>
+                                                <th className="py-3 px-3 text-left">Hạng mục</th>
+                                                <th className="py-3 px-3 text-right">Số tiền</th>
+                                                <th className="py-3 px-3 text-left">Trạng thái</th>
+                                                <th className="py-3 px-3 text-left">Nội dung</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-white/10">
+                                            {getAccountTransactions(historyAccount.id).map(tx => (
+                                                <tr key={tx.id} className="hover:bg-white/[0.03]">
+                                                    <td className="py-3 px-3 text-white/70 whitespace-nowrap">
+                                                        {new Date(tx.date).toLocaleString("vi-VN")}
+                                                    </td>
+                                                    <td className="py-3 px-3">
+                                                        <span className={`px-2 py-1 rounded text-xs font-bold ${tx.type === "IN"
+                                                            ? "bg-emerald-500/15 text-emerald-300"
+                                                            : "bg-red-500/15 text-red-300"
+                                                            }`}>
+                                                            {tx.type === "IN" ? "Thu" : "Chi"}
+                                                        </span>
+                                                    </td>
+                                                    <td className="py-3 px-3 text-white/80">{tx.category}</td>
+                                                    <td className={`py-3 px-3 text-right font-bold whitespace-nowrap ${tx.type === "IN" ? "text-emerald-300" : "text-red-300"}`}>
+                                                        {tx.type === "IN" ? "+" : "-"}{tx.amount.toLocaleString("vi-VN")} {tx.currency}
+                                                    </td>
+                                                    <td className="py-3 px-3 text-white/60">{tx.status}</td>
+                                                    <td className="py-3 px-3 text-white/70 max-w-md">
+                                                        <div className="line-clamp-2">{tx.description || tx.transferContent || tx.source || "-"}</div>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
