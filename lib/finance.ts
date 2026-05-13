@@ -545,13 +545,36 @@ export async function hasBudgetExpenseVoucher(sourceRequestId: string): Promise<
 }
 
 export async function hasBudgetFundingReceipt(sourceRequestId: string): Promise<boolean> {
-    const { count, error } = await supabase
+    const receipt = await getBudgetFundingReceipt(sourceRequestId);
+    return !!receipt;
+}
+
+async function getBudgetFundingReceipt(sourceRequestId: string): Promise<{
+    id: string;
+    account_id: string | null;
+    description: string | null;
+} | null> {
+    const { data, error } = await supabase
         .from("finance_transactions")
-        .select("id", { count: "exact", head: true })
+        .select("id, account_id, description")
         .eq("budget_request_source_id", sourceRequestId)
-        .eq("type", "IN");
+        .eq("type", "IN")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
     if (error) throw error;
-    return (count || 0) > 0;
+    return data || null;
+}
+
+async function resolveSourceAccountFromReceipt(receiptDescription?: string | null): Promise<Account | null> {
+    if (!receiptDescription) return null;
+    try {
+        const accounts = await getAccounts();
+        return accounts.find(account => receiptDescription.includes(`Nguồn: ${account.name}`)) || null;
+    } catch (error) {
+        console.warn("resolveSourceAccountFromReceipt failed", error);
+        return null;
+    }
 }
 
 /**
@@ -625,8 +648,19 @@ export async function payBudgetRequestToBeneficiaryAccount(
     if (opts.sourceAccountId === targetAccountId) {
         throw new Error("Tài khoản nguồn và tài khoản thụ hưởng không được trùng nhau.");
     }
-    if (await hasBudgetFundingReceipt(requestTx.id)) {
-        throw new Error("Yêu cầu này đã có giao dịch nạp tiền trong lịch sử.");
+
+    const existingReceipt = await getBudgetFundingReceipt(requestTx.id);
+    if (existingReceipt) {
+        const sourceFromReceipt = await resolveSourceAccountFromReceipt(existingReceipt.description);
+        const sourceAccountId = sourceFromReceipt?.id || requestTx.accountId || opts.sourceAccountId;
+        await updateTransaction(requestTx.id, {
+            status: "PAID",
+            accountId: sourceAccountId,
+            beneficiaryAccountId: existingReceipt.account_id || targetAccountId,
+            paidBy: opts.paidBy,
+            proofOfPayment: opts.proofOfPayment,
+        });
+        return existingReceipt.id;
     }
 
     const [sourceAccount, targetAccount] = await Promise.all([
