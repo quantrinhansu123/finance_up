@@ -86,6 +86,11 @@ export default function TransactionDetailModal({
     };
 
     const getStatusLabel = (status: string) => {
+        if (transaction.type === "IN") {
+            if (status === "PAID") return "Đã thu";
+            if (status === "REJECTED") return t("rejected");
+            return "Đã ghi nhận";
+        }
         switch (status) {
             case "APPROVED": return t("approved");
             case "PENDING": return t("pending");
@@ -337,6 +342,7 @@ export default function TransactionDetailModal({
                     )}
 
                     {(transaction.approverDisplayName || transaction.approvedBy) &&
+                        transaction.type !== "IN" &&
                         transaction.status !== "PENDING" &&
                         transaction.status !== "REJECTED" && (
                         <div className="p-4 bg-green-500/5 rounded-xl border border-green-500/20">

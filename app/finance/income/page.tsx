@@ -13,11 +13,9 @@ import DataTableToolbar from "@/components/finance/DataTableToolbar";
 import { exportToCSV } from "@/lib/export";
 import TransactionDetailModal from "@/components/finance/TransactionDetailModal";
 import { WizardProgress, WizardStepPanel, WizardSummaryItem } from "@/components/finance/TransactionWizard";
-import DataTable, { AmountCell, DateCell, TextCell, ActionCell, StatusBadge } from "@/components/finance/DataTable";
+import DataTable, { AmountCell, DateCell, TextCell, ActionCell } from "@/components/finance/DataTable";
 import { useTranslation } from "@/lib/i18n";
 import { projectLabelById, formatProjectListLabel, formatProjectMaLan } from "@/lib/project-display";
-import { sessionUserDisplayLabel } from "@/lib/session-user-label";
-import { resolveTransactionApproverDisplay } from "@/lib/transaction-approver-display";
 import { incomeMatchesDateRange, incomePrimarySortDay } from "@/lib/income-dates";
 import { getUsers } from "@/lib/users";
 import { UserProfile } from "@/types/user";
@@ -281,7 +279,6 @@ export default function IncomePage() {
             const finalSource = source || parentCategoryName || t("unselected");
 
             const uid = currentUser?.uid || currentUser?.id;
-            const approverLabel = sessionUserDisplayLabel(currentUser);
             await createTransaction({
                 type: "IN", amount: numAmount, currency, category: finalSource,
                 parentCategory: parentCategoryName, parentCategoryId,
@@ -289,8 +286,6 @@ export default function IncomePage() {
                 status: "APPROVED", createdBy: uid || "",
                 userId: uid || "", images: imageUrls,
                 paymentType,
-                approvedBy: uid,
-                ...(approverLabel ? { approverDisplayName: approverLabel } : {}),
                 createdAt: Date.now(), updatedAt: Date.now(),
             });
             await updateAccountBalance(accountId, selectedAccount!.balance + numAmount);
@@ -378,9 +373,6 @@ export default function IncomePage() {
         return userNameById.get(idOrName) || idOrName;
     };
 
-    const resolveApproverDisplay = (tx: Transaction) =>
-        resolveTransactionApproverDisplay(tx, resolveUserName, t("approver_not_recorded"));
-
     /** Tổng các phiếu thu đang hiển thị (theo bộ lọc / tìm kiếm), gom theo từng loại tiền — không cộng chéo tiền tệ khác nhau. */
     const filteredIncomeTotals = useMemo(() => {
         const byCurrency = new Map<string, number>();
@@ -395,9 +387,8 @@ export default function IncomePage() {
         return { count, rows };
     }, [transactions]);
 
-    /** Không sửa/xóa khi đã duyệt hoặc đã xác nhận Đã thu (PAID). */
-    const canModifyIncomeTransaction = (tx: Transaction) =>
-        tx.status !== "APPROVED" && tx.status !== "PAID";
+    /** Không sửa/xóa sau khi đã xác nhận Đã thu (PAID). */
+    const canModifyIncomeTransaction = (tx: Transaction) => tx.status !== "PAID";
 
     const openEditModal = (tx: Transaction) => {
         if (!canModifyIncomeTransaction(tx)) {
@@ -419,7 +410,7 @@ export default function IncomePage() {
 
     const handleSaveEdit = async () => {
         if (!editingTransaction) return;
-        if (editingTransaction.status === "APPROVED" || editingTransaction.status === "PAID") {
+        if (editingTransaction.status === "PAID") {
             alert(t("cannot_modify_approved_transaction"));
             return;
         }
@@ -441,6 +432,10 @@ export default function IncomePage() {
                 category: editSource.trim() || editingTransaction.category,
                 description: editDescription.trim(),
             });
+
+            if (account && delta !== 0) {
+                await updateAccountBalance(account.id, account.balance + delta);
+            }
 
             await fetchData();
             closeEditModal();
@@ -844,13 +839,6 @@ export default function IncomePage() {
                             )
                         },
                         {
-                            key: "approver",
-                            header: t("approver") || "Người duyệt",
-                            render: (tx: Transaction) => (
-                                <span className="text-xs text-white/70 whitespace-nowrap">{resolveApproverDisplay(tx)}</span>
-                            )
-                        },
-                        {
                             key: "status",
                             header: t("status"),
                             render: (tx: Transaction) => {
@@ -861,7 +849,7 @@ export default function IncomePage() {
                                         </span>
                                     );
                                 }
-                                return <StatusBadge status={tx.status} />;
+                                return <span className="text-white/25 text-xs">—</span>;
                             }
                         },
                         {

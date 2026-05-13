@@ -7,6 +7,7 @@ import {
     getBeneficiaries,
     BUDGET_REQUEST_CATEGORY,
     BUDGET_REQUEST_CATEGORY_SEPARATOR,
+    isFinanceUserId,
 } from "@/lib/finance";
 import { getMasterCategories, getMasterSubCategories } from "@/lib/master-categories";
 import { Currency, TransactionType, BankInfo, TransactionStatus, Beneficiary, MasterCategory, MasterSubCategory } from "@/types/finance";
@@ -50,14 +51,21 @@ export default function CreateBudgetRequestModal({ onClose, onSuccess, username,
 
     useEffect(() => {
         const loadData = async () => {
-            const [beneficiaries, cats, subs] = await Promise.all([
-                getBeneficiaries(),
-                getMasterCategories(),
-                getMasterSubCategories(),
-            ]);
-            setAllBeneficiaries(beneficiaries);
-            setMasterCategories(cats.filter((c) => c.isActive && c.type === "EXPENSE"));
-            setGlobalSubCategories(subs.filter((c) => c.isActive));
+            try {
+                const [beneficiaries, cats, subs] = await Promise.all([
+                    getBeneficiaries(),
+                    getMasterCategories(),
+                    getMasterSubCategories(),
+                ]);
+                setAllBeneficiaries(beneficiaries);
+                setMasterCategories(cats.filter((c) => c.isActive && c.type === "EXPENSE"));
+                setGlobalSubCategories(subs.filter((c) => c.isActive));
+                if (beneficiaries.length === 0) {
+                    setSelectedBeneficiaryId("manual");
+                }
+            } catch (error) {
+                console.error("Failed to load budget request form data", error);
+            }
         };
         void loadData();
     }, []);
@@ -121,10 +129,14 @@ export default function CreateBudgetRequestModal({ onClose, onSuccess, username,
 
         setLoading(true);
         try {
+            const uid = (userId || "").trim();
+            if (!isFinanceUserId(uid)) {
+                alert("Phiên đăng nhập thiếu mã nhân viên. Vui lòng đăng nhập lại.");
+                return;
+            }
+
             const uploadedDocs = await uploadSupportingDocs();
 
-            const uid = userId || "";
-            const creatorLabel = (username && username.trim()) || uid || "—";
             const newTx = {
                 date: new Date().toISOString(),
                 amount: Number(amount),
@@ -134,8 +146,8 @@ export default function CreateBudgetRequestModal({ onClose, onSuccess, username,
                 description: description,
                 transferContent: transferContent,
                 status: "PENDING" as TransactionStatus,
-                createdBy: creatorLabel,
-                userId: uid || creatorLabel,
+                createdBy: uid,
+                userId: uid,
                 beneficiary,
                 platform: selectedPlatform,
                 bankInfo,
@@ -149,7 +161,7 @@ export default function CreateBudgetRequestModal({ onClose, onSuccess, username,
             onSuccess();
         } catch (error) {
             console.error(error);
-            alert("Có lỗi xảy ra khi tạo yêu cầu.");
+            alert(error instanceof Error ? error.message : "Có lỗi xảy ra khi tạo yêu cầu.");
         } finally {
             setLoading(false);
 

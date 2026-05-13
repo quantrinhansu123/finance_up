@@ -178,6 +178,10 @@ const mapProjectToDB = (data: any) => {
 const isUuid = (s: string) =>
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(s);
 
+export function isFinanceUserId(value?: string | null): value is string {
+    return typeof value === "string" && isUuid(value.trim());
+}
+
 const mapProjectSubRow = (row: any): ProjectSubCategory => ({
     id: row.id,
     name: row.name,
@@ -458,7 +462,10 @@ const mapTxToDB = (data: any) => {
     if (data.parentCategory !== undefined) res.parent_category = data.parentCategory;
     if (data.parentCategoryId !== undefined) res.parent_category_id = data.parentCategoryId;
     if (data.description !== undefined) res.description = data.description;
-    if (data.date !== undefined) res.transaction_date = data.date;
+    if (data.date !== undefined) {
+        const raw = String(data.date);
+        res.transaction_date = raw.length >= 10 ? raw.slice(0, 10) : raw;
+    }
     if (data.status !== undefined) res.status = data.status;
     if (data.accountId !== undefined) res.account_id = data.accountId;
     if (data.projectId !== undefined) res.project_id = data.projectId;
@@ -575,6 +582,12 @@ export async function createExpenseVoucherFromBudgetRequest(
 }
 
 export async function createTransaction(tx: Omit<Transaction, "id">): Promise<string> {
+    if (tx.userId !== undefined && !isFinanceUserId(tx.userId)) {
+        throw new Error("Thiếu mã nhân viên (UUID) cho giao dịch. Vui lòng đăng nhập lại.");
+    }
+    if (tx.createdBy !== undefined && !isFinanceUserId(tx.createdBy)) {
+        throw new Error("Thiếu mã người tạo (UUID) cho giao dịch. Vui lòng đăng nhập lại.");
+    }
     const { data, error } = await supabase.from("finance_transactions").insert([mapTxToDB(tx)]).select("id").single();
     if (error) throw error;
     await logAction("CREATE_TRANSACTION", { amount: tx.amount, currency: tx.currency }, data.id, tx.userId);
@@ -766,7 +779,13 @@ const mapBeneficiaryToDB = (data: any) => {
 
 export async function getBeneficiaries(): Promise<Beneficiary[]> {
     const { data, error } = await supabase.from("finance_beneficiaries").select("*");
-    if (error) throw error;
+    if (error) {
+        if (error.code === "PGRST205" || error.message?.includes("finance_beneficiaries")) {
+            console.warn("finance_beneficiaries is unavailable; using an empty beneficiary list.");
+            return [];
+        }
+        throw error;
+    }
     return (data || []).map(mapBeneficiaryFromDB);
 }
 

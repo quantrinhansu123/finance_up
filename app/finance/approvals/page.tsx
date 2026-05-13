@@ -108,10 +108,12 @@ export default function ApprovalsPage() {
 
             const PROCESSED_STATUSES: TransactionStatus[] = ["APPROVED", "REJECTED", "PAID", "COMPLETED"];
             const cutoffProcessed = Date.now() - 90 * 24 * 60 * 60 * 1000;
+            const isApprovalTransaction = (t: Transaction) => t.type === "OUT";
 
             const buildProcessed = (projectIds: string[] | null) => {
                 let list = txs.filter(
                     (t) =>
+                        isApprovalTransaction(t) &&
                         PROCESSED_STATUSES.includes(t.status) &&
                         new Date(t.date).getTime() >= cutoffProcessed
                 );
@@ -125,7 +127,7 @@ export default function ApprovalsPage() {
             // ADMIN có full quyền
             if (role === "ADMIN") {
                 setCanApprove(true);
-                setPendingTransactions(txs.filter(t => t.status === "PENDING"));
+                setPendingTransactions(txs.filter(t => t.status === "PENDING" && isApprovalTransaction(t)));
                 setApprovalProjectIds(allProjects.map(p => p.id));
                 setBudgetRequests(budgetReqs);
                 setProcessedTransactions(buildProcessed(null));
@@ -142,7 +144,7 @@ export default function ApprovalsPage() {
 
                     // Lọc giao dịch PENDING thuộc các project có quyền
                     const filteredTxs = txs.filter(t =>
-                        t.status === "PENDING" && t.projectId && projectIds.includes(t.projectId)
+                        t.status === "PENDING" && isApprovalTransaction(t) && t.projectId && projectIds.includes(t.projectId)
                     );
                     setPendingTransactions(filteredTxs);
 
