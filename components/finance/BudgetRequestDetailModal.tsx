@@ -218,7 +218,12 @@ export default function BudgetRequestDetailModal({ transaction, onClose, onUpdat
             setUploadFiles([]);
         } catch (e) {
             console.error(e);
-            alert("Lỗi khi xử lý: " + e);
+            const message = e instanceof Error
+                ? e.message
+                : typeof e === "object" && e !== null && "message" in e
+                    ? String((e as { message?: unknown }).message)
+                    : String(e);
+            alert("Lỗi khi xử lý: " + message);
         } finally {
             setUploading(false);
         }

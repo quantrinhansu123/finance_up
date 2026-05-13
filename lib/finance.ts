@@ -509,6 +509,13 @@ function isMissingBeneficiaryAccountColumn(error: unknown): boolean {
     );
 }
 
+function isOptionalUserReferenceError(error: unknown, dbKey: "paid_by" | "confirmed_by"): boolean {
+    if (!error || typeof error !== "object") return false;
+    const o = error as { code?: unknown; message?: unknown; details?: unknown };
+    const text = [o.message, o.details].filter(v => typeof v === "string").join(" ");
+    return text.includes(dbKey) || text.includes(`finance_transactions_${dbKey}_fkey`);
+}
+
 export async function getTransactions(): Promise<Transaction[]> {
     const { data, error } = await supabase.from("finance_transactions").select("*").order("transaction_date", { ascending: false });
     if (error) throw error;
@@ -760,6 +767,14 @@ export async function updateTransaction(txId: string, tx: Partial<Transaction>):
     let result = await supabase.from("finance_transactions").update(dbData).eq("id", txId);
     if (result.error && dbData.beneficiary_account_id !== undefined && isMissingBeneficiaryAccountColumn(result.error)) {
         delete dbData.beneficiary_account_id;
+        result = await supabase.from("finance_transactions").update(dbData).eq("id", txId);
+    }
+    if (result.error && dbData.paid_by !== undefined && isOptionalUserReferenceError(result.error, "paid_by")) {
+        delete dbData.paid_by;
+        result = await supabase.from("finance_transactions").update(dbData).eq("id", txId);
+    }
+    if (result.error && dbData.confirmed_by !== undefined && isOptionalUserReferenceError(result.error, "confirmed_by")) {
+        delete dbData.confirmed_by;
         result = await supabase.from("finance_transactions").update(dbData).eq("id", txId);
     }
     if (result.error) throw result.error;
