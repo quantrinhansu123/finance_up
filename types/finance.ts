@@ -57,7 +57,7 @@ export interface Beneficiary {
     updatedAt: number;
 }
 
-/** Lưu trong `finance_transactions.paid_confirm_meta` (jsonb) khi xác nhận Đã thu */
+/** Metadata xác nhận thanh toán/hoàn tất cũ trong `finance_transactions.paid_confirm_meta` (jsonb). */
 export interface PaidConfirmMeta {
     at: string;
     byName: string;
@@ -107,7 +107,7 @@ export interface Transaction {
     approverDisplayName?: string;
     rejectedBy?: string;
     paidBy?: string; // Accountant
-    /** Xác nhận Đã thu (thu nhập): ngày giờ + tên người xác nhận — cột jsonb DB */
+    /** Metadata xác nhận thanh toán/hoàn tất — cột jsonb DB */
     paidConfirmMeta?: PaidConfirmMeta;
     confirmedBy?: string; // Requester (final confirmation)
     createdBy: string;

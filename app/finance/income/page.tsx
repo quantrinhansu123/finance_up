@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { createTransaction, getAccounts, updateAccountBalance, getProjects, getTransactions, updateTransaction, deleteTransaction } from "@/lib/finance";
 import { getMasterCategories, getMasterSubCategories } from "@/lib/master-categories";
-import { Account, Project, Transaction, MasterCategory, MasterSubCategory, PaidConfirmMeta } from "@/types/finance";
+import { Account, Project, Transaction, MasterCategory, MasterSubCategory } from "@/types/finance";
 import { uploadImage } from "@/lib/upload";
 import { getUserRole, getAccessibleProjects, getAccessibleAccounts, hasProjectPermission, Role } from "@/lib/permissions";
 import { FolderOpen, CreditCard, Wallet, Upload, AlertCircle, Plus, Tag, Layers, Eye, Edit2, Trash2, ChevronRight, X } from "lucide-react";
@@ -82,9 +82,6 @@ export default function IncomePage() {
     const [editSource, setEditSource] = useState("");
     const [editDescription, setEditDescription] = useState("");
     const [editSaving, setEditSaving] = useState(false);
-    const [markPaidTx, setMarkPaidTx] = useState<Transaction | null>(null);
-    const [markPaidFiles, setMarkPaidFiles] = useState<File[]>([]);
-    const [markPaidSubmitting, setMarkPaidSubmitting] = useState(false);
     const skipNextTransactionsFilterEffectRef = useRef(false);
 
     useEffect(() => {
@@ -195,14 +192,7 @@ export default function IncomePage() {
             }
             if (activeFilters.date) {
                 const d = activeFilters.date;
-                txs = txs.filter((t) => {
-                    const onPosted = t.date.startsWith(d);
-                    const onActual =
-                        t.status === "PAID" &&
-                        !!t.paidConfirmMeta?.at &&
-                        t.paidConfirmMeta.at.startsWith(d);
-                    return onPosted || onActual;
-                });
+                txs = txs.filter((t) => t.date.startsWith(d));
             }
             if (activeFilters.projectId) txs = txs.filter(t => t.projectId === activeFilters.projectId);
             if (activeFilters.accountId) txs = txs.filter(t => t.accountId === activeFilters.accountId);
@@ -296,68 +286,6 @@ export default function IncomePage() {
         } catch (e) { console.error(e); alert(t("create_income_error")); } finally { setSubmitting(false); }
     };
 
-    const openMarkPaidModal = (tx: Transaction) => {
-        if (tx.type !== "IN" || tx.status === "PAID") return;
-        setMarkPaidTx(tx);
-        setMarkPaidFiles([]);
-    };
-
-    const closeMarkPaidModal = () => {
-        setMarkPaidTx(null);
-        setMarkPaidFiles([]);
-        setMarkPaidSubmitting(false);
-    };
-
-    const handleMarkPaidPaste = (e: React.ClipboardEvent) => {
-        const pastedImages = Array.from(e.clipboardData.items)
-            .filter((item) => item.type.startsWith("image/"))
-            .map((item) => item.getAsFile())
-            .filter((f): f is File => !!f);
-        if (pastedImages.length === 0) return;
-        e.preventDefault();
-        setMarkPaidFiles((prev) => [...prev, ...pastedImages].slice(0, MAX_BILL_IMAGES));
-    };
-
-    const handleConfirmMarkPaid = async () => {
-        if (!markPaidTx) return;
-        const loginLabel =
-            [currentUser?.displayName, currentUser?.name, currentUser?.email]
-                .map((s) => (typeof s === "string" ? s.trim() : ""))
-                .find(Boolean) || "";
-        if (!loginLabel) {
-            alert("Phiên đăng nhập không có tên/email để ghi nhận. Vui lòng đăng nhập lại.");
-            return;
-        }
-        const existing = Array.isArray(markPaidTx.images) ? markPaidTx.images.length : 0;
-        if (existing === 0 && markPaidFiles.length === 0) {
-            alert("Vui lòng tải ít nhất một ảnh chứng từ.");
-            return;
-        }
-        if (!confirm("Xác nhận đã thu và lưu ảnh chứng từ?")) return;
-
-        setMarkPaidSubmitting(true);
-        try {
-            const uploaded =
-                markPaidFiles.length > 0
-                    ? await Promise.all(markPaidFiles.slice(0, MAX_BILL_IMAGES).map((f) => uploadImage(f)))
-                    : [];
-            const merged = Array.from(new Set([...(markPaidTx.images || []), ...uploaded]));
-            const meta: PaidConfirmMeta = { at: new Date().toISOString(), byName: loginLabel };
-            await updateTransaction(markPaidTx.id, {
-                status: "PAID",
-                images: merged,
-                paidConfirmMeta: meta,
-            });
-            await fetchData();
-            closeMarkPaidModal();
-        } catch (e) {
-            console.error(e);
-            alert("Lỗi khi cập nhật. Kiểm tra đã chạy migration cột paid_confirm_meta (jsonb) chưa.");
-        } finally {
-            setMarkPaidSubmitting(false);
-        }
-    };
-
     const getAccountName = (id: string) => accounts.find(a => a.id === id)?.name || "N/A";
     const userNameById = useMemo(() => {
         const m = new Map<string, string>();
@@ -387,14 +315,9 @@ export default function IncomePage() {
         return { count, rows };
     }, [transactions]);
 
-    /** Không sửa/xóa sau khi đã xác nhận Đã thu (PAID). */
-    const canModifyIncomeTransaction = (tx: Transaction) => tx.status !== "PAID";
+    const canModifyIncomeTransaction = (_tx: Transaction) => true;
 
     const openEditModal = (tx: Transaction) => {
-        if (!canModifyIncomeTransaction(tx)) {
-            alert(t("cannot_modify_approved_transaction"));
-            return;
-        }
         setEditingTransaction(tx);
         setEditAmount(String(tx.amount || ""));
         setEditSource(tx.source || tx.category || "");
@@ -410,10 +333,6 @@ export default function IncomePage() {
 
     const handleSaveEdit = async () => {
         if (!editingTransaction) return;
-        if (editingTransaction.status === "PAID") {
-            alert(t("cannot_modify_approved_transaction"));
-            return;
-        }
         const newAmount = parseFloat(editAmount);
         if (!Number.isFinite(newAmount) || newAmount <= 0) {
             alert("Số tiền không hợp lệ");
@@ -796,18 +715,6 @@ export default function IncomePage() {
                             render: (tx: Transaction) => <DateCell date={tx.date} />
                         },
                         {
-                            key: "paidAt",
-                            header: "Ngày thu thực tế",
-                            render: (tx: Transaction) =>
-                                tx.status === "PAID" && tx.paidConfirmMeta?.at ? (
-                                    <span className="text-xs text-purple-200/95 whitespace-nowrap">
-                                        {new Date(tx.paidConfirmMeta.at).toLocaleString("vi-VN")}
-                                    </span>
-                                ) : (
-                                    <span className="text-white/25 text-xs">—</span>
-                                ),
-                        },
-                        {
                             key: "source",
                             header: t("source"),
                             render: (tx: Transaction) => (
@@ -853,20 +760,6 @@ export default function IncomePage() {
                             )
                         },
                         {
-                            key: "status",
-                            header: t("status"),
-                            render: (tx: Transaction) => {
-                                if (tx.status === "PAID") {
-                                    return (
-                                        <span className="px-2 py-1 rounded-lg text-[10px] uppercase font-bold tracking-wider bg-purple-500/20 text-purple-300 border border-purple-500/20">
-                                            Đã thu
-                                        </span>
-                                    );
-                                }
-                                return <span className="text-white/25 text-xs">—</span>;
-                            }
-                        },
-                        {
                             key: "actions",
                             header: t("actions"),
                             align: "right",
@@ -877,15 +770,6 @@ export default function IncomePage() {
                                         className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-[var(--muted)] hover:text-white transition-all transform active:scale-90"
                                     >
                                         <Eye size={18} />
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => openMarkPaidModal(tx)}
-                                        disabled={tx.status === "PAID"}
-                                        className="px-2.5 py-2 rounded-lg bg-white/5 hover:bg-purple-500/15 border border-white/10 text-[10px] font-bold uppercase tracking-wider text-purple-300 transition-all transform active:scale-90 disabled:opacity-40"
-                                        title="Mở form tải ảnh và xác nhận Đã thu"
-                                    >
-                                        Đã thu
                                     </button>
                                     {canModifyIncomeTransaction(tx) && (
                                         <button
@@ -946,89 +830,6 @@ export default function IncomePage() {
                                     {editSaving ? t("processing") : t("save")}
                                 </button>
                             </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {markPaidTx && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onPaste={handleMarkPaidPaste}>
-                    <div className="glass-card w-full max-w-lg rounded-2xl border border-white/20 p-6">
-                        <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-xl font-bold text-white">Xác nhận Đã thu</h3>
-                            <button type="button" onClick={closeMarkPaidModal} className="text-[var(--muted)] hover:text-white">
-                                <X size={20} />
-                            </button>
-                        </div>
-                        <p className="text-xs text-[var(--muted)] mb-4">
-                            Tải ảnh chứng từ (bắt buộc nếu giao dịch chưa có ảnh). Có thể chọn nhiều ảnh hoặc dán Ctrl+V. Tối đa {MAX_BILL_IMAGES} ảnh.
-                        </p>
-                        {markPaidTx.images && markPaidTx.images.length > 0 && (
-                            <div className="mb-4">
-                                <p className="text-[10px] font-bold text-white/50 uppercase mb-2">Ảnh hiện có ({markPaidTx.images.length})</p>
-                                <div className="flex flex-wrap gap-2">
-                                    {markPaidTx.images.map((url, i) => (
-                                        <a key={i} href={url} target="_blank" rel="noreferrer" className="block w-16 h-16 rounded-lg overflow-hidden border border-white/10">
-                                            <img src={url} alt="" className="w-full h-full object-cover" />
-                                        </a>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-                        <div className="flex items-center gap-3 mb-4">
-                            <label className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 cursor-pointer transition-colors">
-                                <Upload size={18} className="text-purple-400" />
-                                <span className="text-sm font-semibold text-white">Thêm ảnh</span>
-                                <input
-                                    type="file"
-                                    accept="image/*"
-                                    multiple
-                                    className="hidden"
-                                    onChange={(e) => {
-                                        const next = e.currentTarget.files;
-                                        if (!next) return;
-                                        setMarkPaidFiles((prev) => [...prev, ...Array.from(next)].slice(0, MAX_BILL_IMAGES));
-                                    }}
-                                />
-                            </label>
-                            <span className="text-xs text-white/60">Mới: {markPaidFiles.length}/{MAX_BILL_IMAGES}</span>
-                        </div>
-                        {markPaidFiles.length > 0 && (
-                            <div className="flex flex-wrap gap-3 mb-5">
-                                {markPaidFiles.map((file, i) => (
-                                    <div key={i} className="relative w-24 h-24 rounded-xl overflow-hidden border border-white/10">
-                                        <img src={URL.createObjectURL(file)} className="w-full h-full object-cover" alt="preview" />
-                                        <button
-                                            type="button"
-                                            onClick={() => setMarkPaidFiles((prev) => prev.filter((_, idx) => idx !== i))}
-                                            className="absolute top-1 right-1 p-1 bg-red-500 rounded-lg text-white"
-                                            title="Xóa"
-                                        >
-                                            <X size={12} />
-                                        </button>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                        <div className="flex gap-3">
-                            <button
-                                type="button"
-                                onClick={closeMarkPaidModal}
-                                className="flex-1 px-4 py-2 rounded-lg border border-white/10 text-[var(--muted)] hover:text-white"
-                            >
-                                {t("cancel")}
-                            </button>
-                            <button
-                                type="button"
-                                onClick={handleConfirmMarkPaid}
-                                disabled={
-                                    markPaidSubmitting ||
-                                    ((markPaidTx.images?.length || 0) === 0 && markPaidFiles.length === 0)
-                                }
-                                className="flex-1 px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-semibold disabled:opacity-50"
-                            >
-                                {markPaidSubmitting ? t("processing") : "Xác nhận Đã thu"}
-                            </button>
                         </div>
                     </div>
                 </div>

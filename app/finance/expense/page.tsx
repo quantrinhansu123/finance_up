@@ -311,7 +311,7 @@ export default function ExpensePage() {
         } catch (e) { console.error(e); alert(t("create_expense_error")); } finally { setSubmitting(false); }
     };
 
-    /** Giống "Đã thu" trên thu: mọi chi đã duyệt (OUT + APPROVED) có thể xác nhận đã chi. */
+    /** Mọi chi đã duyệt (OUT + APPROVED) có thể xác nhận đã chi. */
     const canMarkExpensePaid = (tx: Transaction) => tx.type === "OUT" && tx.status === "APPROVED";
 
     /** Không sửa/xóa khi đã duyệt hoặc đã xác nhận Đã chi (COMPLETED). */

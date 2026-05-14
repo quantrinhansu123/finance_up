@@ -87,7 +87,6 @@ export default function TransactionDetailModal({
 
     const getStatusLabel = (status: string) => {
         if (transaction.type === "IN") {
-            if (status === "PAID") return "Đã thu";
             if (status === "REJECTED") return t("rejected");
             return "Đã ghi nhận";
         }
@@ -379,18 +378,6 @@ export default function TransactionDetailModal({
                         </div>
                     )}
 
-                    {transaction.type === "IN" && transaction.status === "PAID" && transaction.paidConfirmMeta && (
-                        <div className="p-4 bg-purple-500/5 rounded-xl border border-purple-500/20">
-                            <div className="flex items-center gap-2 text-sm text-purple-300 mb-2">
-                                <CheckCircle size={14} />
-                                Đã thu
-                            </div>
-                            <div className="text-sm text-white font-medium">{transaction.paidConfirmMeta.byName}</div>
-                            <div className="text-xs text-[var(--muted)] mt-2">
-                                {new Date(transaction.paidConfirmMeta.at).toLocaleString("vi-VN")}
-                            </div>
-                        </div>
-                    )}
                 </div>
 
                 {/* Images */}
