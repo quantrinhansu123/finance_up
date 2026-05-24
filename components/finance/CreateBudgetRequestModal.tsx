@@ -34,7 +34,7 @@ export default function CreateBudgetRequestModal({ onClose, onSuccess, userId }:
     const [selectedPlatform, setSelectedPlatform] = useState("");
 
     const [beneficiary, setBeneficiary] = useState("");
-    const [amount, setAmount] = useState<number>(0);
+    const [amount, setAmount] = useState("");
     const [currency, setCurrency] = useState<Currency>("VND");
     const [description, setDescription] = useState("");
     const [transferContent, setTransferContent] = useState("");
@@ -130,7 +130,7 @@ export default function CreateBudgetRequestModal({ onClose, onSuccess, userId }:
     };
 
     const handleSubmit = async () => {
-        if (!amount || !beneficiaryAccountId) {
+        if (!amount || parseFloat(amount) <= 0 || !beneficiaryAccountId) {
             alert("Vui lòng chọn tài khoản thụ hưởng và nhập số tiền.");
             return;
         }
@@ -151,7 +151,7 @@ export default function CreateBudgetRequestModal({ onClose, onSuccess, userId }:
 
             const newTx = {
                 date: new Date().toISOString(),
-                amount: Number(amount),
+                amount: parseFloat(amount) || 0,
                 currency,
                 type: "OUT" as TransactionType,
                 category: expenseCategories.map((c) => c.trim()).filter(Boolean).join(BUDGET_REQUEST_CATEGORY_SEPARATOR),
@@ -334,7 +334,7 @@ export default function CreateBudgetRequestModal({ onClose, onSuccess, userId }:
                                     <div className="col-span-3">
                                         <CurrencyInput
                                             value={amount}
-                                            onChange={(val) => setAmount(Number(val))}
+                                            onChange={setAmount}
                                             currency={currency}
                                             className="text-xl font-bold"
                                             placeholder="0"

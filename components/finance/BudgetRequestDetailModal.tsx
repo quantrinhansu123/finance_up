@@ -25,7 +25,7 @@ interface Props {
 export default function BudgetRequestDetailModal({ transaction, onClose, onUpdate, currentUser, allProjects = [], allAccounts = [], allUsers = [] }: Props) {
     const [loading, setLoading] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
-    const [editedAmount, setEditedAmount] = useState(transaction.amount);
+    const [editedAmount, setEditedAmount] = useState(String(transaction.amount));
     const [isRejecting, setIsRejecting] = useState(false);
     const [rejectionReason, setRejectionReason] = useState("");
 
@@ -95,7 +95,7 @@ export default function BudgetRequestDetailModal({ transaction, onClose, onUpdat
             const approverId = currentUser.uid || currentUser.id;
             const approverLabel = sessionUserDisplayLabel(currentUser);
             await updateTransaction(transaction.id, {
-                amount: Number(editedAmount),
+                amount: parseFloat(editedAmount) || 0,
                 ...(approverId ? { approvedBy: approverId } : {}),
                 ...(approverLabel ? { approverDisplayName: approverLabel } : {}),
             });
@@ -303,7 +303,7 @@ export default function BudgetRequestDetailModal({ transaction, onClose, onUpdat
                                     <div className="flex items-center gap-2 mt-1 w-full">
                                         <CurrencyInput
                                             value={editedAmount}
-                                            onChange={(val) => setEditedAmount(Number(val))}
+                                            onChange={setEditedAmount}
                                             currency={transaction.currency}
                                             className="text-2xl font-bold text-blue-400"
                                         />
@@ -312,7 +312,7 @@ export default function BudgetRequestDetailModal({ transaction, onClose, onUpdat
                                 ) : (
                                     <div className="flex items-center justify-between">
                                         <div className="text-3xl font-bold text-blue-400">
-                                            {editedAmount.toLocaleString("vi-VN")} {transaction.currency}
+                                            {(parseFloat(editedAmount) || 0).toLocaleString("vi-VN")} {transaction.currency}
                                         </div>
                                         {transaction.status === "PENDING" && isConfirmingPerson && (
                                             <button
@@ -673,6 +673,7 @@ export default function BudgetRequestDetailModal({ transaction, onClose, onUpdat
                                             <span className="text-sm text-white">1 {transaction.currency} = </span>
                                             <input
                                                 type="number"
+                                                step="any"
                                                 value={exchangeRate}
                                                 onChange={(e) => setExchangeRate(e.target.value)}
                                                 className="glass-input flex-1 p-2 rounded text-sm text-white font-mono"

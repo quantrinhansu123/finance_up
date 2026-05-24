@@ -142,16 +142,8 @@ function normalizeId(v: unknown): string {
     return v == null ? "" : String(v).trim();
 }
 
-// Lấy danh sách project mà user được phép truy cập
-export function getAccessibleProjects(user: any, allProjects: any[]): any[] {
-    const role = getUserRole(user);
-
-    // Admin có thể xem tất cả
-    if (role === "ADMIN") {
-        return allProjects;
-    }
-
-    // User chỉ xem project mình tham gia — thử mọi id thường gặp (employees.id vs auth.users id trong members)
+/** Mọi id có thể map user đăng nhập ↔ employees / members / assigned accounts */
+export function collectUserIds(user: any): Set<string> {
     const idSet = new Set<string>();
     for (const key of [
         "uid",
@@ -166,6 +158,19 @@ export function getAccessibleProjects(user: any, allProjects: any[]): any[] {
         const v = normalizeId(user?.[key]);
         if (v) idSet.add(v);
     }
+    return idSet;
+}
+
+// Lấy danh sách project mà user được phép truy cập
+export function getAccessibleProjects(user: any, allProjects: any[]): any[] {
+    const role = getUserRole(user);
+
+    // Admin có thể xem tất cả
+    if (role === "ADMIN") {
+        return allProjects;
+    }
+
+    const idSet = collectUserIds(user);
     const userProjectIds: string[] = Array.isArray(user?.projectIds) ? user.projectIds.map(normalizeId) : [];
     if (idSet.size === 0 && userProjectIds.length === 0) return [];
 
@@ -197,10 +202,17 @@ export function getAccessibleAccounts(user: any, allAccounts: any[], accessibleP
         return allAccounts;
     }
 
-    // User xem account của project mình tham gia + account chung (không gán project)
-    return allAccounts.filter(a =>
-        !a.projectId || accessibleProjectIds.includes(a.projectId)
-    );
+    const idSet = collectUserIds(user);
+    if (idSet.size === 0) return [];
+
+    return allAccounts.filter((a) => {
+        const assigned = (a.assignedUserIds || []).map(normalizeId).filter(Boolean);
+        if (assigned.length > 0) {
+            return assigned.some((uid) => idSet.has(uid));
+        }
+        // Chưa gán nhân sự cụ thể: hiển thị tài khoản thuộc dự án user tham gia
+        return Boolean(a.projectId && accessibleProjectIds.includes(a.projectId));
+    });
 }
 
 // ============================================

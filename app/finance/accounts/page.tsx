@@ -6,7 +6,7 @@ import EditAccountModal from "@/components/finance/EditAccountModal";
 import { getAccounts, getTransactions, getProjects, updateAccount, deleteAccount as apiDeleteAccount } from "@/lib/finance";
 import { Account, Transaction } from "@/types/finance";
 import { getExchangeRates, convertCurrency } from "@/lib/currency";
-import { getUserRole, Role } from "@/lib/permissions";
+import { getUserRole, Role, getAccessibleProjects, getAccessibleAccounts } from "@/lib/permissions";
 import { Plus, Lock, Unlock, Edit2, Eye, Wallet, Trash2, Building2, Banknote, Smartphone, X } from "lucide-react";
 import DataTableToolbar from "@/components/finance/DataTableToolbar";
 import { exportToCSV } from "@/lib/export";
@@ -44,10 +44,30 @@ export default function AccountsPage() {
                 getProjects(),
                 getExchangeRates()
             ]);
-            setAccounts(accs);
-            setTransactions(txs);
+            const storedUser = localStorage.getItem("user") || sessionStorage.getItem("user");
+            const parsedUser = storedUser ? JSON.parse(storedUser) : null;
+            const role = parsedUser ? getUserRole(parsedUser) : "USER";
+
+            let visibleAccs = accs;
+            let visibleTxs = txs;
+            let visibleProjs = projs;
+
+            if (role !== "ADMIN" && parsedUser) {
+                visibleProjs = getAccessibleProjects(parsedUser, projs);
+                const projectIds = visibleProjs.map((p) => p.id);
+                visibleAccs = getAccessibleAccounts(parsedUser, accs, projectIds);
+                const accountIds = new Set(visibleAccs.map((a) => a.id));
+                visibleTxs = txs.filter(
+                    (tx) =>
+                        (tx.accountId && accountIds.has(tx.accountId)) ||
+                        (tx.projectId && projectIds.includes(tx.projectId))
+                );
+            }
+
+            setAccounts(visibleAccs);
+            setTransactions(visibleTxs);
             const pMap: Record<string, string> = {};
-            projs.forEach(p => pMap[p.id] = p.name);
+            visibleProjs.forEach((p) => (pMap[p.id] = p.name));
             setProjects(pMap);
             setRates(exchangeRates);
         } catch (error) {

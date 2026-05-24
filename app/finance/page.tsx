@@ -6,7 +6,7 @@ import {
 } from "recharts";
 import { getTransactions, getAccounts, getRevenues, getFixedCosts, getProjects } from "@/lib/finance";
 import { Transaction, Account, Currency, MonthlyRevenue, Fund, FixedCost, Project } from "@/types/finance";
-import { getUserRole, Role, getAccessibleProjects, hasProjectPermission } from "@/lib/permissions";
+import { getUserRole, Role, getAccessibleProjects, getAccessibleAccounts } from "@/lib/permissions";
 import { getExchangeRates, convertCurrency } from "@/lib/currency";
 import { getFunds } from "@/lib/finance";
 import Link from "next/link";
@@ -147,17 +147,11 @@ export default function DashboardPage() {
     const [showAllProjects, setShowAllProjects] = useState(false);
     const [showFixedCostDetails, setShowFixedCostDetails] = useState(false);
 
-    // Get accessible projects based on user role - chỉ lấy dự án có quyền view_reports
+    // Dự án user được xem: Admin = tất cả; nhân sự = dự án mình tham gia
     const accessibleProjects = useMemo(() => {
         if (!currentUser) return [];
         if (userRole === "ADMIN") return projects;
-
-        const userId = currentUser?.uid || currentUser?.id;
-        if (!userId) return [];
-
-        return getAccessibleProjects(currentUser, projects).filter(p =>
-            hasProjectPermission(userId, p, "view_reports", currentUser)
-        );
+        return getAccessibleProjects(currentUser, projects);
     }, [currentUser, userRole, projects]);
 
     // Calculate date range based on preset
@@ -225,8 +219,8 @@ export default function DashboardPage() {
     // Kiểm tra user có quyền xem dashboard không
     const canViewDashboard = useMemo(() => {
         if (userRole === "ADMIN") return true;
-        return accessibleProjects.length > 0;
-    }, [userRole, accessibleProjects]);
+        return accessibleProjects.length > 0 || accounts.length > 0;
+    }, [userRole, accessibleProjects, accounts.length]);
 
     useEffect(() => {
         const u = localStorage.getItem("user") || sessionStorage.getItem("user");
@@ -252,38 +246,31 @@ export default function DashboardPage() {
 
                 setRevenues(revsData);
                 setFunds(fundsData);
-                setProjects(projectsData);
                 setFixedCosts(fixedCostsData);
                 setRates(exchangeRates);
 
-                // Filter transactions và accounts theo dự án user có quyền
                 const u = localStorage.getItem("user") || sessionStorage.getItem("user");
                 const parsedUser = u ? JSON.parse(u) : null;
                 const role = parsedUser ? getUserRole(parsedUser) : "USER";
-                const userId = parsedUser?.uid || parsedUser?.id;
 
                 let filteredTxs = txs;
                 let filteredAccs = accs;
+                let visibleProjects = projectsData;
 
-                if (role !== "ADMIN" && userId) {
-                    // Lấy danh sách dự án user có quyền view_reports
-                    const userAccessibleProjects = getAccessibleProjects(parsedUser, projectsData)
-                        .filter(p => hasProjectPermission(userId, p, "view_reports", parsedUser));
-                    const accessibleProjectIds = userAccessibleProjects.map(p => p.id);
+                if (role !== "ADMIN" && parsedUser) {
+                    visibleProjects = getAccessibleProjects(parsedUser, projectsData);
+                    const accessibleProjectIds = visibleProjects.map((p) => p.id);
+                    filteredAccs = getAccessibleAccounts(parsedUser, accs, accessibleProjectIds);
+                    const accessibleAccountIds = new Set(filteredAccs.map((a) => a.id));
 
-                    // Filter transactions theo dự án có quyền
-                    filteredTxs = txs.filter(tx =>
-                        (tx.projectId && accessibleProjectIds.includes(tx.projectId)) ||
-                        tx.userId === userId
-                    );
-
-                    // Filter accounts theo dự án có quyền
-                    filteredAccs = accs.filter(acc =>
-                        (acc.projectId && accessibleProjectIds.includes(acc.projectId)) ||
-                        !acc.projectId
+                    filteredTxs = txs.filter(
+                        (tx) =>
+                            (tx.projectId && accessibleProjectIds.includes(tx.projectId)) ||
+                            (tx.accountId && accessibleAccountIds.has(tx.accountId))
                     );
                 }
 
+                setProjects(visibleProjects);
                 setTransactions(filteredTxs);
                 setAccounts(filteredAccs);
 
@@ -311,7 +298,7 @@ export default function DashboardPage() {
                 });
                 setFixedCostSummary(fcSummary);
 
-                calculateMetrics(filteredTxs, exchangeRates, viewPeriod, revsData, fundsData, projectsData, "", "ALL", null);
+                calculateMetrics(filteredTxs, exchangeRates, viewPeriod, revsData, fundsData, visibleProjects, "", "ALL", null);
 
             } catch (e) {
                 console.error(e);

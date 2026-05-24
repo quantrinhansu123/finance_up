@@ -6,6 +6,7 @@ import { Currency, Project } from "@/types/finance";
 import { X } from "lucide-react";
 import { useTranslation } from "@/lib/i18n";
 import { CURRENCY_METADATA } from "@/lib/currency";
+import CurrencyInput from "./CurrencyInput";
 import { formatProjectMaLan } from "@/lib/project-display";
 
 interface CreateAccountModalProps {
@@ -187,13 +188,12 @@ export default function CreateAccountModal({ isOpen, onClose, onSuccess }: Creat
                         </div>
                         <div>
                             <label className="block text-xs font-medium text-[var(--muted)] mb-1">{t("initial_balance_label")}</label>
-                            <input
-                                type="number"
+                            <CurrencyInput
                                 value={balance}
-                                onChange={(e) => setBalance(e.target.value)}
-                                className="glass-input w-full p-2 rounded-lg text-sm"
+                                onChange={setBalance}
+                                currency={currency}
+                                className="text-sm p-2 rounded-lg"
                                 placeholder="0"
-                                step="any"
                             />
                         </div>
                     </div>

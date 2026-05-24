@@ -5,6 +5,7 @@ import { updateAccount, getProjects } from "@/lib/finance";
 import { Account, Currency, Project } from "@/types/finance";
 import { useTranslation } from "@/lib/i18n";
 import { CURRENCY_METADATA } from "@/lib/currency";
+import CurrencyInput from "./CurrencyInput";
 import { formatProjectMaLan } from "@/lib/project-display";
 
 interface EditAccountModalProps {
@@ -140,13 +141,12 @@ export default function EditAccountModal({ isOpen, onClose, onSuccess, account }
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-[var(--muted)] mb-1">{t("balance")}</label>
-                            <input
-                                type="number"
+                            <CurrencyInput
                                 value={balance}
-                                onChange={(e) => setBalance(e.target.value)}
-                                className="glass-input w-full p-2 rounded-lg"
-                                placeholder="0.00"
-                                step="any"
+                                onChange={setBalance}
+                                currency={currency}
+                                className="text-sm p-2 rounded-lg"
+                                placeholder="0"
                             />
                         </div>
                     </div>

@@ -289,6 +289,12 @@ export default function ProjectsPage() {
         return `${Number(amount || 0).toLocaleString("vi-VN")} ${cur}`;
     };
 
+    const formatProjectBudget = (project: Project) => {
+        if (project.budget == null) return null;
+        const cur = project.currency || project.defaultCurrency || "USD";
+        return `${Number(project.budget).toLocaleString("vi-VN")} ${cur}`;
+    };
+
     return (
         <div className="space-y-8">
             <div className="flex items-center justify-between">
@@ -388,6 +394,19 @@ export default function ProjectsPage() {
                                 <span>{p.memberIds?.length || 0}</span>
                             </div>
                         )
+                    },
+                    {
+                        key: "budget",
+                        header: t("budget"),
+                        align: "right",
+                        render: (p) => {
+                            const formatted = formatProjectBudget(p);
+                            return formatted ? (
+                                <span className="font-medium text-amber-400">{formatted}</span>
+                            ) : (
+                                <span className="text-[var(--muted)]">—</span>
+                            );
+                        }
                     },
                     {
                         key: "totalRevenue",

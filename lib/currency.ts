@@ -84,26 +84,72 @@ export function convertCurrency(amount: number, from: string, to: string, rates:
 }
 
 /**
- * Formats a number to a currency string with thousands separators.
- * Example: 1000000 -> "1,000,000"
+ * Normalizes user-facing amount text (vi-VN or international) to a canonical string
+ * with dot as decimal separator, e.g. "1.234,56" -> "1234.56", "12." while typing -> "12."
+ */
+export function normalizeAmountInput(input: string): string {
+    const raw = input.trim().replace(/\s/g, "").replace(/[^\d.,]/g, "");
+    if (!raw) return "";
+
+    if (raw.includes(",")) {
+        const commaIdx = raw.indexOf(",");
+        if (raw.indexOf(",", commaIdx + 1) !== -1) return "";
+
+        const intPart = raw.slice(0, commaIdx).replace(/\./g, "");
+        const decPart = raw.slice(commaIdx + 1).replace(/[.,]/g, "");
+        if (!/^\d*$/.test(intPart) || !/^\d*$/.test(decPart)) return "";
+        if (raw.endsWith(",") && decPart === "") return intPart ? `${intPart}.` : ".";
+        return decPart ? `${intPart}.${decPart}` : intPart;
+    }
+
+    const dotCount = (raw.match(/\./g) || []).length;
+    if (dotCount === 0) return raw;
+
+    if (dotCount === 1) {
+        const [intPart, decPart] = raw.split(".");
+        if (!/^\d*$/.test(intPart) || !/^\d*$/.test(decPart)) return "";
+        if (raw.endsWith(".")) return `${intPart}.`;
+        return decPart ? `${intPart}.${decPart}` : intPart;
+    }
+
+    const lastDot = raw.lastIndexOf(".");
+    const afterLast = raw.slice(lastDot + 1);
+    const beforeLast = raw.slice(0, lastDot).replace(/\./g, "");
+    if (/^\d{1,2}$/.test(afterLast) && /^\d*$/.test(beforeLast)) {
+        return `${beforeLast}.${afterLast}`;
+    }
+    return raw.replace(/\./g, "");
+}
+
+/**
+ * Formats a number to a currency string with thousands separators (vi-VN locale).
+ * Example: 1000000 -> "1.000.000", 1234.5 -> "1.234,5"
  */
 export function formatCurrencyVN(value: number | string): string {
     if (value === "" || value === undefined || value === null) return "";
-    // Handle both dot and comma separators during parsing for robustness
-    const num = typeof value === "string" ? parseFloat(value.replace(/\./g, "").replace(/,/g, "")) : value;
+    if (typeof value === "string" && value.endsWith(".")) {
+        const intPart = value.slice(0, -1);
+        if (!intPart) return ",";
+        const num = parseFloat(intPart);
+        if (isNaN(num)) return "";
+        return `${num.toLocaleString("vi-VN")},`;
+    }
+    const num =
+        typeof value === "string"
+            ? parseFloat(normalizeAmountInput(value) || value)
+            : value;
     if (isNaN(num)) return "";
-    // vi-VN uses . for thousands and , for decimals
-    return num.toLocaleString("vi-VN");
+    return num.toLocaleString("vi-VN", { maximumFractionDigits: 10 });
 }
 
 /**
  * Parses a formatted currency string back to a number.
- * Example: "1,000,000" -> 1000000
+ * Example: "1.234.567,89" -> 1234567.89
  */
 export function parseCurrencyVN(value: string): number {
     if (!value) return 0;
-    // Remove dots (thousands separator in vi-VN)
-    const cleanValue = value.replace(/\./g, "");
-    const num = parseFloat(cleanValue);
+    const canonical = normalizeAmountInput(value);
+    if (!canonical || canonical === ".") return 0;
+    const num = parseFloat(canonical);
     return isNaN(num) ? 0 : num;
 }

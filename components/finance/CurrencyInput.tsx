@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { formatCurrencyVN, parseCurrencyVN } from "@/lib/currency";
+import { formatCurrencyVN, normalizeAmountInput } from "@/lib/currency";
 
 interface CurrencyInputProps {
     value: string | number;
@@ -23,37 +23,53 @@ export default function CurrencyInput({
     disabled = false
 }: CurrencyInputProps) {
     const [displayValue, setDisplayValue] = useState("");
+    const [isFocused, setIsFocused] = useState(false);
 
-    // Sync display value with external value
     useEffect(() => {
+        if (isFocused) return;
         if (value === "" || value === undefined || value === null) {
             setDisplayValue("");
         } else {
-            const formatted = formatCurrencyVN(value);
-            setDisplayValue(formatted);
+            setDisplayValue(formatCurrencyVN(value));
         }
-    }, [value]);
+    }, [value, isFocused]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const input = e.target.value;
+        const input = e.target.value.replace(/[^\d.,]/g, "");
 
-        // Only allow numbers and commas
-        const cleanInput = input.replace(/[^\d]/g, "");
-
-        if (cleanInput === "") {
+        if (input === "") {
             setDisplayValue("");
             onChange("");
             return;
         }
 
-        const numValue = parseInt(cleanInput, 10);
-        if (isNaN(numValue)) return;
+        const canonical = normalizeAmountInput(input);
+        if (!canonical) return;
 
-        // Update display with formatting
-        setDisplayValue(numValue.toLocaleString("vi-VN"));
+        setDisplayValue(input);
+        onChange(canonical);
+    };
 
-        // Update parent with numeric string
-        onChange(numValue.toString());
+    const handleBlur = () => {
+        setIsFocused(false);
+        if (!displayValue) {
+            onChange("");
+            return;
+        }
+        const canonical = normalizeAmountInput(displayValue);
+        if (!canonical || canonical === ".") {
+            setDisplayValue("");
+            onChange("");
+            return;
+        }
+        const num = parseFloat(canonical);
+        if (isNaN(num)) {
+            setDisplayValue("");
+            onChange("");
+            return;
+        }
+        setDisplayValue(formatCurrencyVN(num));
+        onChange(num.toString());
     };
 
     return (
@@ -62,17 +78,19 @@ export default function CurrencyInput({
                 type="text"
                 value={displayValue}
                 onChange={handleChange}
+                onFocus={() => setIsFocused(true)}
+                onBlur={handleBlur}
                 placeholder={placeholder}
                 className={`glass-input w-full p-3 pr-16 rounded-xl text-lg font-semibold focus:outline-none transition-colors ${className}`}
                 required={required}
                 disabled={disabled}
-                inputMode="numeric"
+                inputMode="decimal"
             />
             <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-sm font-bold ${currency === 'VND' ? 'text-rose-400' :
                 currency === 'USD' ? 'text-blue-400' :
                     currency === 'KHR' ? 'text-emerald-400' :
                         currency === 'TRY' ? 'text-orange-400' :
-                            currency === 'MMK' ? 'text-yellow-400' : // Myanmar colors
+                            currency === 'MMK' ? 'text-yellow-400' :
                                 'text-green-400'
                 }`}>
                 {currency}
