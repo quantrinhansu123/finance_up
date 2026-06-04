@@ -69,7 +69,7 @@ export default function LoginPage() {
 
     return (
         <div
-            className="flex items-center justify-center min-h-screen bg-[url('/bg-finance.jpg')] bg-cover bg-center"
+            className="flex items-center justify-center min-h-screen bg-gradient-to-br from-[#0f0f14] via-[#1a1a24] to-[#0f0f14]"
             suppressHydrationWarning
         >
             {/* Overlay for better text contrast if bg image is added later */}

@@ -57,7 +57,7 @@ function SSOHandler() {
     }, [router, searchParams]);
 
     return (
-        <div className="flex flex-col h-screen w-screen items-center justify-center bg-[url('/bg-finance.jpg')] bg-cover bg-center">
+        <div className="flex flex-col h-screen w-screen items-center justify-center bg-gradient-to-br from-[#0f0f14] via-[#1a1a24] to-[#0f0f14]">
             <div className="absolute inset-0 bg-black/80 backdrop-blur-sm"></div>
             <div className="relative z-10 flex flex-col items-center gap-6">
                 <div className="w-16 h-16 bg-gradient-to-br from-[#FF5E62] to-[#FF9966] rounded-xl flex items-center justify-center text-3xl font-bold text-white shadow-lg shadow-orange-500/20">

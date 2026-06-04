@@ -14,6 +14,9 @@ import { exportToCSV } from "@/lib/export";
 import TransactionDetailModal from "@/components/finance/TransactionDetailModal";
 import { WizardProgress, WizardStepPanel, WizardSummaryItem } from "@/components/finance/TransactionWizard";
 import DataTable, { AmountCell, DateCell, TextCell, ActionCell } from "@/components/finance/DataTable";
+import BulkSelectionBar from "@/components/finance/BulkSelectionBar";
+import { createBulkSelectColumn } from "@/components/finance/bulkSelectionColumn";
+import { useBulkSelection } from "@/components/finance/useBulkSelection";
 import { useTranslation } from "@/lib/i18n";
 import { projectLabelById, formatProjectListLabel, formatProjectMaLan } from "@/lib/project-display";
 import { incomeMatchesDateRange, incomePrimarySortDay } from "@/lib/income-dates";
@@ -317,6 +320,8 @@ export default function IncomePage() {
 
     const canModifyIncomeTransaction = (_tx: Transaction) => true;
 
+    const bulk = useBulkSelection(transactions, canModifyIncomeTransaction);
+
     const openEditModal = (tx: Transaction) => {
         setEditingTransaction(tx);
         setEditAmount(String(tx.amount || ""));
@@ -366,6 +371,22 @@ export default function IncomePage() {
         }
     };
 
+    const reverseIncomeBalancesForDelete = async (toDelete: Transaction[]) => {
+        const deductByAccount = new Map<string, number>();
+        for (const tx of toDelete) {
+            if ((tx.status === "APPROVED" || tx.status === "PAID") && tx.accountId) {
+                deductByAccount.set(
+                    tx.accountId,
+                    (deductByAccount.get(tx.accountId) || 0) + Number(tx.amount || 0)
+                );
+            }
+        }
+        for (const [accountId, total] of deductByAccount) {
+            const account = accounts.find((a) => a.id === accountId);
+            if (account) await updateAccountBalance(accountId, account.balance - total);
+        }
+    };
+
     const handleDeleteTransaction = async (tx: Transaction) => {
         if (!canModifyIncomeTransaction(tx)) {
             alert(t("cannot_modify_approved_transaction"));
@@ -373,16 +394,42 @@ export default function IncomePage() {
         }
         if (!confirm("Bạn có chắc muốn xóa giao dịch này?")) return;
         try {
-            const account = accounts.find(a => a.id === tx.accountId);
-            // Reverse credited income from account balance before deleting.
-            if ((tx.status === "APPROVED" || tx.status === "PAID") && account) {
-                await updateAccountBalance(account.id, account.balance - Number(tx.amount || 0));
-            }
+            await reverseIncomeBalancesForDelete([tx]);
             await deleteTransaction(tx.id);
+            bulk.clear();
             await fetchData();
         } catch (e) {
             console.error(e);
             alert("Lỗi khi xóa giao dịch");
+        }
+    };
+
+    const handleBulkDelete = async () => {
+        const toDelete = bulk.getSelected();
+        if (toDelete.length === 0) return;
+
+        if (
+            !confirm(
+                `Bạn có chắc muốn xóa ${toDelete.length} phiếu thu đã chọn? Thao tác này không thể hoàn tác.`
+            )
+        ) {
+            return;
+        }
+
+        bulk.setBulkWorking(true);
+        try {
+            await reverseIncomeBalancesForDelete(toDelete);
+            for (const tx of toDelete) {
+                await deleteTransaction(tx.id);
+            }
+            bulk.clear();
+            await fetchData();
+            alert(`Đã xóa ${toDelete.length} phiếu thu.`);
+        } catch (e) {
+            console.error(e);
+            alert("Lỗi khi xóa các giao dịch đã chọn");
+        } finally {
+            bulk.setBulkWorking(false);
         }
     };
 
@@ -681,6 +728,19 @@ export default function IncomePage() {
                     enableDateRange={true}
                 />
 
+                <BulkSelectionBar
+                    selectableCount={bulk.selectableCount}
+                    selectedCount={bulk.selectedCount}
+                    allSelected={bulk.allSelected}
+                    onToggleAll={bulk.toggleAll}
+                    onClear={bulk.clear}
+                    onBulkDelete={handleBulkDelete}
+                    bulkDeleting={bulk.bulkWorking}
+                    processingLabel={t("processing")}
+                    itemLabel="phiếu"
+                    accent="green"
+                />
+
                 {filteredIncomeTotals.count > 0 && (
                     <div className="glass-card rounded-xl border border-white/10 px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-sm">
                         <p className="text-[var(--muted)]">
@@ -709,6 +769,11 @@ export default function IncomePage() {
                     data={transactions}
                     nowrapRows
                     columns={[
+                        createBulkSelectColumn<Transaction>({
+                            selectedIds: bulk.selectedIds,
+                            onToggle: bulk.toggle,
+                            canSelect: canModifyIncomeTransaction,
+                        }),
                         {
                             key: "date",
                             header: t("date"),
@@ -766,14 +831,21 @@ export default function IncomePage() {
                             render: (tx: Transaction) => (
                                 <ActionCell nowrap>
                                     <button
-                                        onClick={() => { setSelectedTransaction(tx); setIsDetailModalOpen(true); }}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setSelectedTransaction(tx);
+                                            setIsDetailModalOpen(true);
+                                        }}
                                         className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-[var(--muted)] hover:text-white transition-all transform active:scale-90"
                                     >
                                         <Eye size={18} />
                                     </button>
                                     {canModifyIncomeTransaction(tx) && (
                                         <button
-                                            onClick={() => openEditModal(tx)}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                openEditModal(tx);
+                                            }}
                                             className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-[var(--muted)] hover:text-amber-300 transition-all transform active:scale-90"
                                         >
                                             <Edit2 size={16} />
@@ -781,7 +853,10 @@ export default function IncomePage() {
                                     )}
                                     {canModifyIncomeTransaction(tx) && (
                                         <button
-                                            onClick={() => handleDeleteTransaction(tx)}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleDeleteTransaction(tx);
+                                            }}
                                             className="p-2 rounded-lg bg-white/5 hover:bg-red-500/20 text-[var(--muted)] hover:text-red-400 transition-all transform active:scale-90"
                                         >
                                             <Trash2 size={16} />

@@ -10,6 +10,9 @@ import CurrencyInput from "@/components/finance/CurrencyInput";
 import DataTableToolbar from "@/components/finance/DataTableToolbar";
 import { exportToCSV } from "@/lib/export";
 import DataTable, { ActionCell } from "@/components/finance/DataTable";
+import BulkSelectionBar from "@/components/finance/BulkSelectionBar";
+import { createBulkSelectColumn } from "@/components/finance/bulkSelectionColumn";
+import { useBulkSelection } from "@/components/finance/useBulkSelection";
 import { useTranslation } from "@/lib/i18n";
 import { formatProjectMaLan } from "@/lib/project-display";
 import { getUsers } from "@/lib/users";
@@ -260,11 +263,14 @@ export default function ProjectsPage() {
 
 
 
+    const canDeleteProject = () => userRole === "ADMIN";
+
+    const bulk = useBulkSelection(filteredProjects, (p) => canDeleteProject());
+
     const handleDelete = async (id: string, e: React.MouseEvent) => {
         e.stopPropagation();
 
-        // Chỉ ADMIN mới được xóa
-        if (userRole !== "ADMIN") {
+        if (!canDeleteProject()) {
             alert(t("no_permission"));
             return;
         }
@@ -272,10 +278,31 @@ export default function ProjectsPage() {
         if (!confirm(t("confirm_delete"))) return;
         try {
             await deleteProject(id);
-            setAllProjects(prev => prev.filter(p => p.id !== id));
+            bulk.clear();
+            setAllProjects((prev) => prev.filter((p) => p.id !== id));
         } catch (error) {
             console.error("Delete failed", error);
             alert(t("delete_failed"));
+        }
+    };
+
+    const handleBulkDelete = async () => {
+        const toDelete = bulk.getSelected();
+        if (toDelete.length === 0) return;
+        if (!confirm(`Bạn có chắc muốn xóa ${toDelete.length} dự án đã chọn?`)) return;
+        bulk.setBulkWorking(true);
+        try {
+            for (const p of toDelete) {
+                await deleteProject(p.id);
+            }
+            bulk.clear();
+            await fetchData();
+            alert(`Đã xóa ${toDelete.length} dự án.`);
+        } catch (error) {
+            console.error("Bulk delete failed", error);
+            alert(t("delete_failed"));
+        } finally {
+            bulk.setBulkWorking(false);
         }
     };
 
@@ -359,10 +386,33 @@ export default function ProjectsPage() {
                 ]}
             />
 
+            {canDeleteProject() && (
+                <BulkSelectionBar
+                    selectableCount={bulk.selectableCount}
+                    selectedCount={bulk.selectedCount}
+                    allSelected={bulk.allSelected}
+                    onToggleAll={bulk.toggleAll}
+                    onClear={bulk.clear}
+                    onBulkDelete={handleBulkDelete}
+                    bulkDeleting={bulk.bulkWorking}
+                    itemLabel="dự án"
+                    accent="blue"
+                />
+            )}
+
             <DataTable
                 data={filteredProjects}
                 isLoading={loading}
                 columns={[
+                    ...(canDeleteProject()
+                        ? [
+                              createBulkSelectColumn<Project>({
+                                  selectedIds: bulk.selectedIds,
+                                  onToggle: bulk.toggle,
+                                  canSelect: () => true,
+                              }),
+                          ]
+                        : []),
                     {
                         key: "name",
                         header: t("name"),

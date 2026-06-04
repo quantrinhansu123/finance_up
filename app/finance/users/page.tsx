@@ -10,6 +10,9 @@ import SearchableSelect from "@/components/finance/SearchableSelect";
 import { exportToCSV } from "@/lib/export";
 import { getUserRole, Role } from "@/lib/permissions";
 import DataTable, { ActionCell } from "@/components/finance/DataTable";
+import BulkSelectionBar from "@/components/finance/BulkSelectionBar";
+import { createBulkSelectColumn } from "@/components/finance/bulkSelectionColumn";
+import { useBulkSelection } from "@/components/finance/useBulkSelection";
 import { useTranslation } from "@/lib/i18n";
 import { formatCurrencyVN } from "@/lib/currency";
 import { patchEmployeePassword } from "@/lib/patchEmployeePassword";
@@ -227,6 +230,15 @@ export default function UsersPage() {
         }
     };
 
+    const canManageUsers = userRole === "ADMIN";
+
+    const tableUsers = useMemo(
+        () => filteredUsers.map((u) => ({ ...u, id: u.uid })),
+        [filteredUsers]
+    );
+
+    const bulk = useBulkSelection(tableUsers, () => canManageUsers);
+
     const handleDelete = async (user: UserProfile) => {
         if (!confirm(t("delete_user_confirm").replace("{name}", user.displayName || ""))) {
             return;
@@ -234,6 +246,7 @@ export default function UsersPage() {
 
         try {
             await deleteUser(user.uid);
+            bulk.clear();
             await fetchUsers();
         } catch (error) {
             console.error("Failed to delete user", error);
@@ -241,7 +254,25 @@ export default function UsersPage() {
         }
     };
 
-    const canManageUsers = userRole === "ADMIN";
+    const handleBulkDelete = async () => {
+        const toDelete = bulk.getSelected();
+        if (toDelete.length === 0) return;
+        if (!confirm(`Bạn có chắc muốn xóa ${toDelete.length} người dùng đã chọn?`)) return;
+        bulk.setBulkWorking(true);
+        try {
+            for (const user of toDelete) {
+                await deleteUser(user.uid);
+            }
+            bulk.clear();
+            await fetchUsers();
+            alert(`Đã xóa ${toDelete.length} người dùng.`);
+        } catch (error) {
+            console.error("Failed to bulk delete users", error);
+            alert(t("delete_failed_user"));
+        } finally {
+            bulk.setBulkWorking(false);
+        }
+    };
 
     if (loading) return <div className="p-8 text-[var(--muted)]">{t("loading")}</div>;
 
@@ -333,11 +364,35 @@ export default function UsersPage() {
                 ]}
             />
 
+            {canManageUsers && (
+                <BulkSelectionBar
+                    selectableCount={bulk.selectableCount}
+                    selectedCount={bulk.selectedCount}
+                    allSelected={bulk.allSelected}
+                    onToggleAll={bulk.toggleAll}
+                    onClear={bulk.clear}
+                    onBulkDelete={handleBulkDelete}
+                    bulkDeleting={bulk.bulkWorking}
+                    processingLabel={t("processing")}
+                    itemLabel="người dùng"
+                    accent="blue"
+                />
+            )}
+
             {/* Table */}
             <DataTable<UserProfile & { id: string }>
-                data={filteredUsers.map(u => ({ ...u, id: u.uid }))}
+                data={tableUsers}
                 onRowClick={(user) => router.push(`/finance/users/${user.uid}`)}
                 columns={[
+                    ...(canManageUsers
+                        ? [
+                              createBulkSelectColumn<UserProfile & { id: string }>({
+                                  selectedIds: bulk.selectedIds,
+                                  onToggle: bulk.toggle,
+                                  canSelect: () => true,
+                              }),
+                          ]
+                        : []),
                     {
                         key: "displayName",
                         header: t("name"),

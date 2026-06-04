@@ -28,6 +28,9 @@ import {
 import DataTableToolbar from "@/components/finance/DataTableToolbar";
 import { exportToCSV } from "@/lib/export";
 import DataTable, { ActionCell } from "@/components/finance/DataTable";
+import BulkSelectionBar from "@/components/finance/BulkSelectionBar";
+import { createBulkSelectColumn } from "@/components/finance/bulkSelectionColumn";
+import { useBulkSelection } from "@/components/finance/useBulkSelection";
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
 import { useTranslation } from "@/lib/i18n";
 
@@ -186,6 +189,31 @@ export default function MasterCategoriesPage() {
         });
     }, [filteredCategories, transactions, projects]);
 
+    const bulk = useBulkSelection(displayCategories);
+
+    const handleBulkDeleteCategories = async () => {
+        const toDelete = bulk.getSelected() as MasterCategory[];
+        if (toDelete.length === 0) return;
+        if (!confirm(`Bạn có chắc muốn xóa ${toDelete.length} danh mục đã chọn?`)) return;
+        bulk.setBulkWorking(true);
+        setSaving(true);
+        try {
+            for (const cat of toDelete) {
+                await deleteMasterCategory(cat.id);
+            }
+            bulk.clear();
+            await fetchData();
+            setSelectedCategory(null);
+            alert(`Đã xóa ${toDelete.length} danh mục.`);
+        } catch (error) {
+            console.error("Error bulk deleting categories:", error);
+            alert(t("delete_failed"));
+        } finally {
+            setSaving(false);
+            bulk.setBulkWorking(false);
+        }
+    };
+
     const handleAddCategory = () => {
         setEditingCategory(null);
         setCategoryName("");
@@ -243,6 +271,7 @@ export default function MasterCategoriesPage() {
         setSaving(true);
         try {
             await deleteMasterCategory(category.id);
+            bulk.clear();
             await fetchData();
             if (selectedCategory?.id === category.id) {
                 setSelectedCategory(null);
@@ -708,11 +737,29 @@ export default function MasterCategoriesPage() {
                 />
             </div>
 
+            <BulkSelectionBar
+                selectableCount={bulk.selectableCount}
+                selectedCount={bulk.selectedCount}
+                allSelected={bulk.allSelected}
+                onToggleAll={bulk.toggleAll}
+                onClear={bulk.clear}
+                onBulkDelete={handleBulkDeleteCategories}
+                bulkDeleting={bulk.bulkWorking}
+                processingLabel={t("processing") || "Đang xử lý..."}
+                itemLabel="danh mục"
+                accent="blue"
+            />
+
             {/* Table */}
             <DataTable
                 data={displayCategories}
                 onRowClick={setSelectedCategory}
                 columns={[
+                    createBulkSelectColumn({
+                        selectedIds: bulk.selectedIds,
+                        onToggle: bulk.toggle,
+                        canSelect: () => true,
+                    }),
                     {
                         key: "name",
                         header: t("categories"),

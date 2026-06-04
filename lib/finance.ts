@@ -182,6 +182,27 @@ export function isFinanceUserId(value?: string | null): value is string {
     return typeof value === "string" && isUuid(value.trim());
 }
 
+/** Chuỗi rỗng / UUID không hợp lệ → null (tránh PostgREST 400). undefined = không gửi cột. */
+function optionalUuidColumn(value: unknown): string | null | undefined {
+    if (value === undefined) return undefined;
+    if (value === null || value === "") return null;
+    const s = String(value).trim();
+    if (!s) return null;
+    return isUuid(s) ? s : null;
+}
+
+function formatSupabaseError(error: { message?: string; details?: string; hint?: string; code?: string }): string {
+    const parts = [error.message, error.details, error.hint].filter((p) => typeof p === "string" && p.trim());
+    const base = parts.join(" — ") || "Lỗi cơ sở dữ liệu";
+    if (error.code === "23503") {
+        return `${base} (mã nhân viên hoặc danh mục không khớp bảng tham chiếu — thử đăng nhập lại hoặc chạy migration FK employees trên Supabase).`;
+    }
+    if (error.code === "22P02") {
+        return `${base} (dữ liệu UUID không hợp lệ — thường do trường danh mục/dự án để trống).`;
+    }
+    return base;
+}
+
 const mapProjectSubRow = (row: any): ProjectSubCategory => ({
     id: row.id,
     name: row.name,
@@ -461,16 +482,16 @@ const mapTxToDB = (data: any) => {
     if (data.type !== undefined) res.type = data.type;
     if (data.category !== undefined) res.category = data.category;
     if (data.parentCategory !== undefined) res.parent_category = data.parentCategory;
-    if (data.parentCategoryId !== undefined) res.parent_category_id = data.parentCategoryId;
+    if (data.parentCategoryId !== undefined) res.parent_category_id = optionalUuidColumn(data.parentCategoryId);
     if (data.description !== undefined) res.description = data.description;
     if (data.date !== undefined) {
         const raw = String(data.date);
         res.transaction_date = raw.length >= 10 ? raw.slice(0, 10) : raw;
     }
     if (data.status !== undefined) res.status = data.status;
-    if (data.accountId !== undefined) res.account_id = data.accountId;
-    if (data.projectId !== undefined) res.project_id = data.projectId;
-    if (data.fundId !== undefined) res.fund_id = data.fundId;
+    if (data.accountId !== undefined) res.account_id = optionalUuidColumn(data.accountId);
+    if (data.projectId !== undefined) res.project_id = optionalUuidColumn(data.projectId);
+    if (data.fundId !== undefined) res.fund_id = optionalUuidColumn(data.fundId);
     if (data.source !== undefined) res.source = data.source;
     if (data.images !== undefined) res.images = data.images;
     if (data.beneficiary !== undefined) res.beneficiary = data.beneficiary;
@@ -483,18 +504,24 @@ const mapTxToDB = (data: any) => {
     if (data.rejectionReason !== undefined) res.rejection_reason = data.rejectionReason;
     if (data.isBudgetRequest !== undefined) res.is_budget_request = data.isBudgetRequest;
     if (data.budgetRequestSourceId !== undefined)
-        res.budget_request_source_id = data.budgetRequestSourceId || null;
+        res.budget_request_source_id = optionalUuidColumn(data.budgetRequestSourceId);
     if (data.beneficiaryAccountId !== undefined)
-        res.beneficiary_account_id = data.beneficiaryAccountId || null;
-    if (data.approvedBy !== undefined) res.approved_by = data.approvedBy;
+        res.beneficiary_account_id = optionalUuidColumn(data.beneficiaryAccountId);
+    if (data.approvedBy !== undefined) res.approved_by = optionalUuidColumn(data.approvedBy);
     if (data.approverDisplayName !== undefined)
         res.approver_display_name = data.approverDisplayName?.trim() || null;
-    if (data.rejectedBy !== undefined) res.rejected_by = data.rejectedBy;
-    if (data.paidBy !== undefined) res.paid_by = data.paidBy;
+    if (data.rejectedBy !== undefined) res.rejected_by = optionalUuidColumn(data.rejectedBy);
+    if (data.paidBy !== undefined) res.paid_by = optionalUuidColumn(data.paidBy);
     if (data.paidConfirmMeta !== undefined) res.paid_confirm_meta = data.paidConfirmMeta;
-    if (data.confirmedBy !== undefined) res.confirmed_by = data.confirmedBy;
-    if (data.createdBy !== undefined) res.created_by = data.createdBy;
-    if (data.userId !== undefined) res.owner_user_id = data.userId;
+    if (data.confirmedBy !== undefined) res.confirmed_by = optionalUuidColumn(data.confirmedBy);
+    if (data.createdBy !== undefined) {
+        const id = optionalUuidColumn(data.createdBy);
+        if (id) res.created_by = id;
+    }
+    if (data.userId !== undefined) {
+        const id = optionalUuidColumn(data.userId);
+        if (id) res.owner_user_id = id;
+    }
     if (data.paymentType !== undefined) res.payment_type = data.paymentType;
     return res;
 };
@@ -821,7 +848,7 @@ export async function createTransaction(tx: Omit<Transaction, "id">): Promise<st
         delete dbData.beneficiary_account_id;
         result = await supabase.from("finance_transactions").insert([dbData]).select("id").single();
     }
-    if (result.error) throw result.error;
+    if (result.error) throw new Error(formatSupabaseError(result.error));
     await logAction("CREATE_TRANSACTION", { amount: tx.amount, currency: tx.currency }, result.data.id, tx.userId);
     return result.data.id;
 }

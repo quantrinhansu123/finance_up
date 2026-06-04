@@ -9,6 +9,9 @@ import { Plus, Eye, Edit2, Trash2, Zap, X, Save } from "lucide-react";
 import DataTableToolbar from "@/components/finance/DataTableToolbar";
 import { exportToCSV } from "@/lib/export";
 import DataTable, { ActionCell } from "@/components/finance/DataTable";
+import BulkSelectionBar from "@/components/finance/BulkSelectionBar";
+import { createBulkSelectColumn } from "@/components/finance/bulkSelectionColumn";
+import { useBulkSelection } from "@/components/finance/useBulkSelection";
 import { useTranslation } from "@/lib/i18n";
 
 const CURRENCY_COLORS: Record<string, string> = {
@@ -154,7 +157,8 @@ export default function FixedCostsPage() {
         if (!confirm("Bạn có chắc chắn muốn xóa chi phí này?")) return;
         try {
             await deleteFixedCost(id);
-            setCosts(prev => prev.filter(c => c.id !== id));
+            bulk.clear();
+            setCosts((prev) => prev.filter((c) => c.id !== id));
         } catch (error) {
             console.error("Delete failed", error);
             alert("Xóa thất bại");
@@ -229,6 +233,28 @@ export default function FixedCostsPage() {
         });
     }, [costs, searchTerm, activeFilters]);
 
+    const bulk = useBulkSelection(filteredCosts);
+
+    const handleBulkDelete = async () => {
+        const toDelete = bulk.getSelected();
+        if (toDelete.length === 0) return;
+        if (!confirm(`Bạn có chắc muốn xóa ${toDelete.length} chi phí cố định đã chọn?`)) return;
+        bulk.setBulkWorking(true);
+        try {
+            for (const cost of toDelete) {
+                await deleteFixedCost(cost.id);
+            }
+            bulk.clear();
+            setCosts((prev) => prev.filter((c) => !toDelete.some((d) => d.id === c.id)));
+            alert(`Đã xóa ${toDelete.length} mục.`);
+        } catch (error) {
+            console.error("Bulk delete failed", error);
+            alert("Xóa thất bại");
+        } finally {
+            bulk.setBulkWorking(false);
+        }
+    };
+
     useEffect(() => {
         fetchData();
     }, []);
@@ -298,10 +324,27 @@ export default function FixedCostsPage() {
                 ]}
             />
 
+            <BulkSelectionBar
+                selectableCount={bulk.selectableCount}
+                selectedCount={bulk.selectedCount}
+                allSelected={bulk.allSelected}
+                onToggleAll={bulk.toggleAll}
+                onClear={bulk.clear}
+                onBulkDelete={handleBulkDelete}
+                bulkDeleting={bulk.bulkWorking}
+                itemLabel="mục"
+                accent="amber"
+            />
+
             <DataTable
                 data={filteredCosts}
                 onRowClick={openViewModal}
                 columns={[
+                    createBulkSelectColumn<FixedCost>({
+                        selectedIds: bulk.selectedIds,
+                        onToggle: bulk.toggle,
+                        canSelect: () => true,
+                    }),
                     {
                         key: "name",
                         header: t("name"),

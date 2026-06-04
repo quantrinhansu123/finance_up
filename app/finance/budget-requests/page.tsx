@@ -8,6 +8,9 @@ import { getUsers } from "@/lib/users";
 import type { UserProfile } from "@/types/user";
 import { getUserRole, getAccessibleProjects } from "@/lib/permissions";
 import DataTable from "@/components/finance/DataTable";
+import BulkSelectionBar from "@/components/finance/BulkSelectionBar";
+import { createBulkSelectColumn } from "@/components/finance/bulkSelectionColumn";
+import { useBulkSelection } from "@/components/finance/useBulkSelection";
 import { Plus, Filter, RefreshCw, Upload, CheckCircle, Clock, ArrowRightCircle, XCircle, AlertTriangle, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import CreateBudgetRequestModal from "../../../components/finance/CreateBudgetRequestModal";
@@ -154,30 +157,57 @@ export default function BudgetRequestsPage() {
         }
     };
 
-    const getFilteredData = () => {
+    const filteredData = useMemo(() => {
         if (!currentUser) return [];
         let data = transactions;
 
-        // Tab Filtering
         switch (activeTab) {
             case "pending":
-                data = data.filter(tx => tx.status === "PENDING");
+                data = data.filter((tx) => tx.status === "PENDING");
                 break;
             case "approved":
-                data = data.filter(tx => tx.status === "APPROVED");
+                data = data.filter((tx) => tx.status === "APPROVED");
                 break;
             case "paid":
-                data = data.filter(tx => tx.status === "PAID");
+                data = data.filter((tx) => tx.status === "PAID");
                 break;
             case "completed":
-                data = data.filter(tx => tx.status === "COMPLETED");
+                data = data.filter((tx) => tx.status === "COMPLETED");
                 break;
             case "rejected":
-                data = data.filter(tx => tx.status === "REJECTED");
+                data = data.filter((tx) => tx.status === "REJECTED");
                 break;
         }
 
         return data;
+    }, [currentUser, transactions, activeTab]);
+
+    const bulk = useBulkSelection(filteredData, canDeleteRequest);
+
+    const handleBulkDelete = async () => {
+        const toDelete = bulk.getSelected();
+        if (toDelete.length === 0) return;
+        if (
+            !confirm(
+                `Bạn có chắc muốn xóa ${toDelete.length} yêu cầu đã chọn? Một số trạng thái có thể hoàn tác số dư và phiếu liên quan.`
+            )
+        ) {
+            return;
+        }
+        bulk.setBulkWorking(true);
+        try {
+            for (const tx of toDelete) {
+                await deleteBudgetRequest(tx.id);
+            }
+            bulk.clear();
+            fetchData();
+            alert(`Đã xóa ${toDelete.length} yêu cầu.`);
+        } catch (error) {
+            console.error("Failed to bulk delete requests", error);
+            alert("Lỗi khi xóa các yêu cầu đã chọn");
+        } finally {
+            bulk.setBulkWorking(false);
+        }
     };
 
     const getStatusBadge = (status: TransactionStatus) => {
@@ -301,11 +331,28 @@ export default function BudgetRequestsPage() {
                     </button>
                 </div>
 
+                <BulkSelectionBar
+                    selectableCount={bulk.selectableCount}
+                    selectedCount={bulk.selectedCount}
+                    allSelected={bulk.allSelected}
+                    onToggleAll={bulk.toggleAll}
+                    onClear={bulk.clear}
+                    onBulkDelete={handleBulkDelete}
+                    bulkDeleting={bulk.bulkWorking}
+                    itemLabel="yêu cầu"
+                    accent="blue"
+                />
+
                 <DataTable
-                    data={getFilteredData()}
+                    data={filteredData}
                     itemsPerPage={10}
                     onRowClick={(tx) => setSelectedTx(tx)}
                     columns={[
+                        createBulkSelectColumn<Transaction>({
+                            selectedIds: bulk.selectedIds,
+                            onToggle: bulk.toggle,
+                            canSelect: canDeleteRequest,
+                        }),
                         {
                             key: "date",
                             header: "Ngày tạo",

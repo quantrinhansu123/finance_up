@@ -8,6 +8,9 @@ import { getUserRole, Role } from "@/lib/permissions";
 import { Trash2, Plus, Save, X, Edit2, Globe, CreditCard, Building2, PlusCircle, Trash } from "lucide-react";
 import DataTableToolbar from "@/components/finance/DataTableToolbar";
 import DataTable, { ActionCell } from "@/components/finance/DataTable";
+import BulkSelectionBar from "@/components/finance/BulkSelectionBar";
+import { createBulkSelectColumn } from "@/components/finance/bulkSelectionColumn";
+import { useBulkSelection } from "@/components/finance/useBulkSelection";
 import { useTranslation } from "@/lib/i18n";
 
 export default function BeneficiariesPage() {
@@ -99,14 +102,44 @@ export default function BeneficiariesPage() {
         }
     };
 
+    const canDeleteBeneficiary = () => userRole === "ADMIN";
+
+    const filteredData = beneficiaries.filter(b =>
+        b.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        b.platforms?.some(p => p.toLowerCase().includes(searchTerm.toLowerCase()))
+    );
+
+    const bulk = useBulkSelection(filteredData, () => canDeleteBeneficiary());
+
     const handleDelete = async (id: string) => {
-        if (userRole !== "ADMIN") return alert(t("no_permission"));
+        if (!canDeleteBeneficiary()) return alert(t("no_permission"));
         if (!confirm(t("confirm_delete"))) return;
         try {
             await deleteBeneficiary(id);
-            setBeneficiaries(prev => prev.filter(b => b.id !== id));
+            bulk.clear();
+            setBeneficiaries((prev) => prev.filter((b) => b.id !== id));
         } catch (error) {
             console.error(error);
+        }
+    };
+
+    const handleBulkDelete = async () => {
+        const toDelete = bulk.getSelected();
+        if (toDelete.length === 0) return;
+        if (!confirm(`Bạn có chắc muốn xóa ${toDelete.length} đơn vị thụ hưởng đã chọn?`)) return;
+        bulk.setBulkWorking(true);
+        try {
+            for (const b of toDelete) {
+                await deleteBeneficiary(b.id);
+            }
+            bulk.clear();
+            fetchData();
+            alert(`Đã xóa ${toDelete.length} đơn vị.`);
+        } catch (error) {
+            console.error(error);
+            alert("Lỗi khi xóa hàng loạt");
+        } finally {
+            bulk.setBulkWorking(false);
         }
     };
 
@@ -135,11 +168,6 @@ export default function BeneficiariesPage() {
         setBankAccounts(bankAccounts.filter((_, i) => i !== index));
     };
 
-    const filteredData = beneficiaries.filter(b =>
-        b.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        b.platforms?.some(p => p.toLowerCase().includes(searchTerm.toLowerCase()))
-    );
-
     return (
         <div className="space-y-8">
             <div className="flex items-center justify-between">
@@ -160,10 +188,33 @@ export default function BeneficiariesPage() {
                 addLabel={t("add_beneficiary")}
             />
 
+            {canDeleteBeneficiary() && (
+                <BulkSelectionBar
+                    selectableCount={bulk.selectableCount}
+                    selectedCount={bulk.selectedCount}
+                    allSelected={bulk.allSelected}
+                    onToggleAll={bulk.toggleAll}
+                    onClear={bulk.clear}
+                    onBulkDelete={handleBulkDelete}
+                    bulkDeleting={bulk.bulkWorking}
+                    itemLabel="đơn vị"
+                    accent="blue"
+                />
+            )}
+
             <DataTable
                 data={filteredData}
                 isLoading={loading}
                 columns={[
+                    ...(canDeleteBeneficiary()
+                        ? [
+                              createBulkSelectColumn({
+                                  selectedIds: bulk.selectedIds,
+                                  onToggle: bulk.toggle,
+                                  canSelect: () => true,
+                              }),
+                          ]
+                        : []),
                     {
                         key: "name",
                         header: t("company_name"),

@@ -11,6 +11,9 @@ import { Plus, Lock, Unlock, Edit2, Eye, Wallet, Trash2, Building2, Banknote, Sm
 import DataTableToolbar from "@/components/finance/DataTableToolbar";
 import { exportToCSV } from "@/lib/export";
 import DataTable, { ActionCell } from "@/components/finance/DataTable";
+import BulkSelectionBar from "@/components/finance/BulkSelectionBar";
+import { createBulkSelectColumn } from "@/components/finance/bulkSelectionColumn";
+import { useBulkSelection } from "@/components/finance/useBulkSelection";
 import { useTranslation } from "@/lib/i18n";
 
 const MONEY_STATUSES = new Set<Transaction["status"]>(["APPROVED", "PAID", "COMPLETED"]);
@@ -93,25 +96,7 @@ export default function AccountsPage() {
         }
     };
 
-    const deleteAccount = async (acc: Account) => {
-        const hasTransactions = transactions.some(tx => tx.accountId === acc.id);
-        if (hasTransactions) {
-            alert(t("delete_acc_has_tx").replace("{name}", acc.name));
-            return;
-        }
-        if (acc.balance !== 0) {
-            alert(t("delete_acc_balance_nonzero").replace("{name}", acc.name));
-            return;
-        }
-        if (!confirm(t("delete_acc_confirm").replace("{name}", acc.name))) return;
-        try {
-            await apiDeleteAccount(acc.id);
-            fetchData();
-        } catch (e) {
-            console.error("Failed to delete account", e);
-            alert(t("delete_failed_acc"));
-        }
-    };
+    const canDeleteAccount = () => userRole === "ADMIN";
 
     const getTypeIcon = (type: string) => {
         switch (type) {
@@ -154,6 +139,57 @@ export default function AccountsPage() {
             return true;
         });
     }, [accounts, searchTerm, activeFilters]);
+
+    const bulk = useBulkSelection(filteredAccounts, () => canDeleteAccount());
+
+    const tryDeleteAccount = async (acc: Account): Promise<boolean> => {
+        const hasTransactions = transactions.some((tx) => tx.accountId === acc.id);
+        if (hasTransactions) {
+            alert(t("delete_acc_has_tx").replace("{name}", acc.name));
+            return false;
+        }
+        if (acc.balance !== 0) {
+            alert(t("delete_acc_balance_nonzero").replace("{name}", acc.name));
+            return false;
+        }
+        await apiDeleteAccount(acc.id);
+        return true;
+    };
+
+    const deleteAccount = async (acc: Account) => {
+        if (!canDeleteAccount()) return;
+        if (!confirm(t("delete_acc_confirm").replace("{name}", acc.name))) return;
+        try {
+            if (await tryDeleteAccount(acc)) {
+                bulk.clear();
+                fetchData();
+            }
+        } catch (e) {
+            console.error("Failed to delete account", e);
+            alert(t("delete_failed_acc"));
+        }
+    };
+
+    const handleBulkDelete = async () => {
+        const toDelete = bulk.getSelected();
+        if (toDelete.length === 0) return;
+        if (!confirm(`Bạn có chắc muốn xóa ${toDelete.length} tài khoản đã chọn?`)) return;
+        bulk.setBulkWorking(true);
+        let deleted = 0;
+        try {
+            for (const acc of toDelete) {
+                if (await tryDeleteAccount(acc)) deleted += 1;
+            }
+            bulk.clear();
+            await fetchData();
+            if (deleted > 0) alert(`Đã xóa ${deleted} tài khoản.`);
+        } catch (e) {
+            console.error("Failed to bulk delete accounts", e);
+            alert(t("delete_failed_acc"));
+        } finally {
+            bulk.setBulkWorking(false);
+        }
+    };
 
     // Summary stats
     const totalBalanceUSD = accounts.reduce((sum, a) => sum + convertCurrency(a.balance, a.currency, "USD", rates), 0);
@@ -223,6 +259,20 @@ export default function AccountsPage() {
                 ]}
             />
 
+            {canDeleteAccount() && (
+                <BulkSelectionBar
+                    selectableCount={bulk.selectableCount}
+                    selectedCount={bulk.selectedCount}
+                    allSelected={bulk.allSelected}
+                    onToggleAll={bulk.toggleAll}
+                    onClear={bulk.clear}
+                    onBulkDelete={handleBulkDelete}
+                    bulkDeleting={bulk.bulkWorking}
+                    itemLabel="tài khoản"
+                    accent="green"
+                />
+            )}
+
             {/* Table */}
             <DataTable
                 data={filteredAccounts}
@@ -230,6 +280,15 @@ export default function AccountsPage() {
                 emptyMessage={t("no_data")}
                 showIndex={false}
                 columns={[
+                    ...(canDeleteAccount()
+                        ? [
+                              createBulkSelectColumn<Account>({
+                                  selectedIds: bulk.selectedIds,
+                                  onToggle: bulk.toggle,
+                                  canSelect: () => true,
+                              }),
+                          ]
+                        : []),
                     {
                         key: "name",
                         header: t("name"),

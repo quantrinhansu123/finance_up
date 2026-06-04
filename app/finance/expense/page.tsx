@@ -14,6 +14,9 @@ import { exportToCSV } from "@/lib/export";
 import TransactionDetailModal from "@/components/finance/TransactionDetailModal";
 import { WizardProgress, WizardStepPanel, WizardSummaryItem } from "@/components/finance/TransactionWizard";
 import DataTable, { AmountCell, DateCell, TextCell, StatusBadge, ActionCell } from "@/components/finance/DataTable";
+import BulkSelectionBar from "@/components/finance/BulkSelectionBar";
+import { createBulkSelectColumn } from "@/components/finance/bulkSelectionColumn";
+import { useBulkSelection } from "@/components/finance/useBulkSelection";
 import { useTranslation } from "@/lib/i18n";
 import { projectLabelById, formatProjectListLabel, formatProjectMaLan } from "@/lib/project-display";
 import { sessionUserDisplayLabel } from "@/lib/session-user-label";
@@ -320,10 +323,11 @@ export default function ExpensePage() {
             ? false
             : tx.status !== "APPROVED";
 
+    /** Cho phép xóa phiếu chi (trừ yêu cầu ngân sách); APPROVED/COMPLETED sẽ hoàn số dư tài khoản khi xóa. */
     const canDeleteExpenseTransaction = (tx: Transaction) =>
-        tx.type === "OUT" && (tx.status === "APPROVED" || tx.status === "COMPLETED")
-            ? false
-            : tx.status !== "APPROVED";
+        tx.type === "OUT" && !tx.isBudgetRequest;
+
+    const bulk = useBulkSelection(transactions, canDeleteExpenseTransaction);
 
     const openMarkSpentModal = (tx: Transaction) => {
         if (!canMarkExpensePaid(tx)) return;
@@ -473,6 +477,24 @@ export default function ExpensePage() {
         }
     };
 
+    /** Hoàn tiền vào tài khoản nếu phiếu đã trừ số dư (APPROVED / COMPLETED / PAID). */
+    const reverseExpenseBalancesForDelete = async (toDelete: Transaction[]) => {
+        const addByAccount = new Map<string, number>();
+        const balanceApplied = new Set<Transaction["status"]>(["APPROVED", "COMPLETED", "PAID"]);
+        for (const tx of toDelete) {
+            if (balanceApplied.has(tx.status) && tx.accountId) {
+                addByAccount.set(
+                    tx.accountId,
+                    (addByAccount.get(tx.accountId) || 0) + Number(tx.amount || 0)
+                );
+            }
+        }
+        for (const [accountId, total] of addByAccount) {
+            const account = accounts.find((a) => a.id === accountId);
+            if (account) await updateAccountBalance(accountId, account.balance + total);
+        }
+    };
+
     const handleDeleteTransaction = async (tx: Transaction) => {
         if (!canDeleteExpenseTransaction(tx)) {
             alert(t("cannot_modify_approved_transaction"));
@@ -480,15 +502,40 @@ export default function ExpensePage() {
         }
         if (!confirm("Bạn có chắc muốn xóa giao dịch này?")) return;
         try {
-            const account = accounts.find(a => a.id === tx.accountId);
-            if ((tx.status === "APPROVED" || tx.status === "COMPLETED") && account) {
-                await updateAccountBalance(account.id, account.balance + Number(tx.amount || 0));
-            }
+            await reverseExpenseBalancesForDelete([tx]);
             await deleteTransaction(tx.id);
+            bulk.clear();
             await fetchData();
         } catch (e) {
             console.error(e);
-            alert("Lỗi khi xóa giao dịch");
+            alert(e instanceof Error ? e.message : "Lỗi khi xóa giao dịch");
+        }
+    };
+
+    const handleBulkDelete = async () => {
+        const toDelete = bulk.getSelected();
+        if (toDelete.length === 0) return;
+        if (
+            !confirm(
+                `Bạn có chắc muốn xóa ${toDelete.length} phiếu chi đã chọn? Thao tác này không thể hoàn tác.`
+            )
+        ) {
+            return;
+        }
+        bulk.setBulkWorking(true);
+        try {
+            await reverseExpenseBalancesForDelete(toDelete);
+            for (const tx of toDelete) {
+                await deleteTransaction(tx.id);
+            }
+            bulk.clear();
+            await fetchData();
+            alert(`Đã xóa ${toDelete.length} phiếu chi.`);
+        } catch (e) {
+            console.error(e);
+            alert(e instanceof Error ? e.message : "Lỗi khi xóa các giao dịch đã chọn");
+        } finally {
+            bulk.setBulkWorking(false);
         }
     };
 
@@ -783,10 +830,28 @@ export default function ExpensePage() {
                     enableDateRange={true}
                 />
 
+                <BulkSelectionBar
+                    selectableCount={bulk.selectableCount}
+                    selectedCount={bulk.selectedCount}
+                    allSelected={bulk.allSelected}
+                    onToggleAll={bulk.toggleAll}
+                    onClear={bulk.clear}
+                    onBulkDelete={handleBulkDelete}
+                    bulkDeleting={bulk.bulkWorking}
+                    processingLabel={t("processing")}
+                    itemLabel="phiếu"
+                    accent="red"
+                />
+
                 <DataTable
                     data={transactions}
                     nowrapRows
                     columns={[
+                        createBulkSelectColumn<Transaction>({
+                            selectedIds: bulk.selectedIds,
+                            onToggle: bulk.toggle,
+                            canSelect: canDeleteExpenseTransaction,
+                        }),
                         {
                             key: "date",
                             header: t("date"),
@@ -891,7 +956,10 @@ export default function ExpensePage() {
                                     )}
                                     {canDeleteExpenseTransaction(tx) && (
                                         <button
-                                            onClick={() => handleDeleteTransaction(tx)}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleDeleteTransaction(tx);
+                                            }}
                                             className="p-2 rounded-lg bg-white/5 hover:bg-red-500/20 text-[var(--muted)] hover:text-red-400 transition-all transform active:scale-90"
                                         >
                                             <Trash2 size={16} />

@@ -8,6 +8,9 @@ import { History, X, Edit2, Trash2 } from "lucide-react";
 import DataTableToolbar from "@/components/finance/DataTableToolbar";
 import { exportToCSV } from "@/lib/export";
 import DataTable, { ActionCell } from "@/components/finance/DataTable";
+import BulkSelectionBar from "@/components/finance/BulkSelectionBar";
+import { createBulkSelectColumn } from "@/components/finance/bulkSelectionColumn";
+import { useBulkSelection } from "@/components/finance/useBulkSelection";
 import { useTranslation } from "@/lib/i18n";
 
 export default function FundsPage() {
@@ -86,15 +89,51 @@ export default function FundsPage() {
         setDetailFund(fund);
     };
 
+    const tableData = useMemo(
+        () =>
+            filteredFunds.map((fund) => {
+                const { spent } = getFundStats(fund);
+                const pctBudget =
+                    fund.targetBudget && fund.targetBudget > 0
+                        ? (spent / fund.targetBudget) * 100
+                        : 0;
+                return { ...fund, spent, pctBudget };
+            }),
+        [filteredFunds, filteredTxs]
+    );
+
+    const bulk = useBulkSelection(tableData);
+
     const handleDelete = async (e: React.MouseEvent, id: string) => {
         e.stopPropagation();
         if (!confirm(t("delete_fund_confirm"))) return;
         try {
             await deleteFund(id);
+            bulk.clear();
             fetchData();
         } catch (error) {
             console.error("Delete failed:", error);
             alert(t("delete_failed_fund"));
+        }
+    };
+
+    const handleBulkDelete = async () => {
+        const toDelete = bulk.getSelected();
+        if (toDelete.length === 0) return;
+        if (!confirm(`Bạn có chắc muốn xóa ${toDelete.length} quỹ đã chọn?`)) return;
+        bulk.setBulkWorking(true);
+        try {
+            for (const fund of toDelete) {
+                await deleteFund(fund.id);
+            }
+            bulk.clear();
+            fetchData();
+            alert(`Đã xóa ${toDelete.length} quỹ.`);
+        } catch (error) {
+            console.error("Bulk delete failed:", error);
+            alert(t("delete_failed_fund"));
+        } finally {
+            bulk.setBulkWorking(false);
         }
     };
 
@@ -133,16 +172,27 @@ export default function FundsPage() {
                 ]}
             />
 
+            <BulkSelectionBar
+                selectableCount={bulk.selectableCount}
+                selectedCount={bulk.selectedCount}
+                allSelected={bulk.allSelected}
+                onToggleAll={bulk.toggleAll}
+                onClear={bulk.clear}
+                onBulkDelete={handleBulkDelete}
+                bulkDeleting={bulk.bulkWorking}
+                itemLabel="quỹ"
+                accent="amber"
+            />
+
             <DataTable
-                data={filteredFunds.map(fund => {
-                    const { spent } = getFundStats(fund);
-                    const pctBudget = fund.targetBudget && fund.targetBudget > 0
-                        ? (spent / fund.targetBudget) * 100
-                        : 0;
-                    return { ...fund, spent, pctBudget };
-                })}
+                data={tableData}
                 onRowClick={handleRowClick}
                 columns={[
+                    createBulkSelectColumn({
+                        selectedIds: bulk.selectedIds,
+                        onToggle: bulk.toggle,
+                        canSelect: () => true,
+                    }),
                     {
                         key: "name",
                         header: t("name"),
