@@ -2,9 +2,16 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { createTransaction, getAccounts, updateAccountBalance } from "@/lib/finance";
+import { createTransaction, getAccounts, getProjects, updateAccountBalance, isFinanceUserId } from "@/lib/finance";
 import { Account } from "@/types/finance";
-import { getUserRole, Role } from "@/lib/permissions";
+import {
+    getUserRole,
+    Role,
+    getAccessibleProjects,
+    getAccessibleAccounts,
+    hasProjectPermission,
+} from "@/lib/permissions";
+import { requiresTransferApproval } from "@/lib/transfer";
 import { ArrowRightLeft, ShieldX, Upload, RefreshCw } from "lucide-react";
 import CurrencyInput from "@/components/finance/CurrencyInput";
 import { uploadImage } from "@/lib/upload";
@@ -85,13 +92,29 @@ export default function TransferPage() {
             setCurrentUser(parsed);
             const role = getUserRole(parsed);
             setUserRole(role);
+            const userId = parsed.uid || parsed.id;
 
-            // Chỉ ADMIN mới được chuyển tiền
-            if (role === "ADMIN") {
+            const [allAccs, allProjects, rates] = await Promise.all([
+                getAccounts(),
+                getProjects(),
+                getExchangeRates(),
+            ]);
+            setExchangeRates(rates);
+
+            let allowed = role === "ADMIN";
+            if (!allowed && userId) {
+                const accessibleProjects = getAccessibleProjects(parsed, allProjects);
+                allowed = accessibleProjects.some(
+                    (p) =>
+                        hasProjectPermission(userId, p, "create_income", parsed) ||
+                        hasProjectPermission(userId, p, "create_expense", parsed)
+                );
+            }
+
+            if (allowed) {
                 setCanTransfer(true);
-                const [accs, rates] = await Promise.all([getAccounts(), getExchangeRates()]);
-                setAccounts(accs);
-                setExchangeRates(rates);
+                const accessibleProjectIds = getAccessibleProjects(parsed, allProjects).map((p) => p.id);
+                setAccounts(getAccessibleAccounts(parsed, allAccs, accessibleProjectIds));
             } else {
                 setCanTransfer(false);
                 setAccounts([]);
@@ -145,6 +168,17 @@ export default function TransferPage() {
                 return;
             }
 
+            const uid = currentUser?.uid || currentUser?.id;
+            if (!isFinanceUserId(uid)) {
+                alert("Phiên đăng nhập không hợp lệ. Vui lòng đăng xuất và đăng nhập lại.");
+                setSubmitting(false);
+                return;
+            }
+
+            const pendingFlow = requiresTransferApproval(numAmount, fromAcc.currency, exchangeRates);
+            const status = pendingFlow ? "PENDING" : "APPROVED";
+            const projectId = fromAcc.projectId || toAcc.projectId || undefined;
+
             // Execute Transfer
             const timestamp = Date.now();
             const dateStr = new Date().toISOString();
@@ -172,12 +206,15 @@ export default function TransferPage() {
                 currency: fromAcc.currency,
                 category: t("internal_transfer_category"),
                 accountId: fromAcc.id,
+                beneficiaryAccountId: toAcc.id,
+                projectId,
                 description: t("transfer_to_desc").replace("{name}", toAcc.name).replace("{desc}", description) + rateInfo + ` (Ref: ${transferRef})`,
                 date: dateStr,
-                status: "APPROVED",
-                createdBy: currentUser?.id || currentUser?.uid,
-                userId: currentUser?.id || currentUser?.uid,
+                status,
+                createdBy: uid,
+                userId: uid,
                 images: imageUrls,
+                warning: pendingFlow,
                 createdAt: timestamp,
                 updatedAt: timestamp,
             });
@@ -190,21 +227,25 @@ export default function TransferPage() {
                 category: t("internal_receive_category"),
                 source: t("internal_transfer_source"),
                 accountId: toAcc.id,
+                projectId: toAcc.projectId || projectId,
                 description: t("receive_from_desc").replace("{name}", fromAcc.name).replace("{desc}", description) + rateInfo + ` (Ref: ${transferRef})`,
                 date: dateStr,
-                status: "APPROVED",
-                createdBy: currentUser?.id || currentUser?.uid,
-                userId: currentUser?.id || currentUser?.uid,
+                status,
+                createdBy: uid,
+                userId: uid,
                 images: imageUrls,
+                warning: pendingFlow,
                 createdAt: timestamp,
                 updatedAt: timestamp,
             });
 
-            // 3. Update Balances
-            await updateAccountBalance(fromAcc.id, fromAcc.balance - numAmount);
-            await updateAccountBalance(toAcc.id, toAcc.balance + receivedAmount);
+            // 3. Update Balances (chỉ khi không cần phê duyệt)
+            if (!pendingFlow) {
+                await updateAccountBalance(fromAcc.id, fromAcc.balance - numAmount);
+                await updateAccountBalance(toAcc.id, toAcc.balance + receivedAmount);
+            }
 
-            alert(t("transfer_success"));
+            alert(pendingFlow ? t("transfer_pending_approval") : t("transfer_success"));
 
             // Reset
             setAmount("");
@@ -216,8 +257,13 @@ export default function TransferPage() {
             setCustomRate("");
 
             // Refresh accounts
-            const updatedAccs = await getAccounts();
-            setAccounts(updatedAccs);
+            const u = localStorage.getItem("user") || sessionStorage.getItem("user");
+            if (u) {
+                const parsed = JSON.parse(u);
+                const [updatedAccs, allProjects] = await Promise.all([getAccounts(), getProjects()]);
+                const accessibleProjectIds = getAccessibleProjects(parsed, allProjects).map((p) => p.id);
+                setAccounts(getAccessibleAccounts(parsed, updatedAccs, accessibleProjectIds));
+            }
 
         } catch (error) {
             console.error("Transfer failed", error);
@@ -325,11 +371,18 @@ export default function TransferPage() {
                         </label>
                         <CurrencyInput value={amount} onChange={setAmount} currency={fromAcc?.currency} required />
                         {fromAcc && parseFloat(amount) > 0 && (
-                            <p className="text-xs text-[var(--muted)] mt-1">
-                                {t("balance_after_transfer")}: <span className={fromAcc.balance - parseFloat(amount) >= 0 ? "text-green-400" : "text-red-400"}>
-                                    {(fromAcc.balance - parseFloat(amount)).toLocaleString("vi-VN")} {fromAcc.currency}
-                                </span>
-                            </p>
+                            <>
+                                <p className="text-xs text-[var(--muted)] mt-1">
+                                    {t("balance_after_transfer")}: <span className={fromAcc.balance - parseFloat(amount) >= 0 ? "text-green-400" : "text-red-400"}>
+                                        {(fromAcc.balance - parseFloat(amount)).toLocaleString("vi-VN")} {fromAcc.currency}
+                                    </span>
+                                </p>
+                                {requiresTransferApproval(parseFloat(amount), fromAcc.currency, exchangeRates) ? (
+                                    <p className="text-xs text-yellow-400 mt-1">{t("transfer_requires_approval_hint")}</p>
+                                ) : (
+                                    <p className="text-xs text-green-400 mt-1">{t("transfer_no_approval_hint")}</p>
+                                )}
+                            </>
                         )}
                     </div>
 

@@ -21,6 +21,7 @@ import { logActivity } from "@/lib/logger";
 import { supabase } from "@/lib/supabase";
 import { uploadImage } from "@/lib/upload";
 import { getUserRole, hasProjectPermission } from "@/lib/permissions";
+import { isInternalTransferOut, findPairedTransferIn } from "@/lib/transfer";
 import { useRouter } from "next/navigation";
 import { ShieldX, Eye } from "lucide-react";
 import DataTable, { DateCell } from "@/components/finance/DataTable";
@@ -361,6 +362,10 @@ export default function ApprovalsPage() {
                 return;
             }
 
+            const pairedInTx = isInternalTransferOut(tx)
+                ? findPairedTransferIn(allTransactions, tx)
+                : undefined;
+
             // 1. Update Status
             await updateTransactionStatus(tx.id, "APPROVED");
 
@@ -368,12 +373,24 @@ export default function ApprovalsPage() {
             await updateTransaction(tx.id, {
                 ...(approverId ? { approvedBy: approverId } : {}),
                 ...(approverLabel ? { approverDisplayName: approverLabel } : {}),
-                ...(tx.type === "OUT" ? { warning: true } : {}),
+                ...(tx.type === "OUT" && !pairedInTx ? { warning: true } : {}),
+                ...(pairedInTx ? { warning: false } : {}),
             });
+
+            if (pairedInTx) {
+                await updateTransactionStatus(pairedInTx.id, "APPROVED");
+                await updateTransaction(pairedInTx.id, {
+                    ...(approverId ? { approvedBy: approverId } : {}),
+                    ...(approverLabel ? { approverDisplayName: approverLabel } : {}),
+                    warning: false,
+                });
+            }
 
             // 3. Log Activity
             const proj = allProjects.find(p => p.id === tx.projectId);
-            const logMsg = `Đã duyệt: ${tx.category} - ${tx.amount.toLocaleString("vi-VN")} ${tx.currency} | Dự án: ${proj?.name || "N/A"}`;
+            const logMsg = pairedInTx
+                ? `Đã duyệt chuyển tiền nội bộ: ${tx.amount.toLocaleString("vi-VN")} ${tx.currency} → ${pairedInTx.amount.toLocaleString("vi-VN")} ${pairedInTx.currency} | Dự án: ${proj?.name || "N/A"}`
+                : `Đã duyệt: ${tx.category} - ${tx.amount.toLocaleString("vi-VN")} ${tx.currency} | Dự án: ${proj?.name || "N/A"}`;
 
             await logActivity(
                 { uid: currentUser.id || currentUser.uid || "admin", displayName: currentUser.name || currentUser.displayName || "Admin" },
@@ -384,12 +401,23 @@ export default function ApprovalsPage() {
             );
 
             // 4. Update Account Balance
-            const account = accounts.find(a => a.id === tx.accountId);
-            if (account) {
-                const newBalance = tx.type === "IN"
-                    ? account.balance + tx.amount
-                    : account.balance - tx.amount;
-                await updateAccountBalance(account.id, newBalance);
+            if (pairedInTx) {
+                const sourceAccount = accounts.find(a => a.id === tx.accountId);
+                const destAccount = accounts.find(a => a.id === pairedInTx.accountId);
+                if (sourceAccount) {
+                    await updateAccountBalance(sourceAccount.id, sourceAccount.balance - tx.amount);
+                }
+                if (destAccount) {
+                    await updateAccountBalance(destAccount.id, destAccount.balance + pairedInTx.amount);
+                }
+            } else {
+                const account = accounts.find(a => a.id === tx.accountId);
+                if (account) {
+                    const newBalance = tx.type === "IN"
+                        ? account.balance + tx.amount
+                        : account.balance - tx.amount;
+                    await updateAccountBalance(account.id, newBalance);
+                }
             }
 
             // Refresh
@@ -415,6 +443,10 @@ export default function ApprovalsPage() {
         }
 
         try {
+            const pairedInTx = isInternalTransferOut(rejectingTx)
+                ? findPairedTransferIn(allTransactions, rejectingTx)
+                : undefined;
+
             // 1. Update Status
             await updateTransactionStatus(rejectingTx.id, "REJECTED");
 
@@ -425,9 +457,19 @@ export default function ApprovalsPage() {
                 rejectionReason: rejectionReason.trim(),
             });
 
+            if (pairedInTx) {
+                await updateTransactionStatus(pairedInTx.id, "REJECTED");
+                await updateTransaction(pairedInTx.id, {
+                    ...(rejecterId ? { rejectedBy: rejecterId } : {}),
+                    rejectionReason: rejectionReason.trim(),
+                });
+            }
+
             // 3. Log Activity
             const proj = allProjects.find(p => p.id === rejectingTx.projectId);
-            const logMsg = `Từ chối: ${rejectingTx.category} - ${rejectingTx.amount.toLocaleString("vi-VN")} ${rejectingTx.currency} | Dự án: ${proj?.name || "N/A"} | Lý do: ${rejectionReason.trim()}`;
+            const logMsg = pairedInTx
+                ? `Từ chối chuyển tiền nội bộ: ${rejectingTx.amount.toLocaleString("vi-VN")} ${rejectingTx.currency} | Dự án: ${proj?.name || "N/A"} | Lý do: ${rejectionReason.trim()}`
+                : `Từ chối: ${rejectingTx.category} - ${rejectingTx.amount.toLocaleString("vi-VN")} ${rejectingTx.currency} | Dự án: ${proj?.name || "N/A"} | Lý do: ${rejectionReason.trim()}`;
 
             await logActivity(
                 { uid: currentUser.id || currentUser.uid || "admin", displayName: currentUser.name || currentUser.displayName || "Admin" },

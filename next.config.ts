@@ -7,6 +7,15 @@ const nextConfig: NextConfig = {
         NEXT_PUBLIC_SUPABASE_URL: readSupabaseUrl(),
         NEXT_PUBLIC_SUPABASE_ANON_KEY: readSupabaseAnonKey(),
     },
+    async redirects() {
+        return [
+            {
+                source: "/admin-tools",
+                destination: "/finance/admin-tools",
+                permanent: false,
+            },
+        ];
+    },
 };
 
 export default nextConfig;

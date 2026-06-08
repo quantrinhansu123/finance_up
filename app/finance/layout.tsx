@@ -29,7 +29,8 @@ import {
     Menu,
     X,
     ChevronRight,
-    UserCircle
+    UserCircle,
+    Wrench,
 } from "lucide-react";
 import LanguageToggle from "@/components/finance/LanguageToggle";
 import { motion, AnimatePresence } from "framer-motion";
@@ -211,7 +212,7 @@ function FinanceLayoutContent({
                 ...(userPermissions.canCreateExpense ? [{ name: t("expense"), href: "/finance/expense", icon: <ArrowUpFromLine size={18} /> }] : []),
                 ...(userRole === "ADMIN" ? [{ name: t("income_expense_categories"), href: "/finance/income-expense-categories", icon: <ScrollText size={18} /> }] : []),
                 { name: t("budget_requests"), href: "/finance/budget-requests", icon: <TrendingUp size={18} /> },
-                ...(userRole === "ADMIN" ? [{ name: t("transfer"), href: "/finance/transfer", icon: <ArrowRightLeft size={18} /> }] : []),
+                ...(userPermissions.canTransfer ? [{ name: t("transfer"), href: "/finance/transfer", icon: <ArrowRightLeft size={18} /> }] : []),
                 ...(userPermissions.canApprove ? [{ name: t("approvals"), href: "/finance/approvals", icon: <CheckSquare size={18} /> }] : []),
                 ...(userPermissions.canViewTransactions ? [{ name: t("transactions"), href: "/finance/transactions", icon: <ArrowRightLeft size={18} /> }] : []),
             ]
@@ -238,6 +239,7 @@ function FinanceLayoutContent({
                 ...(userRole === "ADMIN" ? [
                     { name: t("users"), href: "/finance/users", icon: <Users size={18} /> },
                     { name: t("logs"), href: "/finance/logs", icon: <ScrollText size={18} /> },
+                    { name: "Admin Tools", href: "/finance/admin-tools", icon: <Wrench size={18} /> },
                 ] : []),
                 { name: t("my_profile"), href: "/finance/profile", icon: <UserCircle size={18} /> },
             ]

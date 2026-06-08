@@ -526,21 +526,93 @@ const mapTxToDB = (data: any) => {
     return res;
 };
 
+function supabaseErrorText(error: unknown): string {
+    if (!error || typeof error !== "object") return "";
+    const o = error as { message?: unknown; details?: unknown; hint?: unknown };
+    return [o.message, o.details, o.hint].filter((v) => typeof v === "string").join(" ");
+}
+
 function isMissingBeneficiaryAccountColumn(error: unknown): boolean {
-    if (!error || typeof error !== "object") return false;
-    const o = error as { code?: unknown; message?: unknown };
-    const message = typeof o.message === "string" ? o.message : "";
+    const text = supabaseErrorText(error);
     return (
-        message.includes("beneficiary_account_id") ||
-        (o.code === "PGRST204" && message.includes("finance_transactions"))
+        text.includes("beneficiary_account_id") ||
+        (text.includes("PGRST204") && text.includes("finance_transactions"))
     );
 }
 
-function isOptionalUserReferenceError(error: unknown, dbKey: "paid_by" | "confirmed_by"): boolean {
-    if (!error || typeof error !== "object") return false;
-    const o = error as { code?: unknown; message?: unknown; details?: unknown };
-    const text = [o.message, o.details].filter(v => typeof v === "string").join(" ");
+function isMissingTransactionColumn(error: unknown, column: string): boolean {
+    const text = supabaseErrorText(error);
+    return text.includes(column) && (text.includes("PGRST204") || text.includes("schema cache"));
+}
+
+function isOptionalUserReferenceError(
+    error: unknown,
+    dbKey: "paid_by" | "confirmed_by" | "approved_by" | "rejected_by"
+): boolean {
+    const text = supabaseErrorText(error);
     return text.includes(dbKey) || text.includes(`finance_transactions_${dbKey}_fkey`);
+}
+
+function isFkErrorOnColumn(error: unknown, column: string): boolean {
+    const text = supabaseErrorText(error);
+    return text.includes(column) && (text.includes("23503") || text.includes("foreign key"));
+}
+
+function isProfilesUserFkError(error: unknown): boolean {
+    const text = supabaseErrorText(error);
+    return (
+        text.includes("profiles") &&
+        (text.includes("created_by") ||
+            text.includes("owner_user_id") ||
+            text.includes("approved_by") ||
+            text.includes("23503"))
+    );
+}
+
+async function insertTransactionRow(dbData: Record<string, unknown>) {
+    return supabase.from("finance_transactions").insert([dbData]).select("id").single();
+}
+
+/** Thử insert lại sau khi bỏ các cột tùy chọn gây lỗi schema/FK trên DB cũ. */
+async function insertTransactionWithFallback(dbData: Record<string, unknown>) {
+    let result = await insertTransactionRow(dbData);
+    for (let attempt = 0; attempt < 8 && result.error; attempt++) {
+        const err = result.error;
+        let stripped = false;
+
+        if (dbData.beneficiary_account_id !== undefined && isMissingBeneficiaryAccountColumn(err)) {
+            delete dbData.beneficiary_account_id;
+            stripped = true;
+        } else if (dbData.approved_by !== undefined && isOptionalUserReferenceError(err, "approved_by")) {
+            delete dbData.approved_by;
+            stripped = true;
+        } else if (dbData.rejected_by !== undefined && isOptionalUserReferenceError(err, "rejected_by")) {
+            delete dbData.rejected_by;
+            stripped = true;
+        } else if (dbData.paid_by !== undefined && isOptionalUserReferenceError(err, "paid_by")) {
+            delete dbData.paid_by;
+            stripped = true;
+        } else if (dbData.confirmed_by !== undefined && isOptionalUserReferenceError(err, "confirmed_by")) {
+            delete dbData.confirmed_by;
+            stripped = true;
+        } else if (dbData.parent_category_id !== undefined && isFkErrorOnColumn(err, "parent_category_id")) {
+            delete dbData.parent_category_id;
+            stripped = true;
+        } else if (dbData.approver_display_name !== undefined && isMissingTransactionColumn(err, "approver_display_name")) {
+            delete dbData.approver_display_name;
+            stripped = true;
+        } else if (dbData.warning !== undefined && isMissingTransactionColumn(err, "warning")) {
+            delete dbData.warning;
+            stripped = true;
+        } else if (dbData.is_budget_request !== undefined && isMissingTransactionColumn(err, "is_budget_request")) {
+            delete dbData.is_budget_request;
+            stripped = true;
+        }
+
+        if (!stripped) break;
+        result = await insertTransactionRow(dbData);
+    }
+    return result;
 }
 
 export async function getTransactions(): Promise<Transaction[]> {
@@ -843,14 +915,20 @@ export async function createTransaction(tx: Omit<Transaction, "id">): Promise<st
         throw new Error("Thiếu mã người tạo (UUID) cho giao dịch. Vui lòng đăng nhập lại.");
     }
     const dbData = mapTxToDB(tx);
-    let result = await supabase.from("finance_transactions").insert([dbData]).select("id").single();
-    if (result.error && dbData.beneficiary_account_id !== undefined && isMissingBeneficiaryAccountColumn(result.error)) {
-        delete dbData.beneficiary_account_id;
-        result = await supabase.from("finance_transactions").insert([dbData]).select("id").single();
+    if (!dbData.created_by || !dbData.owner_user_id) {
+        throw new Error("Thiếu mã người tạo giao dịch. Vui lòng đăng xuất và đăng nhập lại.");
     }
-    if (result.error) throw new Error(formatSupabaseError(result.error));
-    await logAction("CREATE_TRANSACTION", { amount: tx.amount, currency: tx.currency }, result.data.id, tx.userId);
-    return result.data.id;
+    const result = await insertTransactionWithFallback(dbData);
+    if (result.error) {
+        if (isProfilesUserFkError(result.error)) {
+            throw new Error(
+                "Tài khoản đăng nhập chưa khớp cơ sở dữ liệu (FK profiles). Admin cần chạy migration chuyển FK sang bảng employees trên Supabase, sau đó thử lại."
+            );
+        }
+        throw new Error(formatSupabaseError(result.error));
+    }
+    await logAction("CREATE_TRANSACTION", { amount: tx.amount, currency: tx.currency }, result.data!.id, tx.userId);
+    return result.data!.id;
 }
 
 export async function updateTransactionStatus(txId: string, status: Transaction["status"]): Promise<void> {

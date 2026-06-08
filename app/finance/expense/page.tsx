@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useRef } from "react";
-import { createTransaction, getAccounts, updateAccountBalance, getProjects, getTransactions, updateTransaction, deleteTransaction } from "@/lib/finance";
+import { createTransaction, getAccounts, updateAccountBalance, getProjects, getTransactions, updateTransaction, deleteTransaction, isFinanceUserId } from "@/lib/finance";
 import { getMasterCategories, getMasterSubCategories } from "@/lib/master-categories";
 import { Account, Project, Transaction, MasterCategory, MasterSubCategory, PaidConfirmMeta } from "@/types/finance";
 import { uploadImage } from "@/lib/upload";
@@ -273,6 +273,12 @@ export default function ExpensePage() {
         const numAmount = parseFloat(amount);
         if (numAmount > selectedAccount!.balance) { alert(t("insufficient_balance")); return; }
 
+        const uid = currentUser?.uid || currentUser?.id;
+        if (!isFinanceUserId(uid)) {
+            alert("Phiên đăng nhập không hợp lệ. Vui lòng đăng xuất và đăng nhập lại.");
+            return;
+        }
+
         setSubmitting(true);
         try {
             const currency = selectedAccount?.currency || "USD";
@@ -289,16 +295,16 @@ export default function ExpensePage() {
 
             const pendingFlow = requiresApproval();
             const status = pendingFlow ? "PENDING" : "APPROVED";
-            const uid = currentUser?.uid || currentUser?.id;
             const approverLabel = status === "APPROVED" ? sessionUserDisplayLabel(currentUser) : "";
             await createTransaction({
                 type: "OUT", amount: numAmount, currency, category: finalCategory,
-                parentCategory: parentCategoryName, parentCategoryId,
+                parentCategory: parentCategoryName,
+                ...(parentCategoryId ? { parentCategoryId } : {}),
                 accountId, projectId: projectId || undefined, description, date: new Date().toISOString(),
-                status, createdBy: uid || "",
-                userId: uid || "", images: imageUrls,
+                status, createdBy: uid,
+                userId: uid, images: imageUrls,
                 warning: pendingFlow,
-                ...(status === "APPROVED" && uid ? { approvedBy: uid } : {}),
+                ...(status === "APPROVED" ? { approvedBy: uid } : {}),
                 ...(status === "APPROVED" && approverLabel ? { approverDisplayName: approverLabel } : {}),
                 createdAt: Date.now(), updatedAt: Date.now(),
             });
@@ -311,7 +317,11 @@ export default function ExpensePage() {
             resetForm();
             setShowForm(false);
             alert(status === "PENDING" ? t("create_expense_pending") : t("create_expense_success"));
-        } catch (e) { console.error(e); alert(t("create_expense_error")); } finally { setSubmitting(false); }
+        } catch (e) {
+            console.error(e);
+            const detail = e instanceof Error ? e.message : "";
+            alert(detail ? `${t("create_expense_error")}\n\n${detail}` : t("create_expense_error"));
+        } finally { setSubmitting(false); }
     };
 
     /** Mọi chi đã duyệt (OUT + APPROVED) có thể xác nhận đã chi. */

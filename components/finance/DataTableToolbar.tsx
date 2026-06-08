@@ -84,6 +84,34 @@ export default function DataTableToolbar({
                     </div>
                 ))}
 
+                {/* Date range — luôn hiển thị khi bật */}
+                {enableDateRange && (
+                    <>
+                        <div className="min-w-[150px] space-y-1">
+                            <label className="text-[10px] uppercase tracking-wider font-bold text-[var(--muted)] ml-1">
+                                {t("from_date")}
+                            </label>
+                            <input
+                                type="date"
+                                value={activeFilters.startDate || ""}
+                                onChange={(e) => onFilterChange("startDate", e.target.value)}
+                                className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all font-medium"
+                            />
+                        </div>
+                        <div className="min-w-[150px] space-y-1">
+                            <label className="text-[10px] uppercase tracking-wider font-bold text-[var(--muted)] ml-1">
+                                {t("to_date")}
+                            </label>
+                            <input
+                                type="date"
+                                value={activeFilters.endDate || ""}
+                                onChange={(e) => onFilterChange("endDate", e.target.value)}
+                                className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all font-medium"
+                            />
+                        </div>
+                    </>
+                )}
+
                 {/* Advanced Toggle */}
                 {hasAdvancedFilters && (
                     <button
@@ -132,36 +160,8 @@ export default function DataTableToolbar({
             </div>
 
             {/* Advanced Filters Expandable Area */}
-            {showAdvanced && (advancedFilters.length > 0 || enableDateRange) && (
+            {showAdvanced && advancedFilters.length > 0 && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 p-4 bg-white/5 border border-white/10 rounded-2xl animate-in fade-in slide-in-from-top-2 duration-300">
-                    {/* Date Range Filters */}
-                    {enableDateRange && (
-                        <>
-                            <div className="space-y-1.5">
-                                <label className="text-[10px] uppercase tracking-wider font-bold text-[var(--muted)] ml-1">
-                                    {t("from_date")}
-                                </label>
-                                <input
-                                    type="date"
-                                    value={activeFilters.startDate || ""}
-                                    onChange={(e) => onFilterChange("startDate", e.target.value)}
-                                    className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all font-medium"
-                                />
-                            </div>
-                            <div className="space-y-1.5">
-                                <label className="text-[10px] uppercase tracking-wider font-bold text-[var(--muted)] ml-1">
-                                    {t("to_date")}
-                                </label>
-                                <input
-                                    type="date"
-                                    value={activeFilters.endDate || ""}
-                                    onChange={(e) => onFilterChange("endDate", e.target.value)}
-                                    className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all font-medium"
-                                />
-                            </div>
-                        </>
-                    )}
-
                     {advancedFilters.map(filter => (
                         <div key={filter.id} className="space-y-1.5">
                             <label className="text-[10px] uppercase tracking-wider font-bold text-[var(--muted)] ml-1">
