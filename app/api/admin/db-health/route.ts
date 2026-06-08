@@ -23,9 +23,9 @@ export async function GET() {
     const client = createClient(url, key);
     const checks: Record<string, { ok: boolean; detail?: string }> = {};
 
-    const probe = async (label: string, run: () => Promise<{ error: { message: string } | null }>) => {
+    const probeTable = async (label: string, table: string) => {
         try {
-            const { error } = await run();
+            const { error } = await client.from(table).select("id").limit(1);
             checks[label] = error
                 ? { ok: false, detail: error.message }
                 : { ok: true };
@@ -34,10 +34,10 @@ export async function GET() {
         }
     };
 
-    await probe("employees", () => client.from("employees").select("id").limit(1));
-    await probe("finance_accounts", () => client.from("finance_accounts").select("id").limit(1));
-    await probe("finance_transactions", () => client.from("finance_transactions").select("id").limit(1));
-    await probe("finance_projects", () => client.from("finance_projects").select("id").limit(1));
+    await probeTable("employees", "employees");
+    await probeTable("finance_accounts", "finance_accounts");
+    await probeTable("finance_transactions", "finance_transactions");
+    await probeTable("finance_projects", "finance_projects");
 
     const ok = Object.values(checks).every((c) => c.ok);
     const fkHint = !checks.employees?.ok || !checks.finance_transactions?.ok

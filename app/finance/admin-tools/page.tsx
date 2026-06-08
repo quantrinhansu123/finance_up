@@ -41,6 +41,11 @@ const PENDING_MIGRATIONS = [
         title: "Cột budget request trên finance_transactions",
         desc: "Hỗ trợ cờ is_budget_request, budget_request_source_id.",
     },
+    {
+        file: "20260525100000_finance_bills_storage_bucket.sql",
+        title: "Bucket Storage ảnh hóa đơn",
+        desc: "Upload ảnh qua Supabase khi chưa cấu hình Cloudinary (cần SUPABASE_SERVICE_ROLE_KEY trên Vercel).",
+    },
 ];
 
 export default function AdminToolsPage() {

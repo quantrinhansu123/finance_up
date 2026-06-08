@@ -751,11 +751,11 @@ export default function MasterCategoriesPage() {
             />
 
             {/* Table */}
-            <DataTable
+            <DataTable<MasterCategory & { totalAmount: number; transactionCount: number }>
                 data={displayCategories}
-                onRowClick={setSelectedCategory}
+                onRowClick={(cat) => setSelectedCategory(cat)}
                 columns={[
-                    createBulkSelectColumn({
+                    createBulkSelectColumn<MasterCategory & { totalAmount: number; transactionCount: number }>({
                         selectedIds: bulk.selectedIds,
                         onToggle: bulk.toggle,
                         canSelect: () => true,
