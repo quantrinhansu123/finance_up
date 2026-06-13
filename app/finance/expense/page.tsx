@@ -20,6 +20,7 @@ import { useBulkSelection } from "@/components/finance/useBulkSelection";
 import { useTranslation } from "@/lib/i18n";
 import { projectLabelById, formatProjectListLabel, formatProjectMaLan } from "@/lib/project-display";
 import { sessionUserDisplayLabel } from "@/lib/session-user-label";
+import { isInternalTransferOut } from "@/lib/transfer";
 import { resolveTransactionApproverDisplay } from "@/lib/transaction-approver-display";
 import { getUsers } from "@/lib/users";
 import { UserProfile } from "@/types/user";
@@ -186,6 +187,7 @@ export default function ExpensePage() {
             const all = await getTransactions();
             let txs = all.filter((t) => {
                 if (t.type !== "OUT" || t.isBudgetRequest) return false;
+                if (isInternalTransferOut(t)) return false;
                 if (t.status === "PENDING") {
                     const c = (t.category || "").toLowerCase();
                     const ben = (t.beneficiary || "").trim();

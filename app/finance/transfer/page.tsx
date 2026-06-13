@@ -11,7 +11,7 @@ import {
     getAccessibleAccounts,
     hasProjectPermission,
 } from "@/lib/permissions";
-import { requiresTransferApproval } from "@/lib/transfer";
+import { requiresTransferApproval, resolveTransferProjectId } from "@/lib/transfer";
 import { ArrowRightLeft, ShieldX, Upload, RefreshCw } from "lucide-react";
 import CurrencyInput from "@/components/finance/CurrencyInput";
 import { uploadImage } from "@/lib/upload";
@@ -175,9 +175,15 @@ export default function TransferPage() {
                 return;
             }
 
-            const pendingFlow = requiresTransferApproval(numAmount, fromAcc.currency, exchangeRates);
+            const ratesForApproval =
+                Object.keys(exchangeRates).length > 1 ? exchangeRates : await getExchangeRates();
+            if (Object.keys(exchangeRates).length <= 1) {
+                setExchangeRates(ratesForApproval);
+            }
+
+            const pendingFlow = requiresTransferApproval(numAmount, fromAcc.currency, ratesForApproval);
             const status = pendingFlow ? "PENDING" : "APPROVED";
-            const projectId = fromAcc.projectId || toAcc.projectId || undefined;
+            const projectId = resolveTransferProjectId(fromAcc, toAcc);
 
             // Execute Transfer
             const timestamp = Date.now();
@@ -208,6 +214,7 @@ export default function TransferPage() {
                 accountId: fromAcc.id,
                 beneficiaryAccountId: toAcc.id,
                 projectId,
+                transferContent: transferRef,
                 description: t("transfer_to_desc").replace("{name}", toAcc.name).replace("{desc}", description) + rateInfo + ` (Ref: ${transferRef})`,
                 date: dateStr,
                 status,
@@ -228,6 +235,7 @@ export default function TransferPage() {
                 source: t("internal_transfer_source"),
                 accountId: toAcc.id,
                 projectId: toAcc.projectId || projectId,
+                transferContent: transferRef,
                 description: t("receive_from_desc").replace("{name}", fromAcc.name).replace("{desc}", description) + rateInfo + ` (Ref: ${transferRef})`,
                 date: dateStr,
                 status,
@@ -267,7 +275,7 @@ export default function TransferPage() {
 
         } catch (error) {
             console.error("Transfer failed", error);
-            alert(t("transfer_error"));
+            alert(error instanceof Error ? error.message : t("transfer_error"));
         } finally {
             setSubmitting(false);
         }

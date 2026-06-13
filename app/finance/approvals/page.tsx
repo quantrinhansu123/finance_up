@@ -21,7 +21,7 @@ import { logActivity } from "@/lib/logger";
 import { supabase } from "@/lib/supabase";
 import { uploadImage } from "@/lib/upload";
 import { getUserRole, hasProjectPermission } from "@/lib/permissions";
-import { isInternalTransferOut, findPairedTransferIn } from "@/lib/transfer";
+import { isInternalTransferOut, findPairedTransferIn, transactionMatchesApprovalProjects } from "@/lib/transfer";
 import { useRouter } from "next/navigation";
 import { ShieldX, Eye } from "lucide-react";
 import DataTable, { DateCell } from "@/components/finance/DataTable";
@@ -143,9 +143,11 @@ export default function ApprovalsPage() {
                     const projectIds = projectsWithApproval.map(p => p.id);
                     setApprovalProjectIds(projectIds);
 
-                    // Lọc giao dịch PENDING thuộc các project có quyền
+                    // Lọc giao dịch PENDING thuộc các project có quyền (kể cả chuyển nội bộ theo tài khoản dự án)
                     const filteredTxs = txs.filter(t =>
-                        t.status === "PENDING" && isApprovalTransaction(t) && t.projectId && projectIds.includes(t.projectId)
+                        t.status === "PENDING" &&
+                        isApprovalTransaction(t) &&
+                        transactionMatchesApprovalProjects(t, projectIds, accs)
                     );
                     setPendingTransactions(filteredTxs);
 
@@ -254,6 +256,7 @@ export default function ApprovalsPage() {
         }
         if (activeTab === "high_value") {
             return pendingTransactions.filter(tx => {
+                if (isInternalTransferOut(tx)) return true;
                 const isHighVND = tx.currency === "VND" && tx.amount > 5000000;
                 const isHighOther = tx.currency !== "VND" && tx.amount > 100;
                 return isHighVND || isHighOther;
@@ -362,9 +365,19 @@ export default function ApprovalsPage() {
                 return;
             }
 
-            const pairedInTx = isInternalTransferOut(tx)
-                ? findPairedTransferIn(allTransactions, tx)
-                : undefined;
+            let pairedInTx: Transaction | undefined;
+            if (isInternalTransferOut(tx)) {
+                pairedInTx = findPairedTransferIn(allTransactions, tx);
+                if (!pairedInTx) {
+                    const latestTxs = await getTransactions();
+                    setAllTransactions(latestTxs);
+                    pairedInTx = findPairedTransferIn(latestTxs, tx);
+                }
+                if (!pairedInTx) {
+                    alert("Không tìm thấy giao dịch nhận đi kèm (IN). Kiểm tra lại hoặc liên hệ admin.");
+                    return;
+                }
+            }
 
             // 1. Update Status
             await updateTransactionStatus(tx.id, "APPROVED");
@@ -704,7 +717,7 @@ export default function ApprovalsPage() {
                         : "text-[var(--muted)] hover:text-white"
                         }`}
                 >
-                    {t("high_value_tx")} (&gt;5tr / &gt;$100)
+                    {t("high_value_tx")} (&gt;5tr / chuyển nội bộ &gt;$1.000)
                 </button>
                 <button
                     onClick={() => setActiveTab("processed")}
@@ -727,7 +740,9 @@ export default function ApprovalsPage() {
             ) : (
                 <div className="grid gap-4">
                     {filteredTxs.map(tx => {
-                        const isHighValue = (tx.currency === "VND" && tx.amount > 5000000) ||
+                        const isInternalTransfer = isInternalTransferOut(tx);
+                        const isHighValue = isInternalTransfer ||
+                            (tx.currency === "VND" && tx.amount > 5000000) ||
                             (tx.currency !== "VND" && tx.amount > 100);
                         const isProcessedList = activeTab === "processed";
 
@@ -749,6 +764,11 @@ export default function ApprovalsPage() {
                                             }`}>
                                             {tx.type === "IN" ? t("income") : t("expense")}
                                         </span>
+                                        {isInternalTransfer && (
+                                            <span className="px-2 py-1 rounded text-xs font-bold bg-purple-500/20 text-purple-300">
+                                                Chuyển nội bộ
+                                            </span>
+                                        )}
                                         {isProcessedList && (
                                             <span className="px-2 py-1 rounded text-xs font-bold bg-blue-500/20 text-blue-300">
                                                 {statusLabel}
