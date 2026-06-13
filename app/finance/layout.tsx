@@ -35,6 +35,7 @@ import {
 import LanguageToggle from "@/components/finance/LanguageToggle";
 import { motion, AnimatePresence } from "framer-motion";
 import LoadingScreen from "@/components/finance/LoadingScreen";
+import DataConnectionAlert from "@/components/finance/DataConnectionAlert";
 
 export default function FinanceLayout({
     children,
@@ -490,6 +491,7 @@ function FinanceLayoutContent({
 
                         {/* Content */}
                         <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 pt-16 lg:pt-4 lg:p-6 relative z-10 scrollbar-thin">
+                            <DataConnectionAlert />
                             <div className="w-full max-w-none">
                                 {children}
                             </div>

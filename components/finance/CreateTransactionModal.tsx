@@ -8,7 +8,7 @@ import { uploadImage } from "@/lib/upload";
 import CurrencyInput from "./CurrencyInput";
 import { getCurrencyFlag } from "@/lib/currency";
 import { formatProjectMaLan } from "@/lib/project-display";
-import { sessionUserDisplayLabel } from "@/lib/session-user-label";
+import { requiresExpenseApproval } from "@/lib/expense-approval";
 
 interface CreateTransactionModalProps {
     isOpen: boolean;
@@ -224,8 +224,7 @@ export default function CreateTransactionModal({ isOpen, onClose, onSuccess, cur
 
             // Approval Logic
             if (type === "OUT") {
-                if (currency === "VND" && numAmount > 5000000) status = "PENDING";
-                if (currency !== "VND" && numAmount > 100) status = "PENDING";
+                if (requiresExpenseApproval(numAmount, currency)) status = "PENDING";
             }
 
             // Upload Images
@@ -432,10 +431,7 @@ export default function CreateTransactionModal({ isOpen, onClose, onSuccess, cur
                                     currency={currency}
                                     required
                                 />
-                                {amount && parseFloat(amount) > 0 && (
-                                    (currency === "VND" && parseFloat(amount) > 5000000) ||
-                                    ((currency !== "VND") && parseFloat(amount) > 100)
-                                ) && (
+                                {amount && parseFloat(amount) > 0 && requiresExpenseApproval(parseFloat(amount), currency) && (
                                         <p className="text-xs text-yellow-400 mt-1">⚠️ Số tiền lớn - Cần Admin duyệt</p>
                                     )}
                             </div>
@@ -559,8 +555,7 @@ export default function CreateTransactionModal({ isOpen, onClose, onSuccess, cur
                                 </div>
                                 <div className="flex justify-between pt-2 border-t border-white/10">
                                     <span className="text-[var(--muted)]">Trạng thái:</span>
-                                    {(currency === "VND" && parseFloat(amount) > 5000000) ||
-                                        (currency !== "VND" && parseFloat(amount) > 100) ? (
+                                    {requiresExpenseApproval(parseFloat(amount) || 0, currency) ? (
                                         <span className="text-yellow-400 font-medium">⏳ Chờ duyệt</span>
                                     ) : (
                                         <span className="text-green-400 font-medium">✓ Tự động duyệt</span>

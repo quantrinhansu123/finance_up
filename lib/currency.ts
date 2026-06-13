@@ -83,13 +83,38 @@ export function convertCurrency(amount: number, from: string, to: string, rates:
     return amountInUSD * rateTo;
 }
 
+/** Currencies where dot (.) is a thousands separator and comma (,) is decimal (vi-VN style). */
+const DOT_THOUSAND_CURRENCIES = new Set(["VND", "KHR", "IDR", "LAK", "MMK"]);
+
+export function usesDotThousandsSeparator(currency?: string): boolean {
+    if (!currency) return false;
+    return DOT_THOUSAND_CURRENCIES.has(currency.toUpperCase());
+}
+
 /**
  * Normalizes user-facing amount text (vi-VN or international) to a canonical string
  * with dot as decimal separator, e.g. "1.234,56" -> "1234.56", "12." while typing -> "12."
  */
-export function normalizeAmountInput(input: string): string {
+export function normalizeAmountInput(input: string, currency?: string): string {
     const raw = input.trim().replace(/\s/g, "").replace(/[^\d.,]/g, "");
     if (!raw) return "";
+
+    if (usesDotThousandsSeparator(currency)) {
+        if (raw.includes(",")) {
+            const commaIdx = raw.indexOf(",");
+            if (raw.indexOf(",", commaIdx + 1) !== -1) return "";
+
+            const intPart = raw.slice(0, commaIdx).replace(/\./g, "");
+            const decPart = raw.slice(commaIdx + 1).replace(/[.,]/g, "");
+            if (!/^\d*$/.test(intPart) || !/^\d*$/.test(decPart)) return "";
+            if (raw.endsWith(",") && decPart === "") return intPart ? `${intPart}.` : ".";
+            return decPart ? `${intPart}.${decPart}` : intPart;
+        }
+
+        const digitsOnly = raw.replace(/\./g, "");
+        if (!/^\d*$/.test(digitsOnly)) return "";
+        return digitsOnly;
+    }
 
     if (raw.includes(",")) {
         const commaIdx = raw.indexOf(",");
@@ -125,7 +150,7 @@ export function normalizeAmountInput(input: string): string {
  * Formats a number to a currency string with thousands separators (vi-VN locale).
  * Example: 1000000 -> "1.000.000", 1234.5 -> "1.234,5"
  */
-export function formatCurrencyVN(value: number | string): string {
+export function formatCurrencyVN(value: number | string, currency?: string): string {
     if (value === "" || value === undefined || value === null) return "";
     if (typeof value === "string" && value.endsWith(".")) {
         const intPart = value.slice(0, -1);
@@ -136,19 +161,46 @@ export function formatCurrencyVN(value: number | string): string {
     }
     const num =
         typeof value === "string"
-            ? parseFloat(normalizeAmountInput(value) || value)
+            ? parseFloat(normalizeAmountInput(value, currency) || value)
             : value;
     if (isNaN(num)) return "";
     return num.toLocaleString("vi-VN", { maximumFractionDigits: 10 });
 }
 
 /**
+ * Live display formatting while typing (dot-thousand currencies only).
+ * Example: "5000000" -> "5.000.000", "1.234,5" -> "1.234,5"
+ */
+export function formatAmountInputDisplay(input: string, currency?: string): string {
+    if (!usesDotThousandsSeparator(currency)) return input;
+
+    const raw = input.trim().replace(/\s/g, "").replace(/[^\d.,]/g, "");
+    if (!raw) return "";
+
+    if (raw.includes(",")) {
+        const commaIdx = raw.indexOf(",");
+        const intRaw = raw.slice(0, commaIdx).replace(/\./g, "");
+        const decPart = raw.slice(commaIdx + 1).replace(/[.,]/g, "");
+        if (!/^\d*$/.test(intRaw) || !/^\d*$/.test(decPart)) return input;
+
+        const intFormatted = intRaw ? Number(intRaw).toLocaleString("vi-VN") : "";
+        if (raw.endsWith(",") && decPart === "") return `${intFormatted},`;
+        return `${intFormatted},${decPart}`;
+    }
+
+    const digitsOnly = raw.replace(/\./g, "");
+    if (!/^\d*$/.test(digitsOnly)) return input;
+    if (!digitsOnly) return raw;
+    return Number(digitsOnly).toLocaleString("vi-VN");
+}
+
+/**
  * Parses a formatted currency string back to a number.
  * Example: "1.234.567,89" -> 1234567.89
  */
-export function parseCurrencyVN(value: string): number {
+export function parseCurrencyVN(value: string, currency?: string): number {
     if (!value) return 0;
-    const canonical = normalizeAmountInput(value);
+    const canonical = normalizeAmountInput(value, currency);
     if (!canonical || canonical === ".") return 0;
     const num = parseFloat(canonical);
     return isNaN(num) ? 0 : num;

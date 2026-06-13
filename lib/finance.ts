@@ -1,3 +1,4 @@
+import { requiresExpenseApproval } from "@/lib/expense-approval";
 import { supabase } from "./supabase";
 import {
     Account,
@@ -623,11 +624,7 @@ export async function getTransactions(): Promise<Transaction[]> {
 
 /** Hàng OUT cần xác nhận chi (ngưỡng giống tạo phiếu chi thủ công). */
 export function outflowNeedsApproverConfirmation(amount: number, currency: string): boolean {
-    const cur = currency || "USD";
-    const num = Number(amount) || 0;
-    if (cur === "VND" && num > 5_000_000) return true;
-    if ((cur === "USD" || cur === "KHR" || cur === "TRY") && num > 100) return true;
-    return false;
+    return requiresExpenseApproval(amount, currency);
 }
 
 /** Hạng mục mặc định (gợi ý) cho yêu cầu xin ngân sách; có thể kèm thêm hạng mục khác. */

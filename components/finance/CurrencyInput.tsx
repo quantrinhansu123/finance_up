@@ -1,7 +1,12 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { formatCurrencyVN, normalizeAmountInput } from "@/lib/currency";
+import {
+    formatAmountInputDisplay,
+    formatCurrencyVN,
+    normalizeAmountInput,
+    usesDotThousandsSeparator,
+} from "@/lib/currency";
 
 interface CurrencyInputProps {
     value: string | number;
@@ -30,9 +35,9 @@ export default function CurrencyInput({
         if (value === "" || value === undefined || value === null) {
             setDisplayValue("");
         } else {
-            setDisplayValue(formatCurrencyVN(value));
+            setDisplayValue(formatCurrencyVN(value, currency));
         }
-    }, [value, isFocused]);
+    }, [value, isFocused, currency]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const input = e.target.value.replace(/[^\d.,]/g, "");
@@ -43,10 +48,14 @@ export default function CurrencyInput({
             return;
         }
 
-        const canonical = normalizeAmountInput(input);
+        const canonical = normalizeAmountInput(input, currency);
         if (!canonical) return;
 
-        setDisplayValue(input);
+        setDisplayValue(
+            usesDotThousandsSeparator(currency)
+                ? formatAmountInputDisplay(input, currency)
+                : input
+        );
         onChange(canonical);
     };
 
@@ -56,7 +65,7 @@ export default function CurrencyInput({
             onChange("");
             return;
         }
-        const canonical = normalizeAmountInput(displayValue);
+        const canonical = normalizeAmountInput(displayValue, currency);
         if (!canonical || canonical === ".") {
             setDisplayValue("");
             onChange("");
@@ -68,7 +77,7 @@ export default function CurrencyInput({
             onChange("");
             return;
         }
-        setDisplayValue(formatCurrencyVN(num));
+        setDisplayValue(formatCurrencyVN(num, currency));
         onChange(num.toString());
     };
 

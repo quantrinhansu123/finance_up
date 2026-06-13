@@ -20,6 +20,7 @@ import { useBulkSelection } from "@/components/finance/useBulkSelection";
 import { useTranslation } from "@/lib/i18n";
 import { projectLabelById, formatProjectListLabel, formatProjectMaLan } from "@/lib/project-display";
 import { sessionUserDisplayLabel } from "@/lib/session-user-label";
+import { requiresExpenseApproval, formatExpenseApprovalThreshold } from "@/lib/expense-approval";
 import { isInternalTransferOut } from "@/lib/transfer";
 import { resolveTransactionApproverDisplay } from "@/lib/transaction-approver-display";
 import { getUsers } from "@/lib/users";
@@ -178,7 +179,10 @@ export default function ExpensePage() {
 
             await fetchTransactions(ids);
             skipNextTransactionsFilterEffectRef.current = true;
-        } catch (e) { console.error(e); } finally { setLoading(false); }
+        } catch (e) {
+            console.error(e);
+            alert(e instanceof Error ? e.message : "Không tải được dữ liệu. Kiểm tra kết nối Supabase.");
+        } finally { setLoading(false); }
     };
 
     const fetchTransactions = async (idsOverride?: string[]) => {
@@ -248,9 +252,7 @@ export default function ExpensePage() {
     const requiresApproval = () => {
         const numAmount = parseFloat(amount) || 0;
         const cur = selectedAccount?.currency || "USD";
-        if (cur === "VND" && numAmount > 5000000) return true;
-        if ((cur === "USD" || cur === "KHR" || cur === "TRY") && numAmount > 100) return true;
-        return false;
+        return requiresExpenseApproval(numAmount, cur);
     };
 
     const resetForm = () => {
@@ -589,6 +591,10 @@ export default function ExpensePage() {
                 </div>
             </div>
 
+            <p className="text-xs text-amber-200/80 bg-amber-500/10 border border-amber-500/20 rounded-xl px-4 py-2.5">
+                {t("expense_approval_thresholds_hint")}
+            </p>
+
             {/* Wizard Form */}
             {showForm && (
                 <div className="glass-card p-6 rounded-2xl border border-white/10 shadow-2xl overflow-hidden relative">
@@ -769,11 +775,19 @@ export default function ExpensePage() {
                                         <WizardSummaryItem label={t("account")} value={getAccountName(accountId)} icon="💳" />
                                         <WizardSummaryItem label={t("category")} value={masterCategories.find(c => c.id === parentCategoryId)?.name || t("unselected")} icon="🗂️" />
                                         <WizardSummaryItem label={t("sub_category")} value={category || t("unselected")} icon="🏷️" />
-                                        {requiresApproval() && (
-                                            <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-start gap-2">
-                                                <AlertCircle size={16} className="text-amber-500 mt-0.5 shrink-0" />
-                                                <p className="text-[10px] text-amber-200/70 leading-relaxed font-medium">{t("large_amount_approval")}</p>
-                                            </div>
+                                        {parseFloat(amount) > 0 && selectedAccount && (
+                                            requiresApproval() ? (
+                                                <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-start gap-2">
+                                                    <AlertCircle size={16} className="text-amber-500 mt-0.5 shrink-0" />
+                                                    <p className="text-[10px] text-amber-200/70 leading-relaxed font-medium">
+                                                        {t("large_amount_approval").replace("{threshold}", formatExpenseApprovalThreshold(selectedAccount.currency))}
+                                                    </p>
+                                                </div>
+                                            ) : (
+                                                <p className="text-xs text-green-400">
+                                                    {t("expense_below_approval_threshold").replace("{threshold}", formatExpenseApprovalThreshold(selectedAccount.currency))}
+                                                </p>
+                                            )
                                         )}
                                         <div className="pt-4 border-t border-white/10">
                                             <p className="text-xs text-[var(--muted)] uppercase font-bold mb-1">{t("amount")}</p>

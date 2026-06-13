@@ -22,6 +22,7 @@ import { supabase } from "@/lib/supabase";
 import { uploadImage } from "@/lib/upload";
 import { getUserRole, hasProjectPermission } from "@/lib/permissions";
 import { isInternalTransferOut, findPairedTransferIn, transactionMatchesApprovalProjects } from "@/lib/transfer";
+import { isHighValueExpense } from "@/lib/expense-approval";
 import { useRouter } from "next/navigation";
 import { ShieldX, Eye } from "lucide-react";
 import DataTable, { DateCell } from "@/components/finance/DataTable";
@@ -257,9 +258,7 @@ export default function ApprovalsPage() {
         if (activeTab === "high_value") {
             return pendingTransactions.filter(tx => {
                 if (isInternalTransferOut(tx)) return true;
-                const isHighVND = tx.currency === "VND" && tx.amount > 5000000;
-                const isHighOther = tx.currency !== "VND" && tx.amount > 100;
-                return isHighVND || isHighOther;
+                return isHighValueExpense(tx);
             });
         }
         return pendingTransactions;
@@ -717,7 +716,7 @@ export default function ApprovalsPage() {
                         : "text-[var(--muted)] hover:text-white"
                         }`}
                 >
-                    {t("high_value_tx")} (&gt;5tr / chuyển nội bộ &gt;$1.000)
+                    {t("high_value_tx")} (&gt;20tr / &gt;$1.000 / &gt;5tr KHR)
                 </button>
                 <button
                     onClick={() => setActiveTab("processed")}
@@ -741,9 +740,7 @@ export default function ApprovalsPage() {
                 <div className="grid gap-4">
                     {filteredTxs.map(tx => {
                         const isInternalTransfer = isInternalTransferOut(tx);
-                        const isHighValue = isInternalTransfer ||
-                            (tx.currency === "VND" && tx.amount > 5000000) ||
-                            (tx.currency !== "VND" && tx.amount > 100);
+                        const isHighValue = isInternalTransfer || isHighValueExpense(tx);
                         const isProcessedList = activeTab === "processed";
 
                         const statusLabel =

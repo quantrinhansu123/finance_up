@@ -12,6 +12,7 @@ import { getFunds } from "@/lib/finance";
 import Link from "next/link";
 import { BarChart3, Calendar } from "lucide-react";
 import { useTranslation } from "@/lib/i18n";
+import { isHighValueExpense } from "@/lib/expense-approval";
 import { formatProjectMaLan } from "@/lib/project-display";
 
 const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884d8", "#82ca9d"];
@@ -391,9 +392,7 @@ export default function DashboardPage() {
                 pendingList.push(tx);
             }
 
-            const isHighValue = (tx.currency === "VND" && tx.amount > 5000000) ||
-                ((tx.currency === "USD" || tx.currency === "KHR") && tx.amount > 100);
-            if (isHighValue && tx.type === "OUT") {
+            if (isHighValueExpense(tx)) {
                 highValue.push(tx);
             }
 
