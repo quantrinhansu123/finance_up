@@ -4,8 +4,8 @@ import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { fetchActivityLogsPage, fetchActivityLogsAllInRange } from "@/lib/activity-logs";
 import { ActivityLog } from "@/types/finance";
 import { ChevronLeft, ChevronRight, Download, FileSpreadsheet, FileText, FileJson, Loader2 } from "lucide-react";
+import { DEFAULT_ITEMS_PER_PAGE } from "@/components/finance/DataTable";
 
-const ITEMS_PER_PAGE = 30;
 const INITIAL_LOAD = 100; // Load 100 records initially
 const LOAD_MORE_COUNT = 100;
 
@@ -116,10 +116,10 @@ export default function LogsPage() {
     }, [logs, filterAction, filterUser, filterEntity]);
 
     // Pagination
-    const totalPages = Math.ceil(filteredLogs.length / ITEMS_PER_PAGE);
+    const totalPages = Math.ceil(filteredLogs.length / DEFAULT_ITEMS_PER_PAGE);
     const paginatedLogs = useMemo(() => {
-        const start = (currentPage - 1) * ITEMS_PER_PAGE;
-        return filteredLogs.slice(start, start + ITEMS_PER_PAGE);
+        const start = (currentPage - 1) * DEFAULT_ITEMS_PER_PAGE;
+        return filteredLogs.slice(start, start + DEFAULT_ITEMS_PER_PAGE);
     }, [filteredLogs, currentPage]);
 
     // Reset page when filter changes

@@ -30,6 +30,9 @@ interface DataTableProps<T> {
     nowrapRows?: boolean;
 }
 
+export const DEFAULT_ITEMS_PER_PAGE = 1000;
+const SKELETON_ROW_COUNT = 12;
+
 const colorSchemes = {
     default: "bg-blue-500",
     green: "bg-green-500",
@@ -40,7 +43,7 @@ const colorSchemes = {
 export default function DataTable<T extends { id?: string }>({
     data,
     columns,
-    itemsPerPage = 15,
+    itemsPerPage = DEFAULT_ITEMS_PER_PAGE,
     onRowClick,
     maxWidth = "w-full",
     layout = "auto",
@@ -149,7 +152,7 @@ export default function DataTable<T extends { id?: string }>({
                             <AnimatePresence mode="popLayout">
                                 {isLoading ? (
                                     // Loading Skeletons
-                                    [...Array(itemsPerPage)].map((_, i) => (
+                                    [...Array(Math.min(itemsPerPage, SKELETON_ROW_COUNT))].map((_, i) => (
                                         <tr key={`skeleton-${i}`} className="animate-pulse">
                                             {showIndex && (
                                                 <td className="p-4 text-center">

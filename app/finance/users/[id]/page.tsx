@@ -9,6 +9,7 @@ import { Transaction } from "@/types/finance";
 import { getUserRole } from "@/lib/permissions";
 import { patchEmployeePassword } from "@/lib/patchEmployeePassword";
 import { ArrowLeft, Edit2, Trash2, Save, X, Eye, EyeOff } from "lucide-react";
+import { DEFAULT_ITEMS_PER_PAGE } from "@/components/finance/DataTable";
 
 const FINANCE_ROLES = [
     { value: "NONE", label: "Không có quyền" },
@@ -380,7 +381,7 @@ export default function UserDetailsPage() {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-white/5">
-                            {transactions.slice(0, 20).map((tx) => (
+                            {transactions.slice(0, DEFAULT_ITEMS_PER_PAGE).map((tx) => (
                                 <tr key={tx.id} className="hover:bg-white/5">
                                     <td className="p-3 text-[var(--muted)]">{new Date(tx.date).toLocaleDateString("vi-VN")}</td>
                                     <td className="p-3">

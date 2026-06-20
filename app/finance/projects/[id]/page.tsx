@@ -834,7 +834,6 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                                         render: (row: Transaction) => <span className="text-xs text-[var(--muted)]">{row.createdBy?.split('@')[0]}</span>
                                     }
                                 ]}
-                                itemsPerPage={15}
                                 isLoading={loading}
                             />
                         </div>

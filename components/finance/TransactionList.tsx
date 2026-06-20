@@ -3,8 +3,7 @@
 import { useState, useMemo } from "react";
 import { Transaction } from "@/types/finance";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-
-const ITEMS_PER_PAGE = 15;
+import { DEFAULT_ITEMS_PER_PAGE } from "@/components/finance/DataTable";
 
 interface TransactionListProps {
     transactions: Transaction[];
@@ -15,10 +14,10 @@ interface TransactionListProps {
 export default function TransactionList({ transactions, accounts, projects }: TransactionListProps) {
     const [currentPage, setCurrentPage] = useState(1);
 
-    const totalPages = Math.ceil(transactions.length / ITEMS_PER_PAGE);
+    const totalPages = Math.ceil(transactions.length / DEFAULT_ITEMS_PER_PAGE);
     const paginatedTransactions = useMemo(() => {
-        const start = (currentPage - 1) * ITEMS_PER_PAGE;
-        return transactions.slice(start, start + ITEMS_PER_PAGE);
+        const start = (currentPage - 1) * DEFAULT_ITEMS_PER_PAGE;
+        return transactions.slice(start, start + DEFAULT_ITEMS_PER_PAGE);
     }, [transactions, currentPage]);
 
     // Reset page when transactions change
@@ -67,7 +66,7 @@ export default function TransactionList({ transactions, accounts, projects }: Tr
                 <tbody className="divide-y divide-[var(--card-border)]">
                     {paginatedTransactions.map((tx, index) => (
                         <tr key={tx.id} className="hover:bg-[var(--card-hover)] transition-colors">
-                            <td className="p-4 text-[var(--muted)]">{(currentPage - 1) * ITEMS_PER_PAGE + index + 1}</td>
+                            <td className="p-4 text-[var(--muted)]">{(currentPage - 1) * DEFAULT_ITEMS_PER_PAGE + index + 1}</td>
                             <td className="p-4">{formatDate(tx.date)}</td>
                             <td className={`p-4 text-right font-medium ${tx.type === "IN" ? "text-green-400" : "text-red-400"}`}>
                                 {tx.type === "OUT" ? "-" : "+"}{formatCurrency(tx.amount, tx.currency)}
@@ -127,7 +126,7 @@ export default function TransactionList({ transactions, accounts, projects }: Tr
             {totalPages > 1 && (
                 <div className="flex items-center justify-between p-4 border-t border-white/10">
                     <div className="text-sm text-[var(--muted)]">
-                        Hiển thị {(currentPage - 1) * ITEMS_PER_PAGE + 1} - {Math.min(currentPage * ITEMS_PER_PAGE, transactions.length)} / {transactions.length} giao dịch
+                        Hiển thị {(currentPage - 1) * DEFAULT_ITEMS_PER_PAGE + 1} - {Math.min(currentPage * DEFAULT_ITEMS_PER_PAGE, transactions.length)} / {transactions.length} giao dịch
                     </div>
                     <div className="flex items-center gap-2">
                         <button

@@ -25,7 +25,7 @@ import { isInternalTransferOut, findPairedTransferIn, transactionMatchesApproval
 import { isHighValueExpense } from "@/lib/expense-approval";
 import { useRouter } from "next/navigation";
 import { ShieldX, Eye } from "lucide-react";
-import DataTable, { DateCell } from "@/components/finance/DataTable";
+import DataTable, { DateCell, DEFAULT_ITEMS_PER_PAGE } from "@/components/finance/DataTable";
 import TransactionDetailModal from "@/components/finance/TransactionDetailModal";
 import { useTranslation } from "@/lib/i18n";
 import { sessionUserDisplayLabel } from "@/lib/session-user-label";
@@ -123,7 +123,7 @@ export default function ApprovalsPage() {
                     list = list.filter((t) => t.projectId && projectIds.includes(t.projectId));
                 }
                 list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-                return list.slice(0, 100);
+                return list.slice(0, DEFAULT_ITEMS_PER_PAGE);
             };
 
             // ADMIN có full quyền
@@ -179,7 +179,7 @@ export default function ApprovalsPage() {
                     "DISBURSE_BUDGET"
                 ])
                 .order("logged_at", { ascending: false })
-                .limit(120);
+                .limit(1000);
 
             if (logsError) {
                 console.error("Failed to fetch approval logs", logsError);
@@ -999,7 +999,6 @@ export default function ApprovalsPage() {
                         colorScheme="blue"
                         emptyMessage={t("no_approval_history")}
                         showIndex={false}
-                        itemsPerPage={25}
                         columns={[
                             {
                                 key: "timestamp",

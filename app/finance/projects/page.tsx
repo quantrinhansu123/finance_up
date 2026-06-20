@@ -18,8 +18,6 @@ import { formatProjectMaLan } from "@/lib/project-display";
 import { getUsers } from "@/lib/users";
 import { UserProfile } from "@/types/user";
 
-const ITEMS_PER_PAGE = 10;
-
 export default function ProjectsPage() {
     const { t } = useTranslation();
     const [allProjects, setAllProjects] = useState<Project[]>([]);
@@ -539,7 +537,6 @@ export default function ProjectsPage() {
                         )
                     }
                 ]}
-                itemsPerPage={ITEMS_PER_PAGE}
                 onRowClick={(p) => router.push(`/finance/projects/${p.id}`)}
                 emptyMessage={t("no_data")}
             />

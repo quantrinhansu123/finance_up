@@ -345,7 +345,6 @@ export default function BudgetRequestsPage() {
 
                 <DataTable
                     data={filteredData}
-                    itemsPerPage={10}
                     onRowClick={(tx) => setSelectedTx(tx)}
                     columns={[
                         createBulkSelectColumn<Transaction>({
